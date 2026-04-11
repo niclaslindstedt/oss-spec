@@ -1,0 +1,208 @@
+//! Bootstrap engine — walks the embedded templates tree and writes a fully
+//! materialized OSS_SPEC.md-compliant repository to disk.
+
+use anyhow::{Context, Result, bail};
+use include_dir::{Dir, DirEntry, File};
+use std::path::{Path, PathBuf};
+
+use crate::embedded::TEMPLATES;
+use crate::manifest::{Kind, Language, License, ProjectManifest};
+use crate::render::render_str;
+
+const TMPL_SUFFIX: &str = ".tmpl";
+
+/// Materialize `manifest` into `target_dir`. Creates the directory if missing.
+pub fn write(manifest: &ProjectManifest, target_dir: &Path) -> Result<()> {
+    std::fs::create_dir_all(target_dir)
+        .with_context(|| format!("create target dir {}", target_dir.display()))?;
+
+    // 1. Common tree (everything in templates/_common).
+    let common = TEMPLATES
+        .get_dir("_common")
+        .context("templates/_common missing — build broken")?;
+    write_dir(common, "_common", manifest, target_dir)?;
+
+    // 2. License: pick one file from _licenses/ and rename to LICENSE.
+    write_license(manifest, target_dir)?;
+
+    // 3. Language overlay (templates/<lang>/).
+    if let Some(lang_dir) = TEMPLATES.get_dir(manifest.language.as_str()) {
+        write_dir(lang_dir, manifest.language.as_str(), manifest, target_dir)?;
+    }
+
+    // 4. CLI overlay (man pages, etc.) when applicable.
+    if manifest.ships_cli() {
+        if let Some(cli_dir) = TEMPLATES.get_dir("cli") {
+            write_dir(cli_dir, "cli", manifest, target_dir)?;
+        }
+    }
+
+    // 5. AGENTS.md symlinks (chicken-and-egg: AGENTS.md must exist by now).
+    create_agents_symlinks(target_dir)?;
+
+    Ok(())
+}
+
+fn write_dir(dir: &Dir<'_>, prefix: &str, manifest: &ProjectManifest, target: &Path) -> Result<()> {
+    for entry in dir.entries() {
+        match entry {
+            DirEntry::Dir(sub) => write_dir(sub, prefix, manifest, target)?,
+            DirEntry::File(file) => write_file(file, prefix, manifest, target)?,
+        }
+    }
+    Ok(())
+}
+
+fn write_file(
+    file: &File<'_>,
+    prefix: &str,
+    manifest: &ProjectManifest,
+    target: &Path,
+) -> Result<()> {
+    let rel = file.path();
+    // Strip the leading prefix segment (e.g. "_common/", "rust/", "cli/").
+    let stripped = rel
+        .strip_prefix(prefix)
+        .with_context(|| format!("path {} not under prefix {prefix}", rel.display()))?;
+
+    // Skip licenses dir — handled by write_license.
+    if stripped.starts_with("_licenses") {
+        return Ok(());
+    }
+
+    let (out_rel, is_template) = strip_tmpl_suffix(stripped);
+    let out_path = target.join(&out_rel);
+
+    if let Some(parent) = out_path.parent() {
+        std::fs::create_dir_all(parent).with_context(|| format!("mkdir {}", parent.display()))?;
+    }
+
+    let bytes = file.contents();
+    if is_template {
+        let source = std::str::from_utf8(bytes)
+            .with_context(|| format!("template {} not utf-8", rel.display()))?;
+        let rendered = render_str(&out_rel.to_string_lossy(), source, manifest)?;
+        std::fs::write(&out_path, rendered)
+            .with_context(|| format!("write {}", out_path.display()))?;
+    } else {
+        std::fs::write(&out_path, bytes)
+            .with_context(|| format!("write {}", out_path.display()))?;
+    }
+
+    // Preserve executable bit for shell scripts.
+    if out_path.extension().and_then(|s| s.to_str()) == Some("sh") {
+        set_executable(&out_path)?;
+    }
+
+    Ok(())
+}
+
+fn strip_tmpl_suffix(rel: &Path) -> (PathBuf, bool) {
+    let s = rel.to_string_lossy();
+    if let Some(stem) = s.strip_suffix(TMPL_SUFFIX) {
+        (PathBuf::from(stem), true)
+    } else {
+        (rel.to_path_buf(), false)
+    }
+}
+
+fn write_license(manifest: &ProjectManifest, target: &Path) -> Result<()> {
+    let licenses_dir = TEMPLATES
+        .get_dir("_common/_licenses")
+        .context("templates/_common/_licenses missing")?;
+    let filename = manifest.license.template_filename();
+    let file = licenses_dir
+        .get_file(format!("_common/_licenses/{filename}"))
+        .with_context(|| format!("license template {filename} missing"))?;
+    let source = std::str::from_utf8(file.contents()).context("license template not utf-8")?;
+    let rendered = render_str("LICENSE", source, manifest)?;
+    std::fs::write(target.join("LICENSE"), rendered)
+        .with_context(|| "write LICENSE".to_string())?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn set_executable(path: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let mut perm = std::fs::metadata(path)?.permissions();
+    perm.set_mode(perm.mode() | 0o755);
+    std::fs::set_permissions(path, perm)?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn set_executable(_path: &Path) -> Result<()> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn create_agents_symlinks(target: &Path) -> Result<()> {
+    use std::os::unix::fs::symlink;
+    let agents = target.join("AGENTS.md");
+    if !agents.exists() {
+        bail!("AGENTS.md was not produced by templates — refusing to create symlinks");
+    }
+
+    let links: &[(&str, &str)] = &[
+        ("CLAUDE.md", "AGENTS.md"),
+        (".cursorrules", "AGENTS.md"),
+        (".windsurfrules", "AGENTS.md"),
+        ("GEMINI.md", "AGENTS.md"),
+        (".aider.conf.md", "AGENTS.md"),
+        (".github/copilot-instructions.md", "../AGENTS.md"),
+    ];
+    for (link, dest) in links {
+        let link_path = target.join(link);
+        if let Some(parent) = link_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        if link_path.exists() || link_path.is_symlink() {
+            std::fs::remove_file(&link_path).ok();
+        }
+        symlink(dest, &link_path)
+            .with_context(|| format!("symlink {} -> {}", link_path.display(), dest))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn create_agents_symlinks(_target: &Path) -> Result<()> {
+    // Windows fallback would copy or use mklink; out of scope for first cut.
+    Ok(())
+}
+
+/// Helper for tests/inspection: list all output paths a manifest would create.
+pub fn planned_paths(manifest: &ProjectManifest) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    fn walk(dir: &Dir<'_>, prefix: &str, out: &mut Vec<PathBuf>) {
+        for entry in dir.entries() {
+            match entry {
+                DirEntry::Dir(d) => walk(d, prefix, out),
+                DirEntry::File(f) => {
+                    if let Ok(stripped) = f.path().strip_prefix(prefix)
+                        && !stripped.starts_with("_licenses")
+                    {
+                        let (rel, _) = strip_tmpl_suffix(stripped);
+                        out.push(rel);
+                    }
+                }
+            }
+        }
+    }
+    if let Some(common) = TEMPLATES.get_dir("_common") {
+        walk(common, "_common", &mut out);
+    }
+    out.push(PathBuf::from("LICENSE"));
+    if let Some(lang) = TEMPLATES.get_dir(manifest.language.as_str()) {
+        walk(lang, manifest.language.as_str(), &mut out);
+    }
+    if manifest.ships_cli()
+        && let Some(cli) = TEMPLATES.get_dir("cli")
+    {
+        walk(cli, "cli", &mut out);
+    }
+    out.sort();
+    out.dedup();
+    let _ = (Language::Rust, Kind::Cli, License::Mit); // suppress unused-variant warnings
+    out
+}

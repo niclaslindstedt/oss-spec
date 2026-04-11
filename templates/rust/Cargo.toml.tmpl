@@ -1,0 +1,19 @@
+[package]
+name = "{{ name }}"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "{{ license }}"
+description = "{{ description }}"
+repository = "https://github.com/{{ github_owner }}/{{ name }}"
+readme = "README.md"
+{% if kind == "cli" or kind == "service" %}
+[[bin]]
+name = "{{ name }}"
+path = "src/main.rs"
+{% endif %}
+[lib]
+name = "{{ name }}"
+path = "src/lib.rs"
+
+[dependencies]

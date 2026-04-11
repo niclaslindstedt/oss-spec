@@ -1,0 +1,29 @@
+name: version-bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Bump kind"
+        required: true
+        default: "auto"
+        type: choice
+        options: [auto, patch, minor, major]
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+      - name: Resolve next version
+        id: ver
+        run: |
+          ./scripts/release.sh ${{ inputs.bump }}
+      - name: Push tag
+        run: git push origin "v${{ steps.ver.outputs.version }}"

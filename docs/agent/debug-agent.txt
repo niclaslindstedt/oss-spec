@@ -1,0 +1,38 @@
+oss-spec — debug context for AI agents.
+
+LOGS
+  oss-spec writes to stderr only. There is no persistent log file in v0.1.
+
+CONFIG
+  No config file. All inputs come from CLI flags, prompts, and env-derived
+  defaults (`git config`, `gh api user`).
+
+ENVIRONMENT
+  ZAG_PROVIDER          Override the LLM provider used by zag (claude|codex|gemini|...)
+  ZAG_MODEL             Override the model size/name
+  NO_COLOR              Disable ANSI colors in interactive output
+
+COMMON FAILURE MODES
+  1. "zag agent execution failed" — the configured zag provider is not
+     installed or not authenticated. Run with `--no-ai` to skip AI calls
+     entirely, or install/configure your provider CLI (e.g. `claude`).
+
+  2. "gh: command not found" — install GitHub CLI or pass `--no-gh`.
+
+  3. "fatal: empty ident" on first commit — set `git config --global user.name`
+     and `user.email` before running, or pass `--no-git`.
+
+  4. Symlink errors on Windows — enable Developer Mode or run as admin.
+
+  5. "templates/_common missing" — the binary was built without the
+     `templates/` directory present. Reinstall from a clean source tree.
+
+INCREASING VERBOSITY
+  RUST_LOG=debug oss-spec ...
+
+REPRODUCER
+  oss-spec --no-ai --no-git --no-gh --yes new repro --lang rust --kind cli
+  oss-spec check --path repro
+
+VERSION
+  oss-spec 0.1.0

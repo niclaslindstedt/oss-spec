@@ -1,0 +1,51 @@
+# Agent guidance for {{ name }}
+
+This file is the canonical source of truth for AI coding agents working in this
+repo. `CLAUDE.md`, `.cursorrules`, `.windsurfrules`, `GEMINI.md`, and
+`.github/copilot-instructions.md` are symlinks to this file.
+
+## Build and test commands
+
+```sh
+make build         # developer build
+make test          # full test suite
+make lint          # zero-warning linter
+make fmt           # format in place
+make fmt-check     # verify formatting (CI)
+```
+
+## Commit and PR conventions
+
+- All commits follow [Conventional Commits](https://www.conventionalcommits.org/).
+- PRs are squash-merged; the **PR title** becomes the single commit on `main`,
+  so it must follow conventional-commit format.
+- Breaking changes use `<type>!:` or a `BREAKING CHANGE:` footer.
+
+## Architecture summary
+
+_Describe the module layout and dependency direction in 1–3 paragraphs._
+
+## Where new code goes
+
+| Change type | Goes in |
+|---|---|
+| New feature | `src/...` |
+| Tests       | `tests/...` |
+| Docs update | `docs/...` |
+| Examples    | `examples/...` |
+
+## Test conventions
+
+_Where tests live, how they're named, what coverage is expected._
+
+## Documentation sync points
+
+When you change… | Update…
+--- | ---
+public API | `docs/`, `README.md` Quick start
+CLI flags  | `man/<cmd>.md`, `README.md`
+config keys| `docs/configuration.md`
+
+## Parity / cross-cutting rules
+
+_Any rule that spans multiple files (e.g. keeping bindings in sync)._

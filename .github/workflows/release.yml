@@ -1,0 +1,46 @@
+name: release
+
+on:
+  workflow_run:
+    workflows: ["version-bump"]
+    types: [completed]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+      - name: Resolve tag
+        id: tag
+        run: echo "tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
+      - name: Generate changelog
+        run: ./scripts/generate-changelog.sh ${{ steps.tag.outputs.tag }}
+      - name: Update versions
+        run: ./scripts/update-versions.sh ${{ steps.tag.outputs.tag }}
+      - name: Commit + retag
+        run: |
+          git config user.name "release-bot"
+          git config user.email "release-bot@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || git commit -m "chore(release): update changelog and versions for ${{ steps.tag.outputs.tag }}"
+          git tag -f "${{ steps.tag.outputs.tag }}" HEAD
+          git push origin HEAD:main
+          git push origin "${{ steps.tag.outputs.tag }}" --force
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - run: cargo test
+      # Uncomment when ready to publish:
+      # - run: cargo publish --token ${{ secrets.CARGO_TOKEN }}
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          generate_release_notes: true

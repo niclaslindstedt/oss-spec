@@ -1,0 +1,38 @@
+oss-spec — bootstrap new OSS_SPEC.md-compliant repositories.
+
+USAGE
+  oss-spec <PROMPT>                       # interpret + bootstrap via zag
+  oss-spec new <NAME> [flags]              # explicit bootstrap
+  oss-spec init [flags]                    # bootstrap into current dir
+  oss-spec check [--path .]                # validate against OSS_SPEC.md
+  oss-spec fetch [--into <DIR>]            # clone the public oss-spec repo for reference
+  oss-spec commands [<NAME>] [--examples]  # list commands (machine-readable)
+  oss-spec docs [<TOPIC>]                  # print embedded doc topic
+  oss-spec man [<COMMAND>]                 # print embedded manpage
+  oss-spec --help-agent                    # this text
+  oss-spec --debug-agent                   # troubleshooting context
+
+GLOBAL FLAGS
+  --no-ai            Skip zag/AI calls (deterministic, offline-friendly)
+  --no-git           Skip `git init` and the first commit
+  --no-gh            Skip `gh repo create`
+  -y, --yes          Accept all defaults; skip interactive prompts
+  --path <DIR>       Parent directory the new repo is created in
+  --name <NAME>      Override project name
+  --lang <L>         rust|python|node|go|generic
+  --kind <K>         lib|cli|service
+  --license <L>      MIT|Apache-2.0|MPL-2.0
+  --visibility <V>   public|private (passed to `gh repo create`)
+
+ENVIRONMENT
+  Author defaults are read from `git config user.name` / `user.email`.
+  GitHub owner is read from `gh api user -q .login`.
+
+DISCOVERY
+  Use `oss-spec commands` for the canonical command list.
+  Use `oss-spec commands <name> --examples` for a single-command example.
+  Use `oss-spec man <command>` for full reference.
+  Use `oss-spec docs <topic>` for conceptual docs.
+
+VERSION
+  oss-spec 0.1.0

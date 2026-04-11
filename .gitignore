@@ -1,0 +1,27 @@
+# Common
+.DS_Store
+*.log
+*.tmp
+.env
+.env.local
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Coverage
+.coverage/
+coverage/
+
+# Website
+website/node_modules/
+website/dist/
+website/src/generated/
+
+# Generated docs
+docs/_build/
+
+# Rust
+/target
+**/*.rs.bk

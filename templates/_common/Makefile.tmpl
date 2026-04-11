@@ -1,0 +1,132 @@
+.PHONY: build test lint fmt fmt-check release clean docs website website-dev install bench
+
+{% if language == "rust" %}
+build:
+	cargo build
+
+test:
+	cargo test
+
+lint:
+	cargo clippy --all-targets -- -D warnings
+
+fmt:
+	cargo fmt --all
+
+fmt-check:
+	cargo fmt --all -- --check
+
+release:
+	cargo build --release
+
+clean:
+	cargo clean
+
+install:
+	cargo install --path .
+{% elif language == "python" %}
+build:
+	python3 -m build
+
+test:
+	pytest
+
+lint:
+	ruff check .
+
+fmt:
+	ruff format .
+
+fmt-check:
+	ruff format --check .
+
+release:
+	python3 -m build
+
+clean:
+	rm -rf dist build *.egg-info
+
+install:
+	pip install -e .
+{% elif language == "node" %}
+build:
+	npm run build
+
+test:
+	npm test
+
+lint:
+	npm run lint
+
+fmt:
+	npm run fmt
+
+fmt-check:
+	npm run fmt:check
+
+release:
+	npm run build
+
+clean:
+	rm -rf dist node_modules
+
+install:
+	npm install
+{% elif language == "go" %}
+build:
+	go build ./...
+
+test:
+	go test ./...
+
+lint:
+	go vet ./... && gofmt -l .
+
+fmt:
+	gofmt -w .
+
+fmt-check:
+	test -z "$$(gofmt -l .)"
+
+release:
+	go build -ldflags='-s -w' ./...
+
+clean:
+	rm -rf bin dist
+
+install:
+	go install ./...
+{% else %}
+build:
+	@echo "TODO: build"
+
+test:
+	@echo "TODO: test"
+
+lint:
+	@echo "TODO: lint"
+
+fmt:
+	@echo "TODO: fmt"
+
+fmt-check:
+	@echo "TODO: fmt-check"
+
+release:
+	@echo "TODO: release"
+
+clean:
+	@echo "TODO: clean"
+
+install:
+	@echo "TODO: install"
+{% endif %}
+
+docs:
+	@echo "see docs/"
+
+website:
+	cd website && npm install && npm run build
+
+website-dev:
+	cd website && npm install && npm run dev

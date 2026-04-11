@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+{% if language == "rust" %}  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+{% elif language == "python" %}  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+{% elif language == "node" %}  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+{% elif language == "go" %}  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+{% endif %}

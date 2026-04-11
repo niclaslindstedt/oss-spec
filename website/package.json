@@ -1,0 +1,14 @@
+{
+  "name": "oss-spec-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "extract": "node scripts/extract-source-data.mjs",
+    "dev": "npm run extract && vite",
+    "build": "npm run extract && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5"
+  }
+}
