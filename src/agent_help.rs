@@ -31,6 +31,10 @@ const COMMANDS_TABLE: &[(&str, &str)] = &[
         "oss-spec check [--path .]                      # validate against OSS_SPEC.md",
     ),
     (
+        "fix",
+        "oss-spec fix [--path .] [--create-issues]      # fix or file issues for §19 violations",
+    ),
+    (
         "fetch",
         "oss-spec fetch [--into <dir>]                  # clone the public oss-spec repo locally",
     ),
@@ -91,6 +95,26 @@ const COMMAND_SPECS: &[(&str, &str)] = &[
          missing or malformed. Exits 1 on any violation, 0 if clean.\n",
     ),
     (
+        "fix",
+        "oss-spec fix [--path .] [--create-issues] [--max-turns N]\n\
+         \n\
+         Runs `check` against the target repo, then dispatches a zag-driven\n\
+         agent to bring it into conformance.\n\
+         \n\
+         Without --create-issues: the agent edits files in place to remove\n\
+         every §19 violation. It may create files, edit files, create\n\
+         symlinks, and run shell commands inside the target directory.\n\
+         \n\
+         With --create-issues: the agent files one well-scoped GitHub issue\n\
+         per violation cluster via `gh issue create` and does not modify\n\
+         any source files.\n\
+         \n\
+         The agent's prompts live in prompts/fix-conformance/ and\n\
+         prompts/file-conformance-issues/ (versioned per the prompts\n\
+         convention in OSS_SPEC.md). Use --max-turns to cap iterations\n\
+         (default 30). Use --yes to skip the confirmation prompt.\n",
+    ),
+    (
         "fetch",
         "oss-spec fetch [--into <DIR>] [--url <URL>] [--shallow]\n\
          \n\
@@ -135,6 +159,7 @@ const EXAMPLES: &[(&str, &str)] = &[
     ),
     ("init", "cd existing-repo && oss-spec init --no-ai --yes"),
     ("check", "oss-spec check --path ."),
+    ("fix", "oss-spec fix --path . --yes"),
     ("fetch", "oss-spec fetch --into /tmp/oss-spec-ref"),
     ("commands", "oss-spec commands --examples"),
     ("docs", "oss-spec docs getting-started"),

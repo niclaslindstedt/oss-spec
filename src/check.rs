@@ -93,11 +93,12 @@ pub fn run(path: &Path) -> Result<Report> {
         }
     }
 
-    // Required directories (§10/§11/§15).
+    // Required directories (§10/§11/§13.5/§15).
     let required_dirs: &[(&str, &str)] = &[
         (".github/workflows", "§10.1"),
         (".github/ISSUE_TEMPLATE", "§15"),
         ("docs", "§11.1"),
+        ("prompts", "§13.5"),
         ("scripts", "§10.3"),
     ];
     for (d, sec) in required_dirs {
@@ -106,6 +107,41 @@ pub fn run(path: &Path) -> Result<Report> {
                 spec_section: sec,
                 message: format!("missing directory {d}"),
             });
+        }
+    }
+
+    // §13.5 prompts/ structure: every subdirectory must contain at least
+    // one versioned <major>_<minor>.md file. An empty prompts/ is allowed
+    // (project sends no LLM prompts), but a half-built one is not.
+    let prompts_root = path.join("prompts");
+    if prompts_root.is_dir() {
+        for entry in std::fs::read_dir(&prompts_root)
+            .with_context(|| format!("read {}", prompts_root.display()))?
+            .flatten()
+        {
+            let p = entry.path();
+            if !p.is_dir() {
+                continue;
+            }
+            let has_versioned = std::fs::read_dir(&p)
+                .map(|it| {
+                    it.flatten().any(|e| {
+                        let f = e.path();
+                        f.extension().and_then(|s| s.to_str()) == Some("md")
+                            && f.file_stem()
+                                .and_then(|s| s.to_str())
+                                .and_then(parse_version)
+                                .is_some()
+                    })
+                })
+                .unwrap_or(false);
+            if !has_versioned {
+                let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("?");
+                report.violations.push(Violation {
+                    spec_section: "§13.5",
+                    message: format!("prompts/{name}/ has no versioned <major>_<minor>.md file"),
+                });
+            }
         }
     }
 
@@ -145,4 +181,11 @@ fn list_dir(p: &Path) -> Vec<PathBuf> {
     std::fs::read_dir(p)
         .map(|it| it.flatten().map(|e| e.path()).collect())
         .unwrap_or_default()
+}
+
+/// Parse a `prompts/<name>/<stem>.md` stem like `1_0` or `2_13` into
+/// `(major, minor)`. Returns `None` for anything that isn't a version.
+fn parse_version(stem: &str) -> Option<(u32, u32)> {
+    let (maj, min) = stem.split_once('_')?;
+    Some((maj.parse().ok()?, min.parse().ok()?))
 }

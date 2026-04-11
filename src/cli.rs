@@ -100,6 +100,21 @@ pub enum Command {
         #[arg(long, default_value = ".")]
         path: PathBuf,
     },
+    /// Bring an existing repo into OSS_SPEC.md conformance via a zag agent.
+    /// Without flags: edits files in place to remove every §19 violation.
+    /// With --create-issues: instead files one GitHub issue per violation
+    /// cluster via `gh` (no source files are touched).
+    Fix {
+        /// Repo to fix. Defaults to the current directory.
+        #[arg(long, default_value = ".")]
+        path: PathBuf,
+        /// Instead of fixing in place, file one GitHub issue per violation.
+        #[arg(long)]
+        create_issues: bool,
+        /// Cap the agent's iteration budget.
+        #[arg(long, default_value_t = 30)]
+        max_turns: u32,
+    },
     /// Clone the public oss-spec repository into a local directory so a coding
     /// agent (or you) can browse OSS_SPEC.md, the templates, and the dogfood
     /// implementation locally as a reference.
@@ -169,6 +184,11 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
             }
             Ok(())
         }
+        Some(Command::Fix {
+            path,
+            create_issues,
+            max_turns,
+        }) => crate::fix::run(&path, create_issues, max_turns, cli.yes).await,
         Some(Command::New { name, description }) => {
             let target = resolve_target_dir(&cli, Some(&name))?;
             let manifest =

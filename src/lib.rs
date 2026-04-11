@@ -9,9 +9,11 @@ pub mod bootstrap;
 pub mod check;
 pub mod cli;
 pub mod embedded;
+pub mod fix;
 pub mod git;
 pub mod interview;
 pub mod manifest;
+pub mod prompts;
 pub mod render;
 
 use anyhow::Result;

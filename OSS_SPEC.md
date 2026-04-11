@@ -43,6 +43,7 @@ first public commit:
 ├── man/                     # CLI manpages, <cli>-command (see §12.3)
 ├── examples/                # Runnable example projects (see §13)
 ├── website/                 # Showcase and hosted docs site (see §11.2)
+├── prompts/                 # Versioned LLM prompts (see §13.5)
 ├── scripts/                 # Automation scripts (release, lint helpers)
 └── Makefile                 # Standard developer entry points (see §9)
 ```
@@ -905,6 +906,67 @@ must:
 Examples should demonstrate real-world usage patterns rather than
 toy snippets that only duplicate the README's quick start.
 
+### 13.5 LLM prompts (`prompts/`)
+
+Any project that sends prompts to a large language model — directly
+(via an SDK or HTTP call) or indirectly (via a wrapper like `zag`) —
+must store those prompts as versioned files on disk under `prompts/`,
+not as inline string literals in source code.
+
+**Layout.** One subdirectory per logical prompt; one Markdown file per
+version inside it:
+
+```
+prompts/
+├── interpret-prompt/
+│   ├── 1_0.md
+│   └── 1_1.md
+├── fix-conformance/
+│   └── 1_0.md
+└── …
+```
+
+**File name.** `<major>_<minor>.md`. The version number is bumped on
+every meaningful change to the prompt: `1_0` → `1_1` for an in-place
+edit, `1_x` → `2_0` for a breaking rewrite. Old versions are kept on
+disk so behavior changes can be diffed and bisected. Loaders must
+always pick the highest version of a prompt unless explicitly pinned.
+
+**File content.** Each prompt file is plain Markdown with two required
+section headings, in this order:
+
+```markdown
+# <prompt-name> — v<major>.<minor>
+
+## System
+
+…system instructions for the model…
+
+## User
+
+…user message body. May contain {{ jinja }} placeholders that the
+loader renders with runtime values…
+```
+
+The `## System` section is sent verbatim as the system prompt. The
+`## User` section is rendered with whatever templating engine the
+project already uses (this repo uses minijinja) and sent as the user
+message. Anything outside those two sections (the `# Title` line,
+notes, examples) is ignored by the loader and is purely for humans
+reading the file.
+
+**Why.** Inline prompts are invisible to reviewers, impossible to diff
+across versions without reading source, and indistinguishable from
+ordinary string literals to anyone trying to audit what a model is
+being asked to do. A versioned `prompts/` tree makes prompt changes
+first-class artifacts: they show up in PR diffs, they can be linted
+and snapshot-tested, and the history of what the model was told is
+preserved next to the code that calls it.
+
+A project that performs no LLM calls may omit `prompts/` entirely.
+Any project that *does* call an LLM must satisfy this rule before its
+first public tag.
+
 ## 14. Dependency hygiene
 
 - Enable automated dependency updates via `.github/dependabot.yml` or
@@ -1016,6 +1078,8 @@ checked before the first public tag.
 [ ] pages workflow deploys website on every main push   (§10.4, §11.2)
 [ ] Website staleness CI check                          (§11.2)
 [ ] examples/ (if applicable) exercised by CI           (§13)
+[ ] prompts/<name>/<major>_<minor>.md for every LLM
+    prompt the project sends (if applicable)            (§13.5)
 [ ] Dependabot / Renovate configured                    (§14)
 [ ] Secret scanning enabled                             (§14)
 [ ] CI actions pinned by SHA                            (§14)
