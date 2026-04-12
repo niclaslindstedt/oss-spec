@@ -13,6 +13,7 @@ pub mod fix;
 pub mod git;
 pub mod interview;
 pub mod manifest;
+pub mod output;
 pub mod prompts;
 pub mod render;
 

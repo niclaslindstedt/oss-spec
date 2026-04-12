@@ -61,7 +61,7 @@ pub async fn run(
     {
         match ai::draft_readme_why(&m.description, &m.name).await {
             Ok(bullets) => m.why_bullets = bullets,
-            Err(e) => eprintln!("(ai disabled: {e})"),
+            Err(e) => crate::output::warn(&format!("ai disabled: {e}")),
         }
     }
 
@@ -71,16 +71,16 @@ pub async fn run(
 /// Default flow: a freeform prompt is interpreted by zag into a manifest, then
 /// the user is asked to confirm.
 pub async fn from_prompt(cli: &Cli, prompt: &str) -> Result<ProjectManifest> {
+    log::debug!("from_prompt: interpreting freeform prompt");
     let mut m = if cli.no_ai {
         ProjectManifest::skeleton("new-project", prompt)
     } else {
         match ai::interpret_prompt(prompt).await {
             Ok(m) => m,
             Err(e) => {
-                eprintln!(
-                    "{} ai interpretation failed ({e}); falling back to defaults",
-                    console::style("!").yellow()
-                );
+                crate::output::warn(&format!(
+                    "ai interpretation failed ({e}); falling back to defaults"
+                ));
                 ProjectManifest::skeleton("new-project", prompt)
             }
         }
@@ -93,15 +93,15 @@ pub async fn from_prompt(cli: &Cli, prompt: &str) -> Result<ProjectManifest> {
         return Ok(m);
     }
 
-    println!();
-    println!("{}", console::style("Project plan:").bold());
-    println!("  name        {}", console::style(&m.name).cyan());
-    println!("  description {}", m.description);
-    println!("  language    {}", m.language);
-    println!("  kind        {}", m.kind);
-    println!("  license     {}", m.license);
-    println!("  github      {}", m.github_owner);
-    println!();
+    crate::output::info("");
+    crate::output::header("Project plan:");
+    crate::output::info(&format!("  name        {}", m.name));
+    crate::output::info(&format!("  description {}", m.description));
+    crate::output::info(&format!("  language    {}", m.language));
+    crate::output::info(&format!("  kind        {}", m.kind));
+    crate::output::info(&format!("  license     {}", m.license));
+    crate::output::info(&format!("  github      {}", m.github_owner));
+    crate::output::info("");
 
     let ok = Confirm::new()
         .with_prompt("Looks good?")

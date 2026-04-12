@@ -10,8 +10,10 @@ use dialoguer::Confirm;
 
 pub fn init_and_commit(target: &Path) -> Result<()> {
     if target.join(".git").exists() {
+        log::debug!("git repo already exists at {}", target.display());
         return Ok(()); // already a repo, leave alone
     }
+    log::debug!("initialising git repo at {}", target.display());
     run(target, "git", &["init", "-b", "main"])?;
     run(target, "git", &["add", "."])?;
     run(
@@ -32,10 +34,11 @@ pub fn gh_create(
     assume_yes: bool,
 ) -> Result<()> {
     if which("gh").is_none() {
-        eprintln!("(gh not installed; skipping `gh repo create`)");
+        crate::output::warn("gh not installed; skipping `gh repo create`");
         return Ok(());
     }
     let slug = format!("{owner}/{name}");
+    log::debug!("creating GitHub repo {slug} ({visibility})");
     if !assume_yes {
         let proceed = Confirm::new()
             .with_prompt(format!("Create GitHub repo {slug} ({visibility})?"))
@@ -61,6 +64,7 @@ pub fn gh_create(
 }
 
 fn run(cwd: &Path, prog: &str, args: &[&str]) -> Result<()> {
+    log::debug!("exec: {prog} {}", args.join(" "));
     let status = Command::new(prog)
         .args(args)
         .current_dir(cwd)

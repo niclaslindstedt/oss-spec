@@ -41,7 +41,8 @@ src/
 ├── bootstrap.rs   # walks embedded tree → writes target dir
 ├── git.rs         # git init / gh repo create wrappers
 ├── check.rs       # §19 conformance validator
-└── agent_help.rs  # §12 CLI discoverability contract
+├── agent_help.rs  # §12 CLI discoverability contract
+└── output.rs      # central logging + styled output (§19 logging)
 templates/         # all the files the bootstrap engine emits, with {{ jinja }} placeholders
 docs/              # oss-spec's own user docs
 man/               # oss-spec's own manpage(s)
@@ -82,3 +83,4 @@ The list of supported languages | `manifest::Language`, `templates/<lang>/`, `Ma
 - **AGENTS.md symlinks.** When generating projects, all of `CLAUDE.md`, `.cursorrules`, `.windsurfrules`, `GEMINI.md`, `.aider.conf.md`, and `.github/copilot-instructions.md` must be symlinks to `AGENTS.md`. The same rule applies to this repo.
 - **`zag` is isolated.** Only `src/ai.rs` may import from `zag`. Every AI call must have a deterministic fallback so `--no-ai` keeps working.
 - **`oss-spec check .` must always pass on this repo.** A self-conformance test (`tests/self_conformance.rs`) enforces it; if you add a new §19 rule that breaks the dogfood, fix the dogfood at the same time.
+- **No raw prints.** All user-facing output goes through `src/output.rs` (`output::status`, `output::warn`, `output::info`, `output::header`, `output::error`). The only exception is machine-readable §12 contract output in `agent_help.rs`. Use `log::debug!` for verbose diagnostics.

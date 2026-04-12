@@ -13,6 +13,11 @@ const TMPL_SUFFIX: &str = ".tmpl";
 
 /// Materialize `manifest` into `target_dir`. Creates the directory if missing.
 pub fn write(manifest: &ProjectManifest, target_dir: &Path) -> Result<()> {
+    log::debug!(
+        "bootstrapping {} into {}",
+        manifest.name,
+        target_dir.display()
+    );
     std::fs::create_dir_all(target_dir)
         .with_context(|| format!("create target dir {}", target_dir.display()))?;
 

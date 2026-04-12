@@ -36,6 +36,10 @@ pub struct Cli {
     #[arg(long, exclusive = true)]
     pub debug_agent: bool,
 
+    /// Enable debug-level output on stdout and verbose file logging.
+    #[arg(long, global = true)]
+    pub debug: bool,
+
     /// Skip AI calls — produces a deterministic skeleton from defaults/flags only.
     #[arg(long, global = true)]
     pub no_ai: bool,
@@ -248,11 +252,10 @@ async fn post_bootstrap(
             cli.yes,
         )?;
     }
-    println!(
-        "{}  bootstrapped {} at {}",
-        console::style("✓").green().bold(),
-        console::style(&manifest.name).bold(),
+    crate::output::status(&format!(
+        "bootstrapped {} at {}",
+        manifest.name,
         target.display()
-    );
+    ));
     Ok(())
 }

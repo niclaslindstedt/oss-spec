@@ -43,6 +43,7 @@ the project to disk.
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `--debug` | bool | false | Show debug-level output on stderr. |
 | `--no-ai` | bool | false | Skip zag/AI calls. |
 | `--no-git` | bool | false | Skip `git init` and the first commit. |
 | `--no-gh` | bool | false | Skip `gh repo create`. |

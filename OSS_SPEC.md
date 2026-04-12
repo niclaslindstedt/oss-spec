@@ -1047,7 +1047,61 @@ discussion happens:
 The absence of a discussion venue pushes all conversation into issue
 threads, which degrades triage quality.
 
-## 19. Bootstrap checklist
+## 19. Logging and diagnostic output
+
+A project must use structured logging rather than raw print statements
+(e.g. `println!` in Rust, `print()` in Python, `console.log` in Node,
+`fmt.Println` in Go). All diagnostic output must flow through a central
+output module so formatting and routing can be changed in one place.
+
+### 19.1 Log levels
+
+| Level   | Purpose                                           | Destination        |
+|---------|---------------------------------------------------|--------------------|
+| `error` | Unrecoverable failures                            | stderr + log file  |
+| `warn`  | Recoverable issues the user should know about     | stderr + log file  |
+| `info`  | Normal operational messages (status, progress)    | stderr + log file  |
+| `debug` | Verbose diagnostics for troubleshooting           | log file (always); stderr only with `--debug` |
+
+### 19.2 Always-on file logging
+
+Every run must append to a persistent log file at a platform-appropriate
+location (e.g. `~/.local/state/<project>/debug.log` on Linux,
+`~/Library/Application Support/<project>/debug.log` on macOS). The file
+log captures all levels including `debug`. No user action is required to
+enable file logging — it is always on.
+
+Log files should include timestamps and log levels. Rotation is optional
+for v1 but must be documented (e.g. "truncate the file manually or set
+up logrotate").
+
+### 19.3 The `--debug` flag
+
+CLI projects must accept a `--debug` global flag. When set, `debug`-level
+messages are also printed to stderr. When unset, only `info` and above
+appear on the terminal. The `--debug-agent` output (§12.2) must document
+the log file path and the `--debug` flag.
+
+### 19.4 Central output module
+
+All user-facing output must route through a central output module (e.g.
+`src/output.rs` in Rust, `lib/output.ts` in Node) that provides semantic
+functions:
+
+- **status** — success messages (e.g. green checkmark prefix).
+- **warn** — warning messages (e.g. yellow prefix).
+- **info** — informational messages.
+- **header** — bold section headers.
+- **error** — error messages (e.g. red prefix).
+
+Each function writes to the terminal with appropriate styling **and** to
+the log file via the logging framework. Raw print statements
+(`println!`, `print()`, `console.log`, `fmt.Println`) must not appear
+outside the output module except for machine-readable output required by
+a contract (e.g. §12 agent discoverability surfaces, which require plain
+text on stdout with no ANSI escapes).
+
+## 20. Bootstrap checklist
 
 Use this checklist when creating a new repository. Every box should be
 checked before the first public tag.
@@ -1088,6 +1142,9 @@ checked before the first public tag.
 [ ] Pre-commit hooks installable                        (§16)
 [ ] Governance documented                               (§17)
 [ ] Communication channels linked in README             (§18)
+[ ] Central output module, no raw print statements       (§19.4)
+[ ] Always-on debug log file                             (§19.2)
+[ ] --debug flag for verbose terminal output             (§19.3)
 
 CLI projects additionally:
 

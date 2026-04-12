@@ -24,29 +24,23 @@ impl Report {
 
     pub fn print(&self) {
         if self.violations.is_empty() {
-            println!(
-                "{} repo conforms to OSS_SPEC.md",
-                console::style("✓").green().bold()
-            );
+            crate::output::status("repo conforms to OSS_SPEC.md");
             return;
         }
-        println!(
-            "{} {} violations:",
-            console::style("✗").red().bold(),
-            self.violations.len()
-        );
+        crate::output::error(&format!("{} violations:", self.violations.len()));
         for (i, v) in self.violations.iter().enumerate() {
-            println!(
+            crate::output::info(&format!(
                 "  {:>2}. [{}] {}",
                 i + 1,
-                console::style(v.spec_section).dim(),
+                v.spec_section,
                 v.message
-            );
+            ));
         }
     }
 }
 
 pub fn run(path: &Path) -> Result<Report> {
+    log::debug!("checking conformance at {}", path.display());
     let path = path
         .canonicalize()
         .with_context(|| format!("cannot canonicalize {}", path.display()))?;

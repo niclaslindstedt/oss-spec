@@ -10,12 +10,13 @@ use anyhow::Result;
 use std::path::Path;
 
 pub async fn run(path: &Path, create_issues: bool, max_turns: u32, assume_yes: bool) -> Result<()> {
+    log::debug!(
+        "fix: checking {} (create_issues={create_issues})",
+        path.display()
+    );
     let report = crate::check::run(path)?;
     if report.is_clean() {
-        println!(
-            "{}  repo already conforms — nothing to do",
-            console::style("✓").green().bold()
-        );
+        crate::output::status("repo already conforms — nothing to do");
         return Ok(());
     }
     report.print();
@@ -46,7 +47,7 @@ pub async fn run(path: &Path, create_issues: bool, max_turns: u32, assume_yes: b
         crate::ai::fix_conformance(path, &report, max_turns).await?;
     }
 
-    println!("\nRe-running check...");
+    crate::output::info("\nRe-running check...");
     let after = crate::check::run(path)?;
     after.print();
     if !after.is_clean() && !create_issues {

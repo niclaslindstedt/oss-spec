@@ -1,7 +1,10 @@
 oss-spec — debug context for AI agents.
 
 LOGS
-  oss-spec writes to stderr only. There is no persistent log file in v0.1.
+  Debug log (always on): ~/Library/Application Support/oss-spec/debug.log (macOS)
+                          ~/.local/share/oss-spec/debug.log (Linux)
+  All levels including debug are written to the log file on every run.
+  The log file is append-only; truncate manually to clear.
 
 CONFIG
   No config file. All inputs come from CLI flags, prompts, and env-derived
@@ -28,7 +31,8 @@ COMMON FAILURE MODES
      `templates/` directory present. Reinstall from a clean source tree.
 
 INCREASING VERBOSITY
-  RUST_LOG=debug oss-spec ...
+  oss-spec --debug ...       Show debug-level messages on stderr.
+  The debug log file always captures all levels regardless of --debug.
 
 REPRODUCER
   oss-spec --no-ai --no-git --no-gh --yes new repro --lang rust --kind cli

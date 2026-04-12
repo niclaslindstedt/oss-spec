@@ -24,6 +24,7 @@ use crate::manifest::{Kind, Language, License, ProjectManifest};
 /// Parse a freeform user prompt (e.g. "create a python cli for finding stock buys")
 /// into a partially-filled ProjectManifest.
 pub async fn interpret_prompt(prompt: &str) -> Result<ProjectManifest> {
+    log::debug!("interpret_prompt: sending freeform prompt to zag");
     let schema = json!({
         "type": "object",
         "required": ["name", "description", "language", "kind", "license"],
@@ -69,6 +70,7 @@ pub async fn interpret_prompt(prompt: &str) -> Result<ProjectManifest> {
 
 /// Generate 3–5 README "Why?" bullet points for a project.
 pub async fn draft_readme_why(description: &str, name: &str) -> Result<Vec<String>> {
+    log::debug!("draft_readme_why: generating bullets for {name}");
     let schema = json!({
         "type": "object",
         "required": ["bullets"],
@@ -137,33 +139,42 @@ fn format_violations(report: &crate::check::Report) -> String {
 async fn run_zag_json(system: &str, prompt: &str, schema: serde_json::Value) -> Result<String> {
     use zag::builder::AgentBuilder;
 
+    log::debug!("starting zag one-shot JSON request");
     let output = AgentBuilder::new()
         .system_prompt(system)
         .auto_approve(true)
         .json_schema(schema)
+        .verbose(true)
         .exec(prompt)
         .await
         .context("zag agent execution failed")?;
 
+    log::debug!("zag one-shot JSON request completed");
     output
         .result
         .ok_or_else(|| anyhow!("zag returned no result text"))
 }
 
 /// Agentic loop with a working root and a turn budget — used by the
-/// `fix` subcommand. No JSON schema: the agent is expected to use its
-/// built-in Edit/Write/Bash tools, not return structured data.
+/// `fix` subcommand. Runs interactively so the user can observe (and
+/// participate in) the agent's activity.
 async fn run_zag_agent(system: &str, user_prompt: &str, root: &Path, max_turns: u32) -> Result<()> {
     use zag::builder::AgentBuilder;
 
+    log::debug!(
+        "starting zag agent loop in {} (max_turns={})",
+        root.display(),
+        max_turns
+    );
     let root_str = root.to_string_lossy();
     AgentBuilder::new()
         .system_prompt(system)
         .root(&root_str)
         .auto_approve(true)
         .max_turns(max_turns)
-        .exec(user_prompt)
+        .run(Some(user_prompt))
         .await
         .context("zag agent execution failed")?;
+    log::debug!("zag agent loop completed");
     Ok(())
 }
