@@ -8,5 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is **auto-generated from conventional commits at release time** —
 do not edit manually.
 
+## [0.1.1] - 2026-04-13
+
+- No notable changes
+
 ## [Unreleased]
 
