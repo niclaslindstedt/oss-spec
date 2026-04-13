@@ -14,7 +14,7 @@ Run all checks before committing. All must pass:
 ```sh
 make build     # must compile cleanly
 make test      # all tests must pass
-make lint      # zero warnings
+make lint      # zero clippy warnings
 make fmt-check # code formatted
 ```
 
@@ -34,7 +34,7 @@ If already on `main` (or any protected branch), create and switch to a feature b
 
 ```sh
 git checkout -b type/short-description
-# e.g.: feat/auth-flow, fix/token-output, refactor/database-layer
+# e.g.: feat/website, fix/check-symlinks, refactor/bootstrap-render
 ```
 
 If already on a feature branch, continue with that branch — do not create another one.
@@ -74,7 +74,7 @@ type(scope): summary in imperative mood
 
 For breaking changes use `feat!:` or `fix!:`, or add a `BREAKING CHANGE:` footer → triggers a major version bump.
 
-Scopes are lowercase, comma-separated if multiple: `feat(api,auth): ...`
+Scopes are lowercase, comma-separated if multiple: `feat(check,bootstrap): ...`
 
 ```sh
 git commit -m "type(scope): summary"
@@ -116,7 +116,11 @@ gh pr create \
 ## Checklist
 
 - [ ] Tests added/updated
-- [ ] Documentation updated (if user-facing behavior changed)
+- [ ] Documentation updated (if user-facing behavior changed):
+  - [ ] `README.md`
+  - [ ] `man/oss-spec.md`
+  - [ ] `docs/agent/help-agent.txt`
+  - [ ] `agent_help::COMMANDS_TABLE` / `COMMAND_SPECS`
 - [ ] Commit messages follow conventional commit style
 EOF
 )"
@@ -144,7 +148,11 @@ gh pr edit \
 ## Checklist
 
 - [ ] Tests added/updated
-- [ ] Documentation updated (if user-facing behavior changed)
+- [ ] Documentation updated (if user-facing behavior changed):
+  - [ ] `README.md`
+  - [ ] `man/oss-spec.md`
+  - [ ] `docs/agent/help-agent.txt`
+  - [ ] `agent_help::COMMANDS_TABLE` / `COMMAND_SPECS`
 - [ ] Commit messages follow conventional commit style
 EOF
 )"
@@ -154,5 +162,5 @@ EOF
 
 - **PR title = squashed commit on main = changelog entry.** Choose the type and summary carefully.
 - The individual commits within the branch don't appear in the changelog — only the PR title does.
-- If the branch touches multiple scopes, use comma-separated scopes: `feat(api,auth): ...`
+- If the branch touches multiple scopes, use comma-separated scopes: `feat(check,bootstrap): ...`
 - Never skip hooks (`--no-verify`) — fix the underlying issue instead.
