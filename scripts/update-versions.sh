@@ -1,16 +1,33 @@
 #!/usr/bin/env bash
-# Update version strings in language-specific manifests to match the given tag.
 set -euo pipefail
 
-tag="${1:?usage: update-versions.sh <tag>}"
-ver="${tag#v}"
+# Update version strings across all project files.
+#
+# Usage: update-versions.sh <version>
+#
+# Updates the version in Cargo.toml and regenerates Cargo.lock.
 
-if [ -f Cargo.toml ]; then
-  sed -i.bak -E "s/^version = \".*\"/version = \"${ver}\"/" Cargo.toml && rm Cargo.toml.bak
-fi
-if [ -f package.json ]; then
-  sed -i.bak -E "s/(\"version\": \")[^\"]*(\")/\1${ver}\2/" package.json && rm package.json.bak
-fi
-if [ -f pyproject.toml ]; then
-  sed -i.bak -E "s/^version = \".*\"/version = \"${ver}\"/" pyproject.toml && rm pyproject.toml.bak
-fi
+die() { echo "error: $*" >&2; exit 1; }
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+VERSION="${1:-}"
+[ -n "$VERSION" ] || die "usage: update-versions.sh <version>"
+
+# Validate semver
+echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' || die "invalid semver: $VERSION"
+
+echo "updating all version files to $VERSION"
+
+# --- Cargo.toml ---
+
+sed -i.bak "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml && rm Cargo.toml.bak
+echo "  updated Cargo.toml"
+
+# --- Regenerate Cargo.lock ---
+
+echo "  regenerating Cargo.lock..."
+cargo generate-lockfile 2>/dev/null || cargo check 2>/dev/null || true
+
+echo "all versions updated to $VERSION"

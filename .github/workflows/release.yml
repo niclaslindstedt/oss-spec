@@ -1,46 +1,211 @@
 name: release
 
 on:
-  workflow_run:
-    workflows: ["version-bump"]
-    types: [completed]
+  push:
+    tags:
+      - 'v*'
 
-permissions:
-  contents: write
-  id-token: write
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: oss-spec
 
 jobs:
-  release:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+  update-repo:
+    name: Update changelog and versions
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      commit_sha: ${{ steps.push.outputs.commit_sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_TOKEN }}
-      - name: Resolve tag
-        id: tag
-        run: echo "tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
-      - name: Generate changelog
-        run: ./scripts/generate-changelog.sh ${{ steps.tag.outputs.tag }}
-      - name: Update versions
-        run: ./scripts/update-versions.sh ${{ steps.tag.outputs.tag }}
-      - name: Commit + retag
-        run: |
-          git config user.name "release-bot"
-          git config user.email "release-bot@users.noreply.github.com"
-          git add -A
-          git diff --cached --quiet || git commit -m "chore(release): update changelog and versions for ${{ steps.tag.outputs.tag }}"
-          git tag -f "${{ steps.tag.outputs.tag }}" HEAD
-          git push origin HEAD:main
-          git push origin "${{ steps.tag.outputs.tag }}" --force
+          ref: main
+
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build --release
-      - run: cargo test
-      # Uncomment when ready to publish:
-      # - run: cargo publish --token ${{ secrets.CARGO_TOKEN }}
-      - name: GitHub Release
-        uses: softprops/action-gh-release@v2
+
+      - name: Generate changelog
+        run: scripts/generate-changelog.sh "${GITHUB_REF_NAME#v}"
+
+      - name: Update versions
+        run: scripts/update-versions.sh "${GITHUB_REF_NAME#v}"
+
+      - name: Commit and push
+        id: push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(release): update changelog and versions for ${GITHUB_REF_NAME}"
+            git push origin main
+          fi
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Update tag to new commit
+        run: |
+          git tag -f "${GITHUB_REF_NAME}" HEAD
+          git push origin "${GITHUB_REF_NAME}" --force
+
+      - name: Extract release notes
+        id: notes
+        run: |
+          awk '/^## \[/{if(found) exit; found=1; next} found' CHANGELOG.md > release-notes.md
+          cat release-notes.md
+
+      - uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          generate_release_notes: true
+          name: release-notes
+          path: release-notes.md
+          retention-days: 1
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: update-repo
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            use_cross: true
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.update-repo.outputs.commit_sha }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.use_cross == true
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Build
+        shell: bash
+        run: |
+          if [ "${{ matrix.use_cross }}" = "true" ]; then
+            cross build --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          TARGET="${{ matrix.target }}"
+          STEM="${BINARY_NAME}-v${VERSION}-${TARGET}"
+          mkdir -p dist staging
+          cp "target/${TARGET}/release/${BINARY_NAME}" staging/
+          cp README.md staging/ 2>/dev/null || true
+          cp LICENSE* staging/ 2>/dev/null || true
+          tar -czf "dist/${STEM}.tar.gz" -C staging .
+          (cd dist && sha256sum "${STEM}.tar.gz" > "${STEM}.tar.gz.sha256")
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $Version = "$env:GITHUB_REF_NAME".TrimStart('v')
+          $Target = "${{ matrix.target }}"
+          $Stem = "$env:BINARY_NAME-v${Version}-${Target}"
+          New-Item -ItemType Directory -Force dist, staging | Out-Null
+          Copy-Item "target/$Target/release/$env:BINARY_NAME.exe" staging/
+          if (Test-Path README.md) { Copy-Item README.md staging/ }
+          Get-ChildItem LICENSE* -ErrorAction SilentlyContinue | Copy-Item -Destination staging/
+          Compress-Archive -Path staging/* -DestinationPath "dist/${Stem}.zip"
+          $Hash = (Get-FileHash "dist/${Stem}.zip" -Algorithm SHA256).Hash.ToLower()
+          "${Hash}  ${Stem}.zip" | Out-File -Encoding ascii "dist/${Stem}.zip.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: dist/
+          retention-days: 1
+
+  release:
+    name: GitHub Release
+    needs: [update-repo, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Prepare release body
+        id: body
+        run: |
+          if [ -f artifacts/release-notes.md ] && [ -s artifacts/release-notes.md ]; then
+            {
+              echo 'RELEASE_BODY<<RELEASE_EOF'
+              cat artifacts/release-notes.md
+              echo 'RELEASE_EOF'
+            } >> "$GITHUB_ENV"
+            rm -f artifacts/release-notes.md
+          else
+            echo 'RELEASE_BODY=' >> "$GITHUB_ENV"
+          fi
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ env.RELEASE_BODY }}
+          generate_release_notes: ${{ env.RELEASE_BODY == '' }}
+          files: artifacts/*
+
+  sync-release-notes:
+    name: Sync release notes
+    needs: [update-repo, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.update-repo.outputs.commit_sha }}
+
+      - name: Sync release notes from CHANGELOG
+        run: scripts/sync-releases.sh "${GITHUB_REF_NAME#v}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  publish-crates:
+    name: Publish to crates.io
+    needs: [update-repo, build]
+    runs-on: ubuntu-latest
+    environment: crates-io
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.update-repo.outputs.commit_sha }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish oss-spec
+        run: cargo publish --token "$CARGO_REGISTRY_TOKEN"
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

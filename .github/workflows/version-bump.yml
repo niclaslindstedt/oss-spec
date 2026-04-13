@@ -4,26 +4,39 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "Bump kind"
-        required: true
-        default: "auto"
+        description: 'Version bump type (leave empty to auto-detect from commits)'
+        required: false
         type: choice
-        options: [auto, patch, minor, major]
-
-permissions:
-  contents: write
+        options:
+          - ''
+          - patch
+          - minor
+          - major
 
 jobs:
-  tag:
+  create-release-tag:
+    name: Create release tag
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_TOKEN }}
-      - name: Resolve next version
-        id: ver
+          ref: main
+          # A PAT (or GitHub App token) is required so that the tag push
+          # triggers the release workflow.  The default GITHUB_TOKEN
+          # deliberately does not trigger downstream workflows.
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
         run: |
-          ./scripts/release.sh ${{ inputs.bump }}
-      - name: Push tag
-        run: git push origin "v${{ steps.ver.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Checkout main branch
+        run: |
+          git checkout main
+
+      - name: Run release script
+        run: scripts/release.sh ${{ inputs.bump }}
