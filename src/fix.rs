@@ -42,8 +42,10 @@ pub async fn run(path: &Path, create_issues: bool, max_turns: u32, assume_yes: b
     }
 
     if create_issues {
+        crate::output::header("Filing GitHub issues via agent");
         crate::ai::file_conformance_issues(path, &report, max_turns).await?;
     } else {
+        crate::output::header("Launching fix agent");
         crate::ai::fix_conformance(path, &report, max_turns).await?;
     }
 

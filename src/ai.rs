@@ -21,6 +21,31 @@ use std::path::Path;
 
 use crate::manifest::{Kind, Language, License, ProjectManifest};
 
+/// Routes zag progress callbacks through `crate::output`.
+struct OutputProgress;
+
+impl zag::progress::ProgressHandler for OutputProgress {
+    fn on_status(&self, message: &str) {
+        crate::output::info(message);
+    }
+    fn on_success(&self, message: &str) {
+        crate::output::status(message);
+    }
+    fn on_warning(&self, message: &str) {
+        crate::output::warn(message);
+    }
+    fn on_error(&self, message: &str) {
+        crate::output::error(message);
+    }
+    fn on_spinner_start(&self, message: &str) {
+        crate::output::info(message);
+    }
+    fn on_spinner_finish(&self) {}
+    fn on_debug(&self, message: &str) {
+        log::debug!("[zag] {message}");
+    }
+}
+
 /// Parse a freeform user prompt (e.g. "create a python cli for finding stock buys")
 /// into a partially-filled ProjectManifest.
 pub async fn interpret_prompt(prompt: &str) -> Result<ProjectManifest> {
@@ -140,11 +165,13 @@ async fn run_zag_json(system: &str, prompt: &str, schema: serde_json::Value) -> 
     use zag::builder::AgentBuilder;
 
     log::debug!("starting zag one-shot JSON request");
+    crate::output::info("Sending prompt to AI...");
     let output = AgentBuilder::new()
         .system_prompt(system)
         .auto_approve(true)
         .json_schema(schema)
         .verbose(true)
+        .on_progress(Box::new(OutputProgress))
         .exec(prompt)
         .await
         .context("zag agent execution failed")?;
@@ -167,11 +194,18 @@ async fn run_zag_agent(system: &str, user_prompt: &str, root: &Path, max_turns: 
         max_turns
     );
     let root_str = root.to_string_lossy();
+    crate::output::info(&format!(
+        "Starting agent loop in {} (max {} turns)...",
+        root.display(),
+        max_turns
+    ));
     AgentBuilder::new()
         .system_prompt(system)
         .root(&root_str)
         .auto_approve(true)
         .max_turns(max_turns)
+        .verbose(true)
+        .on_progress(Box::new(OutputProgress))
         .run(Some(user_prompt))
         .await
         .context("zag agent execution failed")?;
