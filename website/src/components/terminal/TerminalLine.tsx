@@ -18,7 +18,7 @@ export default function TerminalLine({
 }) {
   if (line.type === "comment") {
     return (
-      <div key={index} className="text-text-dim">
+      <div key={index} className="whitespace-pre text-text-dim">
         {line.text}
       </div>
     );
@@ -26,7 +26,7 @@ export default function TerminalLine({
 
   if (line.type === "command") {
     return (
-      <div key={index} className="flex">
+      <div key={index} className="flex whitespace-pre">
         <span className="text-accent mr-2 shrink-0">$</span>
         <span className="flex-1">
           {highlightCommand(line.text)}
@@ -38,7 +38,7 @@ export default function TerminalLine({
 
   // output
   return (
-    <div key={index} className={outputClassName(line.style)}>
+    <div key={index} className={`whitespace-pre ${outputClassName(line.style)}`}>
       {line.text}
     </div>
   );

@@ -59,16 +59,16 @@ const features = [
 
 export default function Features() {
   return (
-    <section id="features" className="border-t border-border py-20 md:py-28">
-      <div className="mx-auto max-w-6xl px-6">
-        <h2 className="text-center text-3xl font-bold text-text-primary md:text-4xl">
+    <section id="features" className="border-t border-border py-16 md:py-28">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <h2 className="text-balance text-center text-3xl font-bold text-text-primary md:text-4xl">
           Everything you need to bootstrap open source
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-center text-text-secondary">
           From AI-powered project creation to spec conformance validation — {commands.length} commands cover the full lifecycle.
         </p>
 
-        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-10 grid gap-5 sm:mt-14 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
           {features.map((f) => (
             <div
               key={f.title}

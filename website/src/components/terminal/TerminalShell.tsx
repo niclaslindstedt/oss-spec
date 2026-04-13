@@ -55,21 +55,21 @@ export default function TerminalShell({
   return (
     <div
       ref={containerRef}
-      className={`overflow-hidden rounded-xl border border-border bg-surface-alt shadow-2xl ${className}`}
+      className={`min-w-0 overflow-hidden rounded-xl border border-border bg-surface-alt shadow-2xl ${className}`}
     >
       {/* Title bar with tabs */}
-      <div className="flex items-center border-b border-border px-4 py-3">
-        <div className="flex items-center gap-2 mr-4">
+      <div className="flex items-center border-b border-border px-3 py-3 sm:px-4">
+        <div className="flex items-center gap-2 mr-3 sm:mr-4">
           <div className="h-3 w-3 rounded-full bg-[#ff5f57]" />
           <div className="h-3 w-3 rounded-full bg-[#febc2e]" />
           <div className="h-3 w-3 rounded-full bg-[#28c840]" />
         </div>
-        <div className="flex gap-1 overflow-x-auto">
+        <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
           {tabs.map((tab, i) => (
             <button
               key={tab.label}
               onClick={() => switchTab(i)}
-              className={`whitespace-nowrap rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+              className={`whitespace-nowrap rounded-md px-2 py-1 text-xs font-medium transition-colors sm:px-3 ${
                 i === activeTab
                   ? "bg-surface text-accent"
                   : "text-text-dim hover:text-text-secondary"
@@ -84,7 +84,7 @@ export default function TerminalShell({
       {/* Terminal body */}
       <div
         ref={bodyRef}
-        className="h-[320px] overflow-y-auto p-5 text-left font-mono text-sm leading-relaxed"
+        className="h-[320px] overflow-auto p-4 text-left font-mono text-xs leading-relaxed sm:p-5 sm:text-sm"
       >
         {lines.map((line, i) => (
           <TerminalLine key={i} line={line} index={i} />
