@@ -468,7 +468,9 @@ The release workflow performs the following steps in order:
 9. **Publish to the relevant registries**: crates.io, npm, PyPI,
    NuGet, Maven Central, Docker Hub, GitHub Releases, and any
    language-specific index the project targets. Publish jobs depend
-   on successful matrix builds.
+   on successful matrix builds. **Every publish step must
+   authenticate via OIDC-based trusted publishing** — never a
+   long-lived API token or password. See "Trusted publishing" below.
 10. **Extract release notes** for the new version from `CHANGELOG.md`
     (the section between the latest and previous `## [vX.Y.Z]`
     headings) and attach them to the GitHub Release along with the
@@ -494,11 +496,52 @@ Design constraints:
   bot (or `github-actions[bot]`) must have a narrowly scoped
   exception to push the `chore(release): ...` commit. Disable branch
   protection globally at your peril.
-- **Trusted publishing.** Registry credentials must be stored as
-  secrets scoped to the minimum required permission. Long-lived
-  personal access tokens should be replaced with OIDC-based trusted
-  publishing wherever the registry supports it (PyPI, npm, Maven
-  Central, crates.io, etc.).
+- **Trusted publishing is mandatory.** Every package published by the
+  release pipeline **must** authenticate to its registry via OIDC-based
+  trusted publishing. Long-lived API tokens, passwords, and personal
+  access tokens **must not** be used to publish releases. This applies
+  to every registry the project targets that supports trusted
+  publishing — including PyPI, npm, RubyGems, crates.io, NuGet, Maven
+  Central (via Sonatype Central Portal), GitHub Container Registry,
+  Docker Hub, and GitHub Releases. The publish job must exchange the
+  GitHub-issued OIDC token for a short-lived registry credential at
+  publish time.
+
+  If a target registry does not yet support trusted publishing, the
+  project must (a) document the exception in `SECURITY.md`, (b) scope
+  the fallback credential to a single registry and a single package,
+  (c) store it as a GitHub environment secret gated on the `release`
+  environment with required reviewers, and (d) track removal of the
+  exception as an open issue. Publishing with long-lived credentials
+  is an escape hatch, not a steady state.
+
+- **Least-privilege workflow permissions.** Every job that publishes
+  a release artifact **must** declare an explicit job-level
+  `permissions:` block. Implicit, workflow-level, or default
+  `GITHUB_TOKEN` scopes are not acceptable for publish jobs — the
+  scopes must be written down where the job runs so that a reviewer
+  can audit them in one place. The minimum for a trusted-publishing
+  job is:
+
+  ```yaml
+  permissions:
+    contents: read     # checkout only; bump to `write` only if
+                       # the job itself pushes commits or tags
+    id-token: write    # required to mint the OIDC token that
+                       # trusted publishing exchanges for a
+                       # short-lived registry credential
+  ```
+
+  Additional scopes (`packages: write` for GHCR, `attestations:
+  write` for SLSA provenance, `pull-requests: write` for release
+  PRs, etc.) must be added explicitly and only on the jobs that
+  need them. The top of the workflow file must set
+  `permissions: {}` (or the most restrictive scope required by
+  non-publish jobs) so that any job without its own block gets
+  nothing by default. A CI check must fail the build if a publish
+  job is missing `id-token: write`, if it relies on the default
+  token scopes, or if `contents: write` is granted to a job that
+  does not push to the repository.
 
 The tag created by `version-bump` (`vX.Y.Z` pointing at the last
 regular commit on `main`) and the final tag state (`vX.Y.Z` pointing
@@ -1127,6 +1170,10 @@ checked before the first public tag.
     versions, force-pushing the tag, matrix-building
     and publishing                                      (§10.3)
 [ ] RELEASE_TOKEN secret with main-branch bypass        (§10.3)
+[ ] Trusted publishing (OIDC) configured for every
+    target registry; no long-lived publish tokens       (§10.3)
+[ ] Publish jobs declare explicit least-privilege
+    permissions (contents: read, id-token: write)       (§10.3)
 [ ] docs/ with at least getting-started.md              (§11.1)
 [ ] website/ with source-extraction script and build    (§11.2)
 [ ] pages workflow deploys website on every main push   (§10.4, §11.2)

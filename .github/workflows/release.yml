@@ -9,6 +9,10 @@ env:
   CARGO_TERM_COLOR: always
   BINARY_NAME: oss-spec
 
+# Default to no permissions; every job declares its own
+# least-privilege `permissions:` block (see OSS_SPEC §10.3).
+permissions: {}
+
 jobs:
   update-repo:
     name: Update changelog and versions
@@ -64,6 +68,8 @@ jobs:
     name: Build ${{ matrix.target }}
     needs: update-repo
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -198,7 +204,10 @@ jobs:
     needs: [update-repo, build]
     runs-on: ubuntu-latest
     environment: crates-io
+    # contents: read  — checkout only (job does not push).
+    # id-token: write — OIDC-based trusted publishing to crates.io.
     permissions:
+      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v4
