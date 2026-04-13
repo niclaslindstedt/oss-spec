@@ -4,7 +4,8 @@ USAGE
   oss-spec <PROMPT>                       # interpret + bootstrap via zag
   oss-spec new <NAME> [flags]              # explicit bootstrap
   oss-spec init [flags]                    # bootstrap into current dir
-  oss-spec check [--path .]                # validate against OSS_SPEC.md
+  oss-spec check [--path .] [--url <URL>] [--create-issues]    # validate local or remote repo
+  oss-spec fix   [--path .] [--url <URL>] [--create-issues]    # fix in place or file §19 issues
   oss-spec fetch [--into <DIR>]            # clone the public oss-spec repo for reference
   oss-spec commands [<NAME>] [--examples]  # list commands (machine-readable)
   oss-spec docs [<TOPIC>]                  # print embedded doc topic

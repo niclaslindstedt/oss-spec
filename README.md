@@ -49,6 +49,19 @@ To validate an existing repo against [`OSS_SPEC.md`](OSS_SPEC.md):
 oss-spec check --path .
 ```
 
+Or point `check` at any git URL to clone + validate in one step:
+
+```sh
+oss-spec check --url https://github.com/niclaslindstedt/oss-spec.git
+```
+
+Add `--create-issues` to open one GitHub issue per violation on the source
+repo (works with both `check` and `fix`):
+
+```sh
+oss-spec check --url https://github.com/foo/bar.git --create-issues --yes
+```
+
 ## Usage
 
 | Command | What it does |
@@ -56,7 +69,8 @@ oss-spec check --path .
 | `oss-spec <PROMPT>` | Default: zag interprets the prompt → manifest → bootstrap. |
 | `oss-spec new <NAME>` | Explicit bootstrap with flags only. |
 | `oss-spec init` | Bootstrap into the current directory. |
-| `oss-spec check [--path .]` | Validate a repo against `OSS_SPEC.md` §19. |
+| `oss-spec check [--path .] [--url URL] [--create-issues]` | Validate a local or remote repo against `OSS_SPEC.md` §19; optionally open one GitHub issue per violation. |
+| `oss-spec fix [--path .] [--url URL] [--create-issues]` | Fix §19 violations in place, or file one GitHub issue per violation cluster. |
 | `oss-spec fetch [--into DIR]` | Clone the public oss-spec repo so a coding agent can browse the spec, templates, and the dogfood implementation locally. |
 | `oss-spec commands [<NAME>] [--examples]` | Stable, machine-readable command index (§12.4). |
 | `oss-spec docs [<TOPIC>]` | Print an embedded `docs/` topic (§12.3). |
