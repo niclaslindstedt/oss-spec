@@ -21,8 +21,52 @@ use std::path::Path;
 
 use crate::manifest::{Kind, Language, License, ProjectManifest};
 
+/// Thin wrapper so we can share an `Arc<OutputProgress>` with zag while
+/// retaining access to the spinner after `.exec()` returns.
+struct ProgressForwarder(std::sync::Arc<OutputProgress>);
+
+impl zag::progress::ProgressHandler for ProgressForwarder {
+    fn on_status(&self, m: &str) { self.0.on_status(m); }
+    fn on_success(&self, m: &str) { self.0.on_success(m); }
+    fn on_warning(&self, m: &str) { self.0.on_warning(m); }
+    fn on_error(&self, m: &str) { self.0.on_error(m); }
+    fn on_spinner_start(&self, m: &str) { self.0.on_spinner_start(m); }
+    fn on_spinner_finish(&self) { self.0.on_spinner_finish(); }
+    fn on_debug(&self, m: &str) { self.0.on_debug(m); }
+}
+
 /// Routes zag progress callbacks through `crate::output`.
-struct OutputProgress;
+///
+/// Manages an optional spinner: zag calls `on_spinner_start` /
+/// `on_spinner_finish` around the agent-creation phase, then
+/// `on_success` once the agent is ready. When `auto_spinner` is true
+/// we start a "Waiting for AI response…" spinner after the init
+/// phase completes so the user sees activity during the API call.
+struct OutputProgress {
+    spinner: std::sync::Mutex<Option<crate::output::Spinner>>,
+    /// Start a "Waiting for AI response…" spinner after init success.
+    auto_spinner: bool,
+}
+
+impl OutputProgress {
+    fn new(auto_spinner: bool) -> Self {
+        Self {
+            spinner: std::sync::Mutex::new(None),
+            auto_spinner,
+        }
+    }
+
+    /// Stop the spinner with a success or failure message.
+    fn finish_spinner(&self, msg: &str, success: bool) {
+        if let Some(spinner) = self.spinner.lock().unwrap().take() {
+            if success {
+                spinner.finish(msg);
+            } else {
+                spinner.fail(msg);
+            }
+        }
+    }
+}
 
 impl zag::progress::ProgressHandler for OutputProgress {
     fn on_status(&self, message: &str) {
@@ -30,6 +74,13 @@ impl zag::progress::ProgressHandler for OutputProgress {
     }
     fn on_success(&self, message: &str) {
         crate::output::status(message);
+        if self.auto_spinner {
+            // Agent init is done — start a spinner for the API call.
+            let mut guard = self.spinner.lock().unwrap();
+            if guard.is_none() {
+                *guard = Some(crate::output::Spinner::start("Waiting for AI response..."));
+            }
+        }
     }
     fn on_warning(&self, message: &str) {
         crate::output::warn(message);
@@ -38,9 +89,14 @@ impl zag::progress::ProgressHandler for OutputProgress {
         crate::output::error(message);
     }
     fn on_spinner_start(&self, message: &str) {
-        crate::output::info(message);
+        let mut guard = self.spinner.lock().unwrap();
+        *guard = Some(crate::output::Spinner::start(message));
     }
-    fn on_spinner_finish(&self) {}
+    fn on_spinner_finish(&self) {
+        if let Some(spinner) = self.spinner.lock().unwrap().take() {
+            spinner.finish("done");
+        }
+    }
     fn on_debug(&self, message: &str) {
         log::debug!("[zag] {message}");
     }
@@ -165,26 +221,26 @@ async fn run_zag_json(system: &str, prompt: &str, schema: serde_json::Value) -> 
     use zag::builder::AgentBuilder;
 
     log::debug!("starting zag one-shot JSON request");
-    let spinner = crate::output::Spinner::start("Waiting for AI response...");
+    let progress = std::sync::Arc::new(OutputProgress::new(true));
     let result = AgentBuilder::new()
         .system_prompt(system)
         .auto_approve(true)
         .json_schema(schema)
         .verbose(true)
-        .on_progress(Box::new(OutputProgress))
+        .on_progress(Box::new(ProgressForwarder(progress.clone())))
         .exec(prompt)
         .await
         .context("zag agent execution failed");
 
     match result {
         Ok(output) => {
-            spinner.finish("AI response received");
+            progress.finish_spinner("AI response received", true);
             output
                 .result
                 .ok_or_else(|| anyhow!("zag returned no result text"))
         }
         Err(e) => {
-            spinner.fail("AI request failed");
+            progress.finish_spinner("AI request failed", false);
             Err(e)
         }
     }
@@ -213,7 +269,7 @@ async fn run_zag_agent(system: &str, user_prompt: &str, root: &Path, max_turns: 
         .auto_approve(true)
         .max_turns(max_turns)
         .verbose(true)
-        .on_progress(Box::new(OutputProgress))
+        .on_progress(Box::new(OutputProgress::new(false)))
         .run(Some(user_prompt))
         .await
         .context("zag agent execution failed")?;
