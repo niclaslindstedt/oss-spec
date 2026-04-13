@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is **auto-generated from conventional commits at release time** —
 do not edit manually.
 
+## [0.1.4] - 2026-04-13
+
+### Added
+
+- Add React landing page, improve commit skill, add reference impl guidance (#12)
+
 ## [0.1.3] - 2026-04-13
 
 ### Fixed
