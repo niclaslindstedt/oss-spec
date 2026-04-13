@@ -1641,7 +1641,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "oss-spec"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3209,9 +3209,9 @@ dependencies = [
 
 [[package]]
 name = "zag"
-version = "0.12.2"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0862309b6c28f855535b8aa6db5a4e2d8e1ee520ed9627b6662ae4f506a20476"
+checksum = "884ca770c6a46e608b150e6783bdda317dbfb93c27766b294c55ccd549b33a58"
 dependencies = [
  "zag-agent",
  "zag-orch",
@@ -3220,9 +3220,9 @@ dependencies = [
 
 [[package]]
 name = "zag-agent"
-version = "0.12.2"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a77342e204ad68608d3ea092d04f0b8794b6136f620890cb499714f976e4ed3"
+checksum = "c2b47ef04f2d6a5f1ac7bfa78d534cadda22c7cf6a2e571d825fa1361d936ff9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3244,9 +3244,9 @@ dependencies = [
 
 [[package]]
 name = "zag-orch"
-version = "0.12.2"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb63a8f057a7ae90ad8bb15fe5455ccb1c226c9ab4b216ea37d5256a8ae83de4"
+checksum = "f626fadf19d604945f0c48ca3e68a58e041557dee87216b2b2ce21f8488d4b29"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3263,9 +3263,9 @@ dependencies = [
 
 [[package]]
 name = "zag-serve"
-version = "0.12.2"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bbab6e081dbd5dc5dc57446381214a3c16ab03eb06e7faaf83a6ab3051304d8"
+checksum = "5dae8949bdf4c6853189e184a2c516111284564f269c047c74d57b536600f2e9"
 dependencies = [
  "anyhow",
  "axum",
