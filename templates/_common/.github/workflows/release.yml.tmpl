@@ -5,14 +5,23 @@ on:
     workflows: ["version-bump"]
     types: [completed]
 
-permissions:
-  contents: write
-  id-token: write
+# Default to no permissions; every job declares its own
+# least-privilege `permissions:` block (see OSS_SPEC §10.3).
+permissions: {}
 
 jobs:
   release:
     if: ${{ '{{' }} github.event.workflow_run.conclusion == 'success' {{ '}}' }}
     runs-on: ubuntu-latest
+    # contents: write — this job pushes the release commit and
+    #                   force-pushes the rewritten tag to `main`.
+    # id-token: write — required for OIDC-based trusted publishing
+    #                   to the target registries (see steps below).
+    # For a cleaner setup, split repo-rewrite and publish into
+    # separate jobs so the publish job only needs `contents: read`.
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,19 +46,30 @@ jobs:
 {% if language == "rust" %}      - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --release
       - run: cargo test
-      # Uncomment when ready to publish:
-      # - run: cargo publish --token ${{ '{{' }} secrets.CARGO_TOKEN {{ '}}' }}
+      # Publishing MUST use crates.io trusted publishing (OIDC).
+      # Configure the crate on crates.io first, then uncomment:
+      # - uses: rust-lang/crates-io-auth-action@v1
+      #   id: auth
+      # - run: cargo publish
+      #   env:
+      #     CARGO_REGISTRY_TOKEN: ${{ '{{' }} steps.auth.outputs.token {{ '}}' }}
 {% elif language == "python" %}      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install build
       - run: python -m build
+      # Publishing MUST use PyPI trusted publishing (OIDC).
+      # Configure the project as a trusted publisher on PyPI first,
+      # then uncomment — no API token required:
       # - uses: pypa/gh-action-pypi-publish@release/v1
 {% elif language == "node" %}      - uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
+          registry-url: "https://registry.npmjs.org"
       - run: npm ci
       - run: npm run build
+      # Publishing MUST use npm trusted publishing (OIDC) via
+      # --provenance; no NPM_TOKEN should be configured.
       # - run: npm publish --provenance --access public
 {% endif %}      - name: GitHub Release
         uses: softprops/action-gh-release@v2
