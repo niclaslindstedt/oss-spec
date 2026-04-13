@@ -43,7 +43,7 @@ jobs:
           git tag -f "${{ '{{' }} steps.tag.outputs.tag {{ '}}' }}" HEAD
           git push origin HEAD:main
           git push origin "${{ '{{' }} steps.tag.outputs.tag {{ '}}' }}" --force
-{% if language == "rust" %}      - uses: dtolnay/rust-toolchain@stable
+{% if language == "rust" %}      - uses: dtolnay/rust-toolchain@1.82.0
       - run: cargo build --release
       - run: cargo test
       # Publishing MUST use crates.io trusted publishing (OIDC).
@@ -64,7 +64,7 @@ jobs:
       # - uses: pypa/gh-action-pypi-publish@release/v1
 {% elif language == "node" %}      - uses: actions/setup-node@v4
         with:
-          node-version: "lts/*"
+          node-version: "22"
           registry-url: "https://registry.npmjs.org"
       - run: npm ci
       - run: npm run build

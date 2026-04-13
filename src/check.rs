@@ -151,6 +151,18 @@ pub fn run(path: &Path) -> Result<Report> {
         }
     }
 
+    // §10.3 Pinned toolchain minimum versions. Every CI and release job
+    // that sets up a language toolchain must declare an explicit minimum
+    // version, not a floating specifier (`stable`, `latest`, `lts/*`).
+    for w in &["ci.yml", "release.yml"] {
+        let p = path.join(".github/workflows").join(w);
+        if let Ok(content) = std::fs::read_to_string(&p) {
+            for v in check_toolchain_versions(w, &content) {
+                report.violations.push(v);
+            }
+        }
+    }
+
     // PR + issue templates (§15).
     for f in [
         ".github/PULL_REQUEST_TEMPLATE.md",
@@ -182,4 +194,278 @@ fn list_dir(p: &Path) -> Vec<PathBuf> {
 fn parse_version(stem: &str) -> Option<(u32, u32)> {
     let (maj, min) = stem.split_once('_')?;
     Some((maj.parse().ok()?, min.parse().ok()?))
+}
+
+/// Spec-defined minimum toolchain versions (§10.3). Mirrors the table in
+/// `OSS_SPEC.md`. Each entry is `(language, minimum)`; the minimum is the
+/// same string that `oss-spec check` will compare declared versions
+/// against.
+const MIN_TOOLCHAIN_VERSIONS: &[(&str, &str)] = &[
+    ("Rust", "1.82.0"),
+    ("Python", "3.12"),
+    ("Node", "22"),
+    ("Go", "1.22"),
+];
+
+fn min_version(lang: &str) -> &'static str {
+    MIN_TOOLCHAIN_VERSIONS
+        .iter()
+        .find(|(l, _)| *l == lang)
+        .map(|(_, v)| *v)
+        .expect("unknown language")
+}
+
+/// Compare two dotted version strings segment-by-segment. Shorter versions
+/// are zero-padded, so `"1.82"` == `"1.82.0"`. Returns `None` if either
+/// side contains a non-numeric segment.
+fn version_ge(lhs: &str, rhs: &str) -> Option<bool> {
+    let parse = |s: &str| -> Option<Vec<u32>> { s.split('.').map(|p| p.parse().ok()).collect() };
+    let mut a = parse(lhs)?;
+    let mut b = parse(rhs)?;
+    while a.len() < b.len() {
+        a.push(0);
+    }
+    while b.len() < a.len() {
+        b.push(0);
+    }
+    Some(a >= b)
+}
+
+fn is_floating_specifier(spec: &str) -> bool {
+    let s = spec.trim().trim_matches('"').trim_matches('\'');
+    matches!(s, "stable" | "latest" | "lts" | "lts/*" | "*")
+}
+
+/// Look for `key: "<value>"` (or single-quoted / unquoted) on one of the
+/// next `window` lines after `anchor_idx`. Returns the raw value.
+fn find_value_after(lines: &[&str], anchor_idx: usize, key: &str, window: usize) -> Option<String> {
+    let end = (anchor_idx + 1 + window).min(lines.len());
+    for line in &lines[anchor_idx + 1..end] {
+        let trimmed = line.trim_start();
+        if let Some(rest) = trimmed.strip_prefix(key) {
+            let rest = rest.trim_start();
+            if let Some(rest) = rest.strip_prefix(':') {
+                let raw = rest.trim();
+                let value = raw.trim_matches('"').trim_matches('\'').to_string();
+                return Some(value);
+            }
+        }
+    }
+    None
+}
+
+/// Scan a workflow file for language toolchain setup blocks and return a
+/// violation for every one that uses a floating specifier or pins below
+/// the spec minimum. Absent toolchains do **not** produce a violation —
+/// a Rust-only project has no `actions/setup-node` block, and that is
+/// fine.
+pub(crate) fn check_toolchain_versions(file: &str, content: &str) -> Vec<Violation> {
+    let mut out = Vec::new();
+    let lines: Vec<&str> = content.lines().collect();
+
+    for (i, line) in lines.iter().enumerate() {
+        // Rust: `dtolnay/rust-toolchain@<spec>` on a `uses:` line.
+        if let Some(idx) = line.find("dtolnay/rust-toolchain@") {
+            let rest = &line[idx + "dtolnay/rust-toolchain@".len()..];
+            let spec: String = rest
+                .chars()
+                .take_while(|c| !c.is_whitespace() && *c != '#')
+                .collect();
+            if let Some(v) = evaluate("Rust", &spec, file) {
+                out.push(v);
+            }
+            continue;
+        }
+
+        // Python / Node / Go: `uses: actions/setup-<lang>` followed within
+        // a few lines by `<lang>-version: "<spec>"`.
+        let trimmed = line.trim_start();
+        let setup = [
+            ("actions/setup-python", "Python", "python-version"),
+            ("actions/setup-node", "Node", "node-version"),
+            ("actions/setup-go", "Go", "go-version"),
+        ];
+        for (needle, lang, key) in setup {
+            if trimmed.contains(needle) {
+                if let Some(spec) = find_value_after(&lines, i, key, 6) {
+                    if let Some(v) = evaluate(lang, &spec, file) {
+                        out.push(v);
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    out
+}
+
+fn evaluate(lang: &str, spec: &str, file: &str) -> Option<Violation> {
+    let min = min_version(lang);
+    if is_floating_specifier(spec) {
+        return Some(Violation {
+            spec_section: "§10.3",
+            message: format!(
+                ".github/workflows/{file}: {lang} toolchain uses floating specifier '{spec}'; \
+                 pin to >= {min}"
+            ),
+        });
+    }
+    match version_ge(spec, min) {
+        Some(true) => None,
+        Some(false) => Some(Violation {
+            spec_section: "§10.3",
+            message: format!(
+                ".github/workflows/{file}: {lang} toolchain pinned to {spec}; minimum is {min}"
+            ),
+        }),
+        None => Some(Violation {
+            spec_section: "§10.3",
+            message: format!(
+                ".github/workflows/{file}: {lang} toolchain has unparseable version '{spec}'; \
+                 pin to >= {min}"
+            ),
+        }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn version_ge_pads_shorter_segments() {
+        assert_eq!(version_ge("1.82", "1.82.0"), Some(true));
+        assert_eq!(version_ge("1.82.0", "1.82"), Some(true));
+        assert_eq!(version_ge("1.83", "1.82.0"), Some(true));
+        assert_eq!(version_ge("1.81.9", "1.82.0"), Some(false));
+        assert_eq!(version_ge("22", "22"), Some(true));
+        assert_eq!(version_ge("21", "22"), Some(false));
+    }
+
+    #[test]
+    fn rust_pinned_exact_minimum_is_ok() {
+        let yml = "      - uses: dtolnay/rust-toolchain@1.82.0\n";
+        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
+    }
+
+    #[test]
+    fn rust_pinned_above_minimum_is_ok() {
+        let yml = "      - uses: dtolnay/rust-toolchain@1.85.0\n";
+        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
+    }
+
+    #[test]
+    fn rust_stable_is_floating() {
+        let yml = "      - uses: dtolnay/rust-toolchain@stable\n";
+        let v = check_toolchain_versions("ci.yml", yml);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].spec_section, "§10.3");
+        assert!(v[0].message.contains("Rust"));
+        assert!(v[0].message.contains("floating specifier 'stable'"));
+    }
+
+    #[test]
+    fn rust_below_minimum_is_violation() {
+        let yml = "      - uses: dtolnay/rust-toolchain@1.75.0\n";
+        let v = check_toolchain_versions("ci.yml", yml);
+        assert_eq!(v.len(), 1);
+        assert!(v[0].message.contains("1.75.0"));
+        assert!(v[0].message.contains("minimum is 1.82.0"));
+    }
+
+    #[test]
+    fn node_lts_star_is_floating() {
+        let yml = "\
+      - uses: actions/setup-node@v4
+        with:
+          node-version: \"lts/*\"
+";
+        let v = check_toolchain_versions("ci.yml", yml);
+        assert_eq!(v.len(), 1);
+        assert!(v[0].message.contains("Node"));
+        assert!(v[0].message.contains("floating specifier 'lts/*'"));
+    }
+
+    #[test]
+    fn node_22_is_ok() {
+        let yml = "\
+      - uses: actions/setup-node@v4
+        with:
+          node-version: \"22\"
+";
+        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
+    }
+
+    #[test]
+    fn node_20_is_below_minimum() {
+        let yml = "\
+      - uses: actions/setup-node@v4
+        with:
+          node-version: \"20\"
+";
+        let v = check_toolchain_versions("ci.yml", yml);
+        assert_eq!(v.len(), 1);
+        assert!(v[0].message.contains("Node"));
+        assert!(v[0].message.contains("pinned to 20"));
+        assert!(v[0].message.contains("minimum is 22"));
+    }
+
+    #[test]
+    fn python_312_is_ok() {
+        let yml = "\
+      - uses: actions/setup-python@v5
+        with:
+          python-version: \"3.12\"
+";
+        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
+    }
+
+    #[test]
+    fn python_311_is_below_minimum() {
+        let yml = "\
+      - uses: actions/setup-python@v5
+        with:
+          python-version: \"3.11\"
+";
+        let v = check_toolchain_versions("ci.yml", yml);
+        assert_eq!(v.len(), 1);
+        assert!(v[0].message.contains("Python"));
+    }
+
+    #[test]
+    fn go_stable_is_floating() {
+        let yml = "\
+      - uses: actions/setup-go@v5
+        with:
+          go-version: \"stable\"
+";
+        let v = check_toolchain_versions("ci.yml", yml);
+        assert_eq!(v.len(), 1);
+        assert!(v[0].message.contains("Go"));
+        assert!(v[0].message.contains("floating specifier 'stable'"));
+    }
+
+    #[test]
+    fn go_122_is_ok() {
+        let yml = "\
+      - uses: actions/setup-go@v5
+        with:
+          go-version: \"1.22\"
+";
+        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
+    }
+
+    #[test]
+    fn missing_toolchain_block_is_not_a_violation() {
+        let yml = "name: CI\njobs:\n  noop:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n";
+        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
+    }
+
+    #[test]
+    fn rust_short_version_is_accepted() {
+        // `@1.82` (no patch) should be treated as `1.82.0` and accepted.
+        let yml = "      - uses: dtolnay/rust-toolchain@1.82\n";
+        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
+    }
 }

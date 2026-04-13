@@ -310,7 +310,8 @@ their commands, so that local and CI environments stay in sync.
 Every push to a branch and every pull request must run:
 
 1. Checkout with full history (required for changelog generation).
-2. Toolchain setup (pinned minimum version).
+2. Toolchain setup (pinned minimum version — see §10.3 for the
+   per-language floor versions).
 3. Dependency cache restore.
 4. `make build`
 5. `make test`
@@ -514,6 +515,32 @@ Design constraints:
   environment with required reviewers, and (d) track removal of the
   exception as an open issue. Publishing with long-lived credentials
   is an escape hatch, not a steady state.
+
+- **Pinned toolchain minimum versions.** Every CI and release job
+  that sets up a language toolchain **must** declare an explicit
+  minimum version, not a floating specifier such as `stable`,
+  `latest`, or `lts/*`. Trusted publishing gives the registry a
+  cryptographic guarantee about who is publishing; pinning the
+  toolchain gives *reviewers* a guarantee about **what** is being
+  built. The two controls are complementary: an OIDC-authenticated
+  publish that silently built with a toolchain the author has never
+  tested is still a supply-chain risk.
+
+  The floor versions below apply to every language this spec
+  supports. Projects are free to pin higher, but `oss-spec check`
+  will fail the build if a workflow declares anything lower or uses
+  a floating specifier:
+
+  | Language | Minimum | `setup-*` specifier |
+  |---|---|---|
+  | Rust   | 1.82 | `dtolnay/rust-toolchain@1.82.0` |
+  | Python | 3.12 | `actions/setup-python` with `python-version: "3.12"` |
+  | Node   | 22   | `actions/setup-node` with `node-version: "22"` |
+  | Go     | 1.22 | `actions/setup-go` with `go-version: "1.22"` |
+
+  The same minimums must be reflected in `README.md` "Prerequisites"
+  (§3) and `CONTRIBUTING.md` "Prerequisites" (§4) so that
+  contributors discover them before a CI failure does.
 
 - **Least-privilege workflow permissions.** Every job that publishes
   a release artifact **must** declare an explicit job-level

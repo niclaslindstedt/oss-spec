@@ -54,7 +54,7 @@ pub fn init(debug: bool) -> anyhow::Result<()> {
     };
 
     let stderr_dispatch = fern::Dispatch::new()
-        .format(|out, message, _record| out.finish(format_args!("{}", message)))
+        .format(|out, message, _record| out.finish(format_args!("{message}")))
         .level(stderr_level)
         .filter(|meta| {
             // Always suppress the semantic output target (those functions
