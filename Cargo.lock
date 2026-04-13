@@ -1417,9 +1417,9 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
 name = "libc"
-version = "0.2.184"
+version = "0.2.185"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48f5d2a454e16a5ea0f4ced81bd44e4cfc7bd3a507b61887c99fd3538b28e4af"
+checksum = "52ff2c0fe9bc6cb6b14a0592c2ff4fa9ceb83eea9db979b0487cd054946a2b8f"
 
 [[package]]
 name = "libredox"
@@ -1641,7 +1641,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "oss-spec"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3209,9 +3209,9 @@ dependencies = [
 
 [[package]]
 name = "zag"
-version = "0.12.0"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71b999e71847933b79cd8f5436948fbaf63b58246afd8954a2841c7f3f26ac9e"
+checksum = "0862309b6c28f855535b8aa6db5a4e2d8e1ee520ed9627b6662ae4f506a20476"
 dependencies = [
  "zag-agent",
  "zag-orch",
@@ -3220,9 +3220,9 @@ dependencies = [
 
 [[package]]
 name = "zag-agent"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "974d1d44f4a91555c0f0ee24021db928b114547c24f57f7b204ccf756558519b"
+checksum = "5a77342e204ad68608d3ea092d04f0b8794b6136f620890cb499714f976e4ed3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3244,9 +3244,9 @@ dependencies = [
 
 [[package]]
 name = "zag-orch"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2e81178c3dea779401762ee14c777476122950b65efbd73de6b25f5427f5800"
+checksum = "fb63a8f057a7ae90ad8bb15fe5455ccb1c226c9ab4b216ea37d5256a8ae83de4"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3263,9 +3263,9 @@ dependencies = [
 
 [[package]]
 name = "zag-serve"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ea13ed5e0ff665cfc6011354dd2306211e41b4dab184128c86282d097929281"
+checksum = "6bbab6e081dbd5dc5dc57446381214a3c16ab03eb06e7faaf83a6ab3051304d8"
 dependencies = [
  "anyhow",
  "axum",
