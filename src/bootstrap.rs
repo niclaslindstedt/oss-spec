@@ -18,31 +18,44 @@ pub fn write(manifest: &ProjectManifest, target_dir: &Path) -> Result<()> {
         manifest.name,
         target_dir.display()
     );
+    crate::output::header(&format!(
+        "Bootstrapping {} into {}",
+        manifest.name,
+        target_dir.display()
+    ));
     std::fs::create_dir_all(target_dir)
         .with_context(|| format!("create target dir {}", target_dir.display()))?;
 
     // 1. Common tree (everything in templates/_common).
+    crate::output::info("Writing common files...");
     let common = TEMPLATES
         .get_dir("_common")
         .context("templates/_common missing — build broken")?;
     write_dir(common, "_common", manifest, target_dir)?;
 
     // 2. License: pick one file from _licenses/ and rename to LICENSE.
+    crate::output::info(&format!("Writing {} license...", manifest.license.spdx()));
     write_license(manifest, target_dir)?;
 
     // 3. Language overlay (templates/<lang>/).
     if let Some(lang_dir) = TEMPLATES.get_dir(manifest.language.as_str()) {
+        crate::output::info(&format!(
+            "Applying {} language overlay...",
+            manifest.language
+        ));
         write_dir(lang_dir, manifest.language.as_str(), manifest, target_dir)?;
     }
 
     // 4. CLI overlay (man pages, etc.) when applicable.
     if manifest.ships_cli() {
         if let Some(cli_dir) = TEMPLATES.get_dir("cli") {
+            crate::output::info("Applying CLI overlay (man pages, etc.)...");
             write_dir(cli_dir, "cli", manifest, target_dir)?;
         }
     }
 
     // 5. AGENTS.md symlinks (chicken-and-egg: AGENTS.md must exist by now).
+    crate::output::info("Creating AGENTS.md symlinks...");
     create_agents_symlinks(target_dir)?;
 
     Ok(())

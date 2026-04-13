@@ -165,8 +165,8 @@ async fn run_zag_json(system: &str, prompt: &str, schema: serde_json::Value) -> 
     use zag::builder::AgentBuilder;
 
     log::debug!("starting zag one-shot JSON request");
-    crate::output::info("Sending prompt to AI...");
-    let output = AgentBuilder::new()
+    let spinner = crate::output::Spinner::start("Waiting for AI response...");
+    let result = AgentBuilder::new()
         .system_prompt(system)
         .auto_approve(true)
         .json_schema(schema)
@@ -174,12 +174,20 @@ async fn run_zag_json(system: &str, prompt: &str, schema: serde_json::Value) -> 
         .on_progress(Box::new(OutputProgress))
         .exec(prompt)
         .await
-        .context("zag agent execution failed")?;
+        .context("zag agent execution failed");
 
-    log::debug!("zag one-shot JSON request completed");
-    output
-        .result
-        .ok_or_else(|| anyhow!("zag returned no result text"))
+    match result {
+        Ok(output) => {
+            spinner.finish("AI response received");
+            output
+                .result
+                .ok_or_else(|| anyhow!("zag returned no result text"))
+        }
+        Err(e) => {
+            spinner.fail("AI request failed");
+            Err(e)
+        }
+    }
 }
 
 /// Agentic loop with a working root and a turn budget — used by the

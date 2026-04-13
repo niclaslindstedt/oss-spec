@@ -13,6 +13,7 @@ pub fn init_and_commit(target: &Path) -> Result<()> {
         log::debug!("git repo already exists at {}", target.display());
         return Ok(()); // already a repo, leave alone
     }
+    crate::output::info("Initializing git repository...");
     log::debug!("initialising git repo at {}", target.display());
     run(target, "git", &["init", "-b", "main"])?;
     run(target, "git", &["add", "."])?;
@@ -21,6 +22,7 @@ pub fn init_and_commit(target: &Path) -> Result<()> {
         "git",
         &["commit", "-m", "chore: bootstrap project from oss-spec"],
     )?;
+    crate::output::status("Git repository initialized with initial commit");
     Ok(())
 }
 
@@ -49,6 +51,9 @@ pub fn gh_create(
             return Ok(());
         }
     }
+    let spinner = crate::output::Spinner::start(&format!(
+        "Creating GitHub repo {slug} ({visibility})..."
+    ));
     let visibility_flag = format!("--{visibility}");
     let args = vec![
         "repo",
@@ -59,8 +64,16 @@ pub fn gh_create(
         ".",
         "--push",
     ];
-    run(target, "gh", &args)?;
-    Ok(())
+    match run(target, "gh", &args) {
+        Ok(()) => {
+            spinner.finish(&format!("GitHub repo {slug} created and pushed"));
+            Ok(())
+        }
+        Err(e) => {
+            spinner.fail(&format!("Failed to create GitHub repo {slug}"));
+            Err(e)
+        }
+    }
 }
 
 fn run(cwd: &Path, prog: &str, args: &[&str]) -> Result<()> {
@@ -102,6 +115,10 @@ pub fn fetch_oss_spec(url: &str, into: Option<&Path>, shallow: bool) -> Result<P
         std::fs::create_dir_all(parent).ok();
     }
 
+    let spinner = crate::output::Spinner::start(&format!(
+        "Cloning oss-spec into {}...",
+        dest.display()
+    ));
     let mut args: Vec<String> = vec!["clone".into()];
     if shallow {
         args.extend(["--depth".into(), "1".into()]);
@@ -111,11 +128,15 @@ pub fn fetch_oss_spec(url: &str, into: Option<&Path>, shallow: bool) -> Result<P
 
     let status = Command::new("git")
         .args(&args)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .status()
         .with_context(|| format!("spawn git {args:?}"))?;
     if !status.success() {
+        spinner.fail("git clone failed");
         bail!("`git clone` failed with {status}");
     }
+    spinner.finish(&format!("Cloned into {}", dest.display()));
     Ok(dest)
 }
 

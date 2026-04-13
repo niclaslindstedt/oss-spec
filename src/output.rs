@@ -122,3 +122,51 @@ pub fn error(msg: &str) {
 pub fn debug(msg: &str) {
     log::debug!(target: "oss_spec", "{msg}");
 }
+
+/// A terminal spinner for long-running operations. Shows an animated indicator
+/// with a message on stderr while work proceeds. Call [`Spinner::finish`] (or
+/// [`Spinner::fail`]) when done — dropping without finishing clears the line.
+pub struct Spinner {
+    pb: indicatif::ProgressBar,
+}
+
+impl Spinner {
+    /// Start a new spinner with the given message.
+    pub fn start(msg: &str) -> Self {
+        let pb = indicatif::ProgressBar::new_spinner();
+        pb.set_style(
+            indicatif::ProgressStyle::default_spinner()
+                .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+                .template("{spinner} {msg}")
+                .expect("valid template"),
+        );
+        pb.set_message(msg.to_string());
+        pb.enable_steady_tick(std::time::Duration::from_millis(80));
+        log::info!(target: OUTPUT_TARGET, "{msg}");
+        Self { pb }
+    }
+
+    /// Update the spinner message mid-flight.
+    pub fn set_message(&self, msg: &str) {
+        self.pb.set_message(msg.to_string());
+        log::info!(target: OUTPUT_TARGET, "{msg}");
+    }
+
+    /// Stop the spinner with a green checkmark.
+    pub fn finish(self, msg: &str) {
+        self.pb.finish_with_message(format!(
+            "{}  {msg}",
+            console::style("✓").green().bold()
+        ));
+        log::info!(target: OUTPUT_TARGET, "{msg}");
+    }
+
+    /// Stop the spinner with a red cross.
+    pub fn fail(self, msg: &str) {
+        self.pb.finish_with_message(format!(
+            "{} {msg}",
+            console::style("✗").red().bold()
+        ));
+        log::error!(target: OUTPUT_TARGET, "{msg}");
+    }
+}
