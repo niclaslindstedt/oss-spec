@@ -26,9 +26,9 @@ const prereqs = [
 
 export default function GettingStarted() {
   return (
-    <section id="get-started" className="border-t border-border bg-surface-alt py-20 md:py-28">
-      <div className="mx-auto max-w-5xl px-6">
-        <h2 className="text-center text-3xl font-bold text-text-primary md:text-4xl">
+    <section id="get-started" className="border-t border-border bg-surface-alt py-16 md:py-28">
+      <div className="mx-auto max-w-5xl px-4 sm:px-6">
+        <h2 className="text-balance text-center text-3xl font-bold text-text-primary md:text-4xl">
           Get started in seconds
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-center text-text-secondary">
@@ -36,9 +36,9 @@ export default function GettingStarted() {
         </p>
 
         {/* Install methods */}
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
+        <div className="mt-10 grid gap-5 md:mt-12 md:grid-cols-3 md:gap-6">
           {methods.map((m) => (
-            <div key={m.title} className="rounded-xl border border-border bg-surface p-5">
+            <div key={m.title} className="min-w-0 rounded-xl border border-border bg-surface p-5">
               <h3 className="mb-1 text-sm font-semibold text-text-primary">{m.title}</h3>
               <p className="mb-3 text-xs text-text-dim">{m.note}</p>
               <pre className="overflow-x-auto rounded-lg bg-surface-alt p-3 text-xs leading-relaxed text-accent">
@@ -55,13 +55,15 @@ export default function GettingStarted() {
           </h3>
           <div className="mx-auto max-w-2xl space-y-2">
             {prereqs.map((p) => (
-              <div key={p.name} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-border bg-surface px-4 py-2.5">
-                <span className="text-sm font-medium text-text-secondary">
+              <div key={p.name} className="flex flex-col gap-2 rounded-lg border border-border bg-surface px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <span className="shrink-0 text-sm font-medium text-text-secondary">
                   {p.name}
                   {p.required && <span className="ml-2 text-xs text-accent">(required)</span>}
                   {!p.required && <span className="ml-2 text-xs text-text-dim">(optional)</span>}
                 </span>
-                <code className="text-xs text-text-dim">{p.cmd}</code>
+                <code className="block overflow-x-auto whitespace-nowrap text-xs text-text-dim sm:min-w-0 sm:text-right">
+                  {p.cmd}
+                </code>
               </div>
             ))}
           </div>
@@ -74,14 +76,14 @@ export default function GettingStarted() {
           </h3>
           <div className="mx-auto max-w-2xl space-y-2">
             {/* Default prompt form */}
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-border bg-surface px-4 py-2.5">
-              <code className="text-sm font-semibold text-accent">oss-spec &lt;PROMPT&gt;</code>
-              <span className="text-xs text-text-dim">AI-powered project creation from a freeform prompt</span>
+            <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+              <code className="shrink-0 text-sm font-semibold text-accent">oss-spec &lt;PROMPT&gt;</code>
+              <span className="text-xs text-text-dim sm:text-right">AI-powered project creation from a freeform prompt</span>
             </div>
             {commands.map((c) => (
-              <div key={c.name} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-border bg-surface px-4 py-2.5">
-                <code className="text-sm font-semibold text-accent">oss-spec {c.name}</code>
-                <span className="text-xs text-text-dim">{c.description}</span>
+              <div key={c.name} className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                <code className="shrink-0 text-sm font-semibold text-accent">oss-spec {c.name}</code>
+                <span className="text-xs text-text-dim sm:text-right">{c.description}</span>
               </div>
             ))}
           </div>
@@ -90,8 +92,8 @@ export default function GettingStarted() {
         {/* Quick verify */}
         <div className="mx-auto mt-12 max-w-lg rounded-xl border border-border bg-surface p-5">
           <p className="mb-3 text-center text-sm text-text-secondary">Try it out:</p>
-          <pre className="overflow-x-auto text-sm text-text-secondary">
-            <code>
+          <pre className="overflow-x-auto text-xs text-text-secondary sm:text-sm">
+            <code className="whitespace-pre">
               <span className="text-accent">$</span> oss-spec new hello-world --lang rust --kind cli --no-ai -y
             </code>
           </pre>

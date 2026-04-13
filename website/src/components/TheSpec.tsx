@@ -43,9 +43,9 @@ export default function TheSpec() {
   const visibleChecks = showAll ? specChecks : specChecks.slice(0, INITIAL_CHECKS);
 
   return (
-    <section id="the-spec" className="border-t border-border py-20 md:py-28">
-      <div className="mx-auto max-w-6xl px-6">
-        <h2 className="text-center text-3xl font-bold text-text-primary md:text-4xl">
+    <section id="the-spec" className="border-t border-border py-16 md:py-28">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <h2 className="text-balance text-center text-3xl font-bold text-text-primary md:text-4xl">
           Driven by{" "}
           <span className="text-spec-light">OSS_SPEC.md</span>
         </h2>
@@ -55,9 +55,9 @@ export default function TheSpec() {
           to validate any repo against it.
         </p>
 
-        <div className="mt-14 grid gap-8 lg:grid-cols-2">
+        <div className="mt-10 grid gap-6 md:mt-14 md:gap-8 lg:grid-cols-2">
           {/* Left: generated repo tree */}
-          <div className="rounded-xl border border-border bg-surface-alt overflow-hidden">
+          <div className="min-w-0 rounded-xl border border-border bg-surface-alt overflow-hidden">
             <div className="flex items-center border-b border-border px-4 py-3">
               <div className="flex items-center gap-2 mr-4">
                 <div className="h-3 w-3 rounded-full bg-[#ff5f57]" />
@@ -66,9 +66,9 @@ export default function TheSpec() {
               </div>
               <span className="text-xs text-text-dim font-mono">my-project/</span>
             </div>
-            <div className="p-5 font-mono text-sm leading-relaxed max-h-[480px] overflow-y-auto">
+            <div className="p-4 sm:p-5 font-mono text-xs sm:text-sm leading-relaxed max-h-[480px] overflow-auto">
               {repoTree.map((entry, i) => (
-                <div key={i} style={{ paddingLeft: `${entry.indent * 20}px` }}>
+                <div key={i} className="whitespace-nowrap" style={{ paddingLeft: `${entry.indent * 20}px` }}>
                   <span className={entry.isDir ? "text-accent" : "text-text-primary"}>
                     {entry.name}
                   </span>
@@ -81,7 +81,7 @@ export default function TheSpec() {
           </div>
 
           {/* Right: spec check reference */}
-          <div>
+          <div className="min-w-0">
             <h3 className="mb-4 text-lg font-semibold text-text-primary">
               Conformance checks ({specChecks.length} items)
             </h3>

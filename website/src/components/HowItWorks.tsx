@@ -42,18 +42,18 @@ Opening github.com/you/my-project...`,
 
 export default function HowItWorks() {
   return (
-    <section id="how-it-works" className="border-t border-border bg-surface-alt py-20 md:py-28">
-      <div className="mx-auto max-w-6xl px-6">
-        <h2 className="text-center text-3xl font-bold text-text-primary md:text-4xl">
+    <section id="how-it-works" className="border-t border-border bg-surface-alt py-16 md:py-28">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <h2 className="text-balance text-center text-3xl font-bold text-text-primary md:text-4xl">
           Three steps to a real repo
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-center text-text-secondary">
           Describe what you want, bootstrap the project, ship it.
         </p>
 
-        <div className="mt-14 grid gap-8 lg:grid-cols-3">
+        <div className="mt-10 grid gap-6 md:mt-14 md:gap-8 lg:grid-cols-3">
           {steps.map((s) => (
-            <div key={s.number} className="relative rounded-xl border border-border bg-surface p-6">
+            <div key={s.number} className="relative min-w-0 rounded-xl border border-border bg-surface p-6">
               <div className={`mb-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-border text-lg font-bold ${s.color}`}>
                 {s.number}
               </div>

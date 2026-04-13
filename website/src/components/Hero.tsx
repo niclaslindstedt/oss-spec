@@ -13,16 +13,16 @@ export default function Hero() {
   };
 
   return (
-    <section className="relative overflow-hidden pt-32 pb-20 md:pt-44 md:pb-32">
+    <section className="relative overflow-hidden pt-24 pb-16 md:pt-44 md:pb-32">
       {/* Background glow */}
-      <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 h-[600px] w-[800px] rounded-full bg-accent/5 blur-3xl" />
+      <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 h-[600px] w-[800px] max-w-full rounded-full bg-accent/5 blur-3xl" />
 
-      <div className="relative mx-auto max-w-6xl px-6 text-center">
+      <div className="relative mx-auto max-w-6xl px-4 text-center sm:px-6">
         <a href="https://crates.io/crates/oss-spec" target="_blank" rel="noopener noreferrer" className="mb-6 inline-block rounded-full border border-border bg-surface-alt px-4 py-1.5 text-xs text-text-secondary hover:border-accent/50 hover:text-text-primary transition-colors">
           v{version} — Now available on crates.io
         </a>
 
-        <h1 className="mx-auto max-w-4xl text-4xl leading-tight font-extrabold tracking-tight text-text-primary md:text-6xl md:leading-tight">
+        <h1 className="mx-auto max-w-4xl text-balance text-3xl leading-tight font-extrabold tracking-tight text-text-primary sm:text-4xl md:text-6xl md:leading-tight">
           Bootstrap{" "}
           <span className="bg-gradient-to-r from-accent to-accent-light bg-clip-text text-transparent">
             spec-compliant
@@ -30,7 +30,7 @@ export default function Hero() {
           open source repos
         </h1>
 
-        <p className="mx-auto mt-6 max-w-2xl text-lg text-text-secondary md:text-xl">
+        <p className="mx-auto mt-6 max-w-2xl text-base text-text-secondary sm:text-lg md:text-xl">
           One command produces a complete project — LICENSE, README, AGENTS.md, CI workflows, docs,
           website, and more. All derived from{" "}
           <a href="https://github.com/niclaslindstedt/oss-spec/blob/main/OSS_SPEC.md" target="_blank" rel="noopener noreferrer" className="text-spec-light hover:underline">OSS_SPEC.md</a>.
@@ -39,26 +39,26 @@ export default function Hero() {
         </p>
 
         {/* Capability pills */}
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-2 sm:gap-3">
           {["AI-Optional", "5 Languages", "Spec-Driven", "Agent-Friendly", "Self-Dogfooding"].map((label) => (
-            <span key={label} className="rounded-full border border-border bg-surface-alt px-3 py-1 text-sm font-medium text-accent">
+            <span key={label} className="rounded-full border border-border bg-surface-alt px-3 py-1 text-xs font-medium text-accent sm:text-sm">
               {label}
             </span>
           ))}
         </div>
 
         {/* Animated terminal */}
-        <Terminal tabs={terminalDemos} className="mx-auto mt-12 max-w-2xl" />
+        <Terminal tabs={terminalDemos} className="mx-auto mt-10 w-full max-w-2xl md:mt-12" />
 
         {/* Install CTA */}
-        <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+        <div className="mt-8 flex flex-col items-center gap-4 sm:mt-10 sm:flex-row sm:justify-center">
           <a
             href="#get-started"
             className="rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-accent/20 hover:bg-accent-light transition-colors"
           >
             Get Started
           </a>
-          <code className="relative rounded-lg border border-border bg-surface-alt pl-5 pr-10 py-3 text-sm text-text-secondary">
+          <code className="relative inline-flex max-w-full items-center overflow-x-auto whitespace-nowrap rounded-lg border border-border bg-surface-alt pl-5 pr-10 py-3 text-sm text-text-secondary">
             cargo install oss-spec
             <button
               onClick={copyInstallCommand}

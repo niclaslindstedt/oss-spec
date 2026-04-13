@@ -21,7 +21,7 @@ export default function Navbar() {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-surface/80 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
         <Link to="/" className="flex items-center gap-2 text-xl font-bold text-text-primary">
           <span className="text-accent">&#x1f6e1;&#xfe0f;</span> oss-spec
         </Link>
@@ -61,7 +61,7 @@ export default function Navbar() {
             className="fixed inset-0 top-[73px] z-40 bg-black/50 md:hidden"
             onClick={() => setMenuOpen(false)}
           />
-          <div className="relative z-50 border-t border-border bg-surface/95 backdrop-blur-md px-6 py-4 md:hidden">
+          <div className="relative z-50 border-t border-border bg-surface/95 backdrop-blur-md px-4 py-4 sm:px-6 md:hidden">
             <div className="flex flex-col gap-4" onClick={() => setMenuOpen(false)}>
               {navLinks}
             </div>
