@@ -198,6 +198,8 @@ jobs:
     needs: [update-repo, build]
     runs-on: ubuntu-latest
     environment: crates-io
+    permissions:
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -206,6 +208,4 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Publish oss-spec
-        run: cargo publish --token "$CARGO_REGISTRY_TOKEN"
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish
