@@ -153,9 +153,7 @@ fn set_executable(_path: &Path) -> Result<()> {
     Ok(())
 }
 
-#[cfg(unix)]
 fn create_agents_symlinks(target: &Path) -> Result<()> {
-    use std::os::unix::fs::symlink;
     let agents = target.join("AGENTS.md");
     if !agents.exists() {
         bail!("AGENTS.md was not produced by templates — refusing to create symlinks");
@@ -174,19 +172,27 @@ fn create_agents_symlinks(target: &Path) -> Result<()> {
         if let Some(parent) = link_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        if link_path.exists() || link_path.is_symlink() {
+        if link_path.is_symlink() || link_path.exists() {
             std::fs::remove_file(&link_path).ok();
         }
-        symlink(dest, &link_path)
+        symlink_file(Path::new(dest), &link_path)
             .with_context(|| format!("symlink {} -> {}", link_path.display(), dest))?;
     }
     Ok(())
 }
 
-#[cfg(not(unix))]
-fn create_agents_symlinks(_target: &Path) -> Result<()> {
-    // Windows fallback would copy or use mklink; out of scope for first cut.
-    Ok(())
+#[cfg(unix)]
+fn symlink_file(src: &Path, link: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(src, link)
+}
+
+#[cfg(windows)]
+fn symlink_file(src: &Path, link: &Path) -> std::io::Result<()> {
+    // Windows distinguishes file and directory symlinks. All our targets
+    // (AGENTS.md / ../AGENTS.md) resolve to files, so symlink_file is correct.
+    // Requires Developer Mode or admin; GitHub-hosted windows-latest runners
+    // satisfy this.
+    std::os::windows::fs::symlink_file(src, link)
 }
 
 /// Helper for tests/inspection: list all output paths a manifest would create.
