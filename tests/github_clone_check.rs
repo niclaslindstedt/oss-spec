@@ -26,7 +26,7 @@ fn run_git(cwd: &std::path::Path, args: &[&str]) {
         .current_dir(cwd)
         .status()
         .expect("spawn git");
-    assert!(status.success(), "git {:?} failed: {status}", args);
+    assert!(status.success(), "git {args:?} failed: {status}");
 }
 
 #[test]
