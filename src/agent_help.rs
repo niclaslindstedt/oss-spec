@@ -28,11 +28,11 @@ const COMMANDS_TABLE: &[(&str, &str)] = &[
     ),
     (
         "check",
-        "oss-spec check [--path .]                      # validate against OSS_SPEC.md",
+        "oss-spec check [--path .] [--url <URL>] [--create-issues]    # validate local or remote repo",
     ),
     (
         "fix",
-        "oss-spec fix [--path .] [--create-issues]      # fix or file issues for §19 violations",
+        "oss-spec fix   [--path .] [--url <URL>] [--create-issues]    # fix or file issues for §19 violations",
     ),
     (
         "fetch",
@@ -89,14 +89,24 @@ const COMMAND_SPECS: &[(&str, &str)] = &[
     ),
     (
         "check",
-        "oss-spec check [--path .]\n\
+        "oss-spec check [--path .] [--url <URL>] [--shallow] [--create-issues] [--max-turns N]\n\
          \n\
          Walks the target repo and reports every §19 checklist item that is\n\
-         missing or malformed. Exits 1 on any violation, 0 if clean.\n",
+         missing or malformed. Exits 1 on any violation, 0 if clean.\n\
+         \n\
+         With --url: clones the given git URL into a temp directory first,\n\
+         validates the clone, then removes it. --path and --url are mutually\n\
+         exclusive. Shallow clones (--depth 1) are the default.\n\
+         \n\
+         With --create-issues: after reporting, dispatches the same zag\n\
+         agent as `fix --create-issues` to file one well-scoped GitHub\n\
+         issue per violation cluster via `gh issue create`. When combined\n\
+         with --url, the clone's `origin` remote is the source repo, so\n\
+         issues land on the real upstream.\n",
     ),
     (
         "fix",
-        "oss-spec fix [--path .] [--create-issues] [--max-turns N]\n\
+        "oss-spec fix [--path .] [--url <URL>] [--shallow] [--create-issues] [--max-turns N]\n\
          \n\
          Runs `check` against the target repo, then dispatches a zag-driven\n\
          agent to bring it into conformance.\n\
@@ -108,6 +118,11 @@ const COMMAND_SPECS: &[(&str, &str)] = &[
          With --create-issues: the agent files one well-scoped GitHub issue\n\
          per violation cluster via `gh issue create` and does not modify\n\
          any source files.\n\
+         \n\
+         With --url: clones the given git URL into a temp directory first\n\
+         and runs against the clone, then removes it. Requires\n\
+         --create-issues, since an in-place fix on an ephemeral clone would\n\
+         be discarded. --path and --url are mutually exclusive.\n\
          \n\
          The agent's prompts live in prompts/fix-conformance/ and\n\
          prompts/file-conformance-issues/ (versioned per the prompts\n\
@@ -158,8 +173,14 @@ const EXAMPLES: &[(&str, &str)] = &[
         "oss-spec new my-tool --lang rust --kind cli --license MIT --no-ai --yes",
     ),
     ("init", "cd existing-repo && oss-spec init --no-ai --yes"),
-    ("check", "oss-spec check --path ."),
-    ("fix", "oss-spec fix --path . --yes"),
+    (
+        "check",
+        "oss-spec check --url https://github.com/niclaslindstedt/oss-spec.git",
+    ),
+    (
+        "fix",
+        "oss-spec fix --url https://github.com/niclaslindstedt/oss-spec.git --create-issues --yes",
+    ),
     ("fetch", "oss-spec fetch --into /tmp/oss-spec-ref"),
     ("commands", "oss-spec commands --examples"),
     ("docs", "oss-spec docs getting-started"),

@@ -88,11 +88,11 @@ fn run(cwd: &Path, prog: &str, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-/// Clone the public oss-spec repository to a local directory so an agent can
-/// browse the spec, templates, and reference implementation. Returns the
+/// Clone an arbitrary git repository into a local directory. Returns the
 /// resolved destination path. If `into` is None, a unique subdirectory under
-/// the system temp dir is used.
-pub fn fetch_oss_spec(url: &str, into: Option<&Path>, shallow: bool) -> Result<PathBuf> {
+/// the system temp dir is used, named `<label>-<nanos>` so the command that
+/// produced the clone is identifiable. Shells out to the `git` CLI.
+pub fn clone_repo(url: &str, into: Option<&Path>, shallow: bool, label: &str) -> Result<PathBuf> {
     let dest: PathBuf = match into {
         Some(p) => p.to_path_buf(),
         None => {
@@ -100,7 +100,7 @@ pub fn fetch_oss_spec(url: &str, into: Option<&Path>, shallow: bool) -> Result<P
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_nanos())
                 .unwrap_or(0);
-            std::env::temp_dir().join(format!("oss-spec-{nanos}"))
+            std::env::temp_dir().join(format!("{label}-{nanos}"))
         }
     };
 
@@ -115,7 +115,7 @@ pub fn fetch_oss_spec(url: &str, into: Option<&Path>, shallow: bool) -> Result<P
     }
 
     let spinner =
-        crate::output::Spinner::start(&format!("Cloning oss-spec into {}...", dest.display()));
+        crate::output::Spinner::start(&format!("Cloning {url} into {}...", dest.display()));
     let mut args: Vec<String> = vec!["clone".into()];
     if shallow {
         args.extend(["--depth".into(), "1".into()]);
@@ -135,6 +135,13 @@ pub fn fetch_oss_spec(url: &str, into: Option<&Path>, shallow: bool) -> Result<P
     }
     spinner.finish(&format!("Cloned into {}", dest.display()));
     Ok(dest)
+}
+
+/// Clone the public oss-spec repository to a local directory so an agent can
+/// browse the spec, templates, and reference implementation. Thin wrapper
+/// around [`clone_repo`] for the `fetch` subcommand.
+pub fn fetch_oss_spec(url: &str, into: Option<&Path>, shallow: bool) -> Result<PathBuf> {
+    clone_repo(url, into, shallow, "oss-spec")
 }
 
 fn which(prog: &str) -> Option<String> {

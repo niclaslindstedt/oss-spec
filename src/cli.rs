@@ -99,10 +99,26 @@ pub enum Command {
         #[arg(long, short = 'd')]
         description: Option<String>,
     },
-    /// Validate an existing repo against the §19 checklist.
+    /// Validate an existing repo against the §19 checklist. With `--url`,
+    /// clones a remote repo into a temp dir first. With `--create-issues`,
+    /// files one GitHub issue per violation after reporting.
     Check {
-        #[arg(long, default_value = ".")]
+        /// Local repo to validate. Defaults to the current directory.
+        #[arg(long, default_value = ".", conflicts_with = "url")]
         path: PathBuf,
+        /// Validate a remote git repo by cloning it into a temp dir first.
+        /// The clone is removed after the command finishes.
+        #[arg(long, value_name = "URL")]
+        url: Option<String>,
+        /// Use a shallow (--depth 1) clone when `--url` is given.
+        #[arg(long, default_value_t = true)]
+        shallow: bool,
+        /// After reporting, file one GitHub issue per violation via `gh`.
+        #[arg(long)]
+        create_issues: bool,
+        /// Cap the issue-filing agent's iteration budget (with `--create-issues`).
+        #[arg(long, default_value_t = 30)]
+        max_turns: u32,
     },
     /// Bring an existing repo into OSS_SPEC.md conformance via a zag agent.
     /// Without flags: edits files in place to remove every §19 violation.
@@ -110,7 +126,7 @@ pub enum Command {
     /// cluster via `gh` (no source files are touched).
     Fix {
         /// Repo to fix. Defaults to the current directory.
-        #[arg(long, default_value = ".")]
+        #[arg(long, default_value = ".", conflicts_with = "url")]
         path: PathBuf,
         /// Instead of fixing in place, file one GitHub issue per violation.
         #[arg(long)]
@@ -118,6 +134,14 @@ pub enum Command {
         /// Cap the agent's iteration budget.
         #[arg(long, default_value_t = 30)]
         max_turns: u32,
+        /// Fix (or file issues for) a remote git repo by cloning it first.
+        /// Requires `--create-issues` — in-place fixes on an ephemeral clone
+        /// would be discarded.
+        #[arg(long, value_name = "URL")]
+        url: Option<String>,
+        /// Use a shallow (--depth 1) clone when `--url` is given.
+        #[arg(long, default_value_t = true)]
+        shallow: bool,
     },
     /// Clone the public oss-spec repository into a local directory so a coding
     /// agent (or you) can browse OSS_SPEC.md, the templates, and the dogfood
@@ -180,9 +204,47 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
             println!("{}", dest.display());
             Ok(())
         }
-        Some(Command::Check { path }) => {
-            let report = crate::check::run(&path)?;
+        Some(Command::Check {
+            path,
+            url,
+            shallow,
+            create_issues,
+            max_turns,
+        }) => {
+            let (target, cleanup) = match url {
+                Some(u) => (
+                    crate::git::clone_repo(&u, None, shallow, "oss-spec-check")?,
+                    true,
+                ),
+                None => (path, false),
+            };
+            let check_result = crate::check::run(&target);
+            let report = match check_result {
+                Ok(r) => r,
+                Err(e) => {
+                    if cleanup {
+                        let _ = std::fs::remove_dir_all(&target);
+                    }
+                    return Err(e);
+                }
+            };
             report.print();
+
+            if create_issues && !report.is_clean() {
+                // Same code path as `fix --create-issues`. Issues land on the
+                // clone's `origin` remote, which (when cloned via --url) is
+                // the real source GitHub repo.
+                let ai_result =
+                    crate::ai::file_conformance_issues(&target, &report, max_turns).await;
+                if cleanup {
+                    let _ = std::fs::remove_dir_all(&target);
+                }
+                return ai_result;
+            }
+
+            if cleanup {
+                let _ = std::fs::remove_dir_all(&target);
+            }
             if !report.is_clean() {
                 std::process::exit(1);
             }
@@ -192,7 +254,29 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
             path,
             create_issues,
             max_turns,
-        }) => crate::fix::run(&path, create_issues, max_turns, cli.yes).await,
+            url,
+            shallow,
+        }) => {
+            let (target, cleanup) = match url {
+                Some(u) => {
+                    if !create_issues {
+                        anyhow::bail!(
+                            "--url requires --create-issues; in-place fixes on a temp clone would be discarded"
+                        );
+                    }
+                    (
+                        crate::git::clone_repo(&u, None, shallow, "oss-spec-fix")?,
+                        true,
+                    )
+                }
+                None => (path, false),
+            };
+            let result = crate::fix::run(&target, create_issues, max_turns, cli.yes).await;
+            if cleanup {
+                let _ = std::fs::remove_dir_all(&target);
+            }
+            result
+        }
         Some(Command::New { name, description }) => {
             let target = resolve_target_dir(&cli, Some(&name))?;
             let manifest =
