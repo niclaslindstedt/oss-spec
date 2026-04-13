@@ -18,6 +18,7 @@ coverage/
 website/node_modules/
 website/dist/
 website/src/generated/
+website/src/data/sourceData.ts
 
 # Generated docs
 docs/_build/

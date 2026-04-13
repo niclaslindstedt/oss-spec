@@ -77,6 +77,15 @@ A §19 rule | `src/check.rs`, `OSS_SPEC.md`, this `## Documentation sync points`
 The list of supported languages | `manifest::Language`, `templates/<lang>/`, `Makefile.tmpl`, `ci.yml.tmpl`, `dependabot.yml.tmpl`
 `OSS_SPEC.md` | `README.md`, `docs/`, `templates/_common/AGENTS.md.tmpl`, this file
 
+## Reference implementation
+
+This repo is the canonical reference implementation of `OSS_SPEC.md`. Other projects bootstrapped by oss-spec — and developers reading the spec — look at this repo to understand what a conformant project looks like in practice. This means:
+
+- **Layout and structure must exemplify the spec.** Every required file, directory, symlink, and workflow that `OSS_SPEC.md` mandates should be present and well-maintained here — not just passing the automated check, but serving as a good example of *how* to do it.
+- **When in doubt, look at the spec.** If you're unsure whether a change is appropriate, read the relevant section of [`OSS_SPEC.md`](OSS_SPEC.md). The spec is the source of truth; this repo is its embodiment.
+- **Quality over minimum compliance.** The README should have a genuine "Why?" section, the docs should be useful, the CI workflows should be production-grade, the AGENTS.md should be thorough. Automated checks verify presence; you should verify quality.
+- **Changes here ripple outward.** Patterns established in this repo get replicated by the bootstrap engine into every generated project. Sloppy conventions here become sloppy conventions everywhere.
+
 ## Parity / cross-cutting rules
 
 - **Embedded templates discipline.** `templates/`, `docs/`, and `man/` are compiled into the binary via `include_dir!`. After adding a new file under any of those directories, run `cargo clean && cargo build` to make sure it gets picked up.
