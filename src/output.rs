@@ -154,19 +154,15 @@ impl Spinner {
 
     /// Stop the spinner with a green checkmark.
     pub fn finish(self, msg: &str) {
-        self.pb.finish_with_message(format!(
-            "{}  {msg}",
-            console::style("✓").green().bold()
-        ));
+        self.pb
+            .finish_with_message(format!("{}  {msg}", console::style("✓").green().bold()));
         log::info!(target: OUTPUT_TARGET, "{msg}");
     }
 
     /// Stop the spinner with a red cross.
     pub fn fail(self, msg: &str) {
-        self.pb.finish_with_message(format!(
-            "{} {msg}",
-            console::style("✗").red().bold()
-        ));
+        self.pb
+            .finish_with_message(format!("{} {msg}", console::style("✗").red().bold()));
         log::error!(target: OUTPUT_TARGET, "{msg}");
     }
 }

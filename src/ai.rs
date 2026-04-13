@@ -26,13 +26,27 @@ use crate::manifest::{Kind, Language, License, ProjectManifest};
 struct ProgressForwarder(std::sync::Arc<OutputProgress>);
 
 impl zag::progress::ProgressHandler for ProgressForwarder {
-    fn on_status(&self, m: &str) { self.0.on_status(m); }
-    fn on_success(&self, m: &str) { self.0.on_success(m); }
-    fn on_warning(&self, m: &str) { self.0.on_warning(m); }
-    fn on_error(&self, m: &str) { self.0.on_error(m); }
-    fn on_spinner_start(&self, m: &str) { self.0.on_spinner_start(m); }
-    fn on_spinner_finish(&self) { self.0.on_spinner_finish(); }
-    fn on_debug(&self, m: &str) { self.0.on_debug(m); }
+    fn on_status(&self, m: &str) {
+        self.0.on_status(m);
+    }
+    fn on_success(&self, m: &str) {
+        self.0.on_success(m);
+    }
+    fn on_warning(&self, m: &str) {
+        self.0.on_warning(m);
+    }
+    fn on_error(&self, m: &str) {
+        self.0.on_error(m);
+    }
+    fn on_spinner_start(&self, m: &str) {
+        self.0.on_spinner_start(m);
+    }
+    fn on_spinner_finish(&self) {
+        self.0.on_spinner_finish();
+    }
+    fn on_debug(&self, m: &str) {
+        self.0.on_debug(m);
+    }
 }
 
 /// Routes zag progress callbacks through `crate::output`.

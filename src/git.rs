@@ -51,9 +51,8 @@ pub fn gh_create(
             return Ok(());
         }
     }
-    let spinner = crate::output::Spinner::start(&format!(
-        "Creating GitHub repo {slug} ({visibility})..."
-    ));
+    let spinner =
+        crate::output::Spinner::start(&format!("Creating GitHub repo {slug} ({visibility})..."));
     let visibility_flag = format!("--{visibility}");
     let args = vec![
         "repo",
@@ -115,10 +114,8 @@ pub fn fetch_oss_spec(url: &str, into: Option<&Path>, shallow: bool) -> Result<P
         std::fs::create_dir_all(parent).ok();
     }
 
-    let spinner = crate::output::Spinner::start(&format!(
-        "Cloning oss-spec into {}...",
-        dest.display()
-    ));
+    let spinner =
+        crate::output::Spinner::start(&format!("Cloning oss-spec into {}...", dest.display()));
     let mut args: Vec<String> = vec!["clone".into()];
     if shallow {
         args.extend(["--depth".into(), "1".into()]);
