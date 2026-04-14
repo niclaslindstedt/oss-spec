@@ -1,4 +1,6 @@
-use oss_spec::check::{check_toolchain_versions, version_ge};
+use oss_spec::check::{self, check_toolchain_versions, version_ge};
+use std::fs;
+use tempfile::tempdir;
 
 #[test]
 fn version_ge_pads_shorter_segments() {
@@ -135,4 +137,140 @@ fn rust_short_version_is_accepted() {
     // `@1.82` (no patch) should be treated as `1.82.0` and accepted.
     let yml = "      - uses: dtolnay/rust-toolchain@1.82\n";
     assert!(check_toolchain_versions("ci.yml", yml).is_empty());
+}
+
+// --- §20 test organization checks ---
+
+/// Helper: create a minimal repo skeleton that passes all non-§20 checks,
+/// so we can isolate §20 violations.
+fn scaffold_minimal_repo(root: &std::path::Path) {
+    // Required files
+    for f in [
+        "LICENSE",
+        "README.md",
+        "CONTRIBUTING.md",
+        "CODE_OF_CONDUCT.md",
+        "SECURITY.md",
+        "AGENTS.md",
+        "CHANGELOG.md",
+        ".gitignore",
+        ".editorconfig",
+        "Makefile",
+    ] {
+        fs::write(root.join(f), "").unwrap();
+    }
+    // Symlinks
+    for link in ["CLAUDE.md", ".cursorrules", ".windsurfrules", "GEMINI.md"] {
+        std::os::unix::fs::symlink("AGENTS.md", root.join(link)).unwrap();
+    }
+    // Directories
+    fs::create_dir_all(root.join(".github/workflows")).unwrap();
+    fs::create_dir_all(root.join(".github/ISSUE_TEMPLATE")).unwrap();
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::create_dir_all(root.join("prompts")).unwrap();
+    fs::create_dir_all(root.join("scripts")).unwrap();
+    std::os::unix::fs::symlink("../AGENTS.md", root.join(".github/copilot-instructions.md"))
+        .unwrap();
+    // Required workflows
+    for w in ["ci.yml", "version-bump.yml", "release.yml", "pages.yml"] {
+        fs::write(root.join(".github/workflows").join(w), "").unwrap();
+    }
+    // Required templates
+    fs::write(root.join(".github/PULL_REQUEST_TEMPLATE.md"), "").unwrap();
+    fs::write(root.join(".github/ISSUE_TEMPLATE/bug_report.md"), "").unwrap();
+    fs::write(root.join(".github/ISSUE_TEMPLATE/feature_request.md"), "").unwrap();
+    fs::write(root.join(".github/ISSUE_TEMPLATE/config.yml"), "").unwrap();
+    fs::write(root.join(".github/dependabot.yml"), "").unwrap();
+}
+
+#[test]
+fn inline_cfg_test_in_src_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn add(a: i32, b: i32) -> i32 { a + b }\n\n\
+         #[cfg(test)]\nmod tests {\n    use super::*;\n\n    \
+         #[test]\n    fn it_works() { assert_eq!(add(1, 2), 3); }\n}\n",
+    )
+    .unwrap();
+
+    let report = check::run(root).unwrap();
+    let v20: Vec<_> = report
+        .violations
+        .iter()
+        .filter(|v| v.spec_section == "§20")
+        .collect();
+    assert_eq!(v20.len(), 1);
+    assert!(v20[0].message.contains("src/lib.rs"));
+    assert!(v20[0].message.contains("inline test block"));
+}
+
+#[test]
+fn no_inline_tests_means_no_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn add(a: i32, b: i32) -> i32 { a + b }\n",
+    )
+    .unwrap();
+
+    let report = check::run(root).unwrap();
+    let v20: Vec<_> = report
+        .violations
+        .iter()
+        .filter(|v| v.spec_section == "§20")
+        .collect();
+    assert!(v20.is_empty());
+}
+
+#[test]
+fn test_file_with_bad_name_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+
+    fs::create_dir_all(root.join("tests")).unwrap();
+    fs::write(root.join("tests/my_checks.rs"), "#[test] fn t() {}\n").unwrap();
+
+    let report = check::run(root).unwrap();
+    let v202: Vec<_> = report
+        .violations
+        .iter()
+        .filter(|v| v.spec_section == "§20.2")
+        .collect();
+    assert_eq!(v202.len(), 1);
+    assert!(v202[0].message.contains("my_checks"));
+}
+
+#[test]
+fn test_file_with_valid_names_pass() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+
+    fs::create_dir_all(root.join("tests")).unwrap();
+    for name in [
+        "check_test.rs",
+        "check_tests.rs",
+        "CheckTest.rs",
+        "CheckTests.rs",
+    ] {
+        fs::write(root.join("tests").join(name), "#[test] fn t() {}\n").unwrap();
+    }
+
+    let report = check::run(root).unwrap();
+    let v202: Vec<_> = report
+        .violations
+        .iter()
+        .filter(|v| v.spec_section == "§20.2")
+        .collect();
+    assert!(v202.is_empty());
 }

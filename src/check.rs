@@ -179,7 +179,103 @@ pub fn run(path: &Path) -> Result<Report> {
         }
     }
 
+    // §20 Test organization: tests must live in separate files, not inline.
+    // Check that no source file contains inline test blocks.
+    let src_dir = path.join("src");
+    if src_dir.is_dir() {
+        check_no_inline_tests(&src_dir, &path, &mut report)?;
+    }
+
+    // §20.2 Test file naming: every file in tests/ must have a stem ending
+    // with _test, _tests, Test, or Tests.
+    let tests_dir = path.join("tests");
+    if tests_dir.is_dir() {
+        for entry in std::fs::read_dir(&tests_dir)
+            .with_context(|| format!("read {}", tests_dir.display()))?
+            .flatten()
+        {
+            let p = entry.path();
+            if !p.is_file() {
+                continue;
+            }
+            if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
+                if !is_valid_test_stem(stem) {
+                    let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("?");
+                    report.violations.push(Violation {
+                        spec_section: "§20.2",
+                        message: format!(
+                            "tests/{name}: file stem '{stem}' does not end with \
+                             _test, _tests, Test, or Tests"
+                        ),
+                    });
+                }
+            }
+        }
+    }
+
     Ok(report)
+}
+
+/// Returns `true` if the stem ends with `_test`, `_tests`, `Test`, or `Tests`.
+fn is_valid_test_stem(stem: &str) -> bool {
+    stem.ends_with("_test")
+        || stem.ends_with("_tests")
+        || stem.ends_with("Test")
+        || stem.ends_with("Tests")
+}
+
+/// Recursively scan a directory for source files containing inline test blocks
+/// (e.g. `#[cfg(test)]` in Rust). Each match is a §20 violation.
+///
+/// Only lines where the marker appears as actual code are flagged — occurrences
+/// inside string literals, comments, or doc comments are ignored.
+fn check_no_inline_tests(dir: &Path, root: &Path, report: &mut Report) -> Result<()> {
+    for entry in std::fs::read_dir(dir)
+        .with_context(|| format!("read {}", dir.display()))?
+        .flatten()
+    {
+        let p = entry.path();
+        if p.is_dir() {
+            check_no_inline_tests(&p, root, report)?;
+            continue;
+        }
+        let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
+        if ext != "rs" {
+            continue;
+        }
+        if let Ok(content) = std::fs::read_to_string(&p) {
+            if has_inline_test_attribute(&content) {
+                let rel = p.strip_prefix(root).unwrap_or(&p);
+                report.violations.push(Violation {
+                    spec_section: "§20",
+                    message: format!(
+                        "{}: contains inline test block; \
+                         move tests to a separate file in tests/",
+                        rel.display()
+                    ),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Returns `true` if the Rust source contains a `#[cfg(test)]` attribute as
+/// actual code (not inside a comment, doc comment, or string literal).
+fn has_inline_test_attribute(source: &str) -> bool {
+    for line in source.lines() {
+        let trimmed = line.trim();
+        // Skip comments and doc comments.
+        if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+            continue;
+        }
+        // Only match if `#[cfg(test)]` appears at the start of the
+        // (trimmed) line — the canonical position for the attribute.
+        if trimmed.starts_with("#[cfg(test)]") {
+            return true;
+        }
+    }
+    false
 }
 
 #[allow(dead_code)]
