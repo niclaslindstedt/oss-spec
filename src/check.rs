@@ -6,6 +6,16 @@
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
+/// Render a path with forward slashes regardless of platform.
+///
+/// Violation messages, test assertions, and user-facing output should use
+/// this so that paths are consistent across operating systems and match the
+/// forward-slash convention used in `OSS_SPEC.md` and hardcoded check
+/// strings (e.g. `.github/workflows/ci.yml`).
+pub fn portable_path(p: &Path) -> String {
+    p.display().to_string().replace('\\', "/")
+}
+
 #[derive(Debug, Clone)]
 pub struct Violation {
     pub spec_section: &'static str,
@@ -246,12 +256,12 @@ fn check_no_inline_tests(dir: &Path, root: &Path, report: &mut Report) -> Result
         if let Ok(content) = std::fs::read_to_string(&p) {
             if has_inline_test_attribute(&content) {
                 let rel = p.strip_prefix(root).unwrap_or(&p);
-                let rel_str = rel.display().to_string().replace('\\', "/");
                 report.violations.push(Violation {
                     spec_section: "§20",
                     message: format!(
-                        "{rel_str}: contains inline test block; \
-                         move tests to a separate file in tests/"
+                        "{}: contains inline test block; \
+                         move tests to a separate file in tests/",
+                        portable_path(rel)
                     ),
                 });
             }
