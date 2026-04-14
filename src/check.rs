@@ -246,12 +246,12 @@ fn check_no_inline_tests(dir: &Path, root: &Path, report: &mut Report) -> Result
         if let Ok(content) = std::fs::read_to_string(&p) {
             if has_inline_test_attribute(&content) {
                 let rel = p.strip_prefix(root).unwrap_or(&p);
+                let rel_str = rel.display().to_string().replace('\\', "/");
                 report.violations.push(Violation {
                     spec_section: "§20",
                     message: format!(
-                        "{}: contains inline test block; \
-                         move tests to a separate file in tests/",
-                        rel.display()
+                        "{rel_str}: contains inline test block; \
+                         move tests to a separate file in tests/"
                     ),
                 });
             }
