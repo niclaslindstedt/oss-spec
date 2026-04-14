@@ -108,7 +108,7 @@ impl zag::progress::ProgressHandler for OutputProgress {
     }
     fn on_spinner_finish(&self) {
         if let Some(spinner) = self.spinner.lock().unwrap().take() {
-            spinner.finish("done");
+            spinner.clear();
         }
     }
     fn on_debug(&self, message: &str) {

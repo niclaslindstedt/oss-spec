@@ -124,8 +124,9 @@ pub fn debug(msg: &str) {
 }
 
 /// A terminal spinner for long-running operations. Shows an animated indicator
-/// with a message on stderr while work proceeds. Call [`Spinner::finish`] (or
-/// [`Spinner::fail`]) when done — dropping without finishing clears the line.
+/// with a message on stderr while work proceeds. Call [`Spinner::finish`],
+/// [`Spinner::fail`], or [`Spinner::clear`] when done — dropping without
+/// finishing abandons the spinner in place.
 pub struct Spinner {
     pb: indicatif::ProgressBar,
 }
@@ -157,6 +158,11 @@ impl Spinner {
         self.pb
             .finish_with_message(format!("{}  {msg}", console::style("✓").green().bold()));
         log::info!(target: OUTPUT_TARGET, "{msg}");
+    }
+
+    /// Stop the spinner and clear its line entirely.
+    pub fn clear(self) {
+        self.pb.finish_and_clear();
     }
 
     /// Stop the spinner with a red cross.
