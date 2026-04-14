@@ -1,6 +1,15 @@
 use oss_spec::check::{self, check_toolchain_versions, version_ge};
 use std::fs;
+use std::path::Path;
 use tempfile::tempdir;
+
+/// Cross-platform symlink creation for tests.
+fn symlink_file(original: &str, link: &Path) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(original, link).unwrap();
+    #[cfg(windows)]
+    std::os::windows::fs::symlink_file(original, link).unwrap();
+}
 
 #[test]
 fn version_ge_pads_shorter_segments() {
@@ -161,7 +170,7 @@ fn scaffold_minimal_repo(root: &std::path::Path) {
     }
     // Symlinks
     for link in ["CLAUDE.md", ".cursorrules", ".windsurfrules", "GEMINI.md"] {
-        std::os::unix::fs::symlink("AGENTS.md", root.join(link)).unwrap();
+        symlink_file("AGENTS.md", &root.join(link));
     }
     // Directories
     fs::create_dir_all(root.join(".github/workflows")).unwrap();
@@ -169,8 +178,10 @@ fn scaffold_minimal_repo(root: &std::path::Path) {
     fs::create_dir_all(root.join("docs")).unwrap();
     fs::create_dir_all(root.join("prompts")).unwrap();
     fs::create_dir_all(root.join("scripts")).unwrap();
-    std::os::unix::fs::symlink("../AGENTS.md", root.join(".github/copilot-instructions.md"))
-        .unwrap();
+    symlink_file(
+        "../AGENTS.md",
+        &root.join(".github/copilot-instructions.md"),
+    );
     // Required workflows
     for w in ["ci.yml", "version-bump.yml", "release.yml", "pages.yml"] {
         fs::write(root.join(".github/workflows").join(w), "").unwrap();
