@@ -1176,9 +1176,14 @@ text on stdout with no ANSI escapes).
 
 Tests must live in **dedicated test files**, separate from the source
 files they exercise. Inline test blocks embedded in production source
-files (e.g. Rust `#[cfg(test)] mod tests`, Python `if __name__ ==
+files (e.g. Rust `#[cfg(test)] mod tests { … }`, Python `if __name__ ==
 "__main__"` test harnesses, or ad-hoc assertions at module scope) are
 forbidden.
+
+Using `#[cfg(test)]` to **import** a separate test file (e.g.
+`#[cfg(test)] mod check_test;`) or to gate test-only `use` statements
+is allowed — the rule targets inline test *bodies*, not the conditional-
+compilation attribute itself.
 
 ### 20.1 Why separate test files?
 

@@ -232,6 +232,59 @@ fn no_inline_tests_means_no_violation() {
 }
 
 #[test]
+fn cfg_test_importing_separate_file_is_allowed() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+
+    fs::create_dir_all(root.join("src")).unwrap();
+    // `#[cfg(test)] mod check_test;` imports a separate file — not inline.
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn add(a: i32, b: i32) -> i32 { a + b }\n\n\
+         #[cfg(test)]\nmod check_test;\n",
+    )
+    .unwrap();
+
+    let report = check::run(root).unwrap();
+    let v20: Vec<_> = report
+        .violations
+        .iter()
+        .filter(|v| v.spec_section == "§20")
+        .collect();
+    assert!(
+        v20.is_empty(),
+        "cfg(test) importing a file should not be flagged: {v20:?}"
+    );
+}
+
+#[test]
+fn cfg_test_with_use_statement_is_allowed() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn add(a: i32, b: i32) -> i32 { a + b }\n\n\
+         #[cfg(test)]\nuse some_test_crate::helpers;\n",
+    )
+    .unwrap();
+
+    let report = check::run(root).unwrap();
+    let v20: Vec<_> = report
+        .violations
+        .iter()
+        .filter(|v| v.spec_section == "§20")
+        .collect();
+    assert!(
+        v20.is_empty(),
+        "cfg(test) gating a use statement should not be flagged: {v20:?}"
+    );
+}
+
+#[test]
 fn test_file_with_bad_name_is_violation() {
     let tmp = tempdir().unwrap();
     let root = tmp.path();

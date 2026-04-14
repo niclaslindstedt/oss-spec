@@ -260,20 +260,49 @@ fn check_no_inline_tests(dir: &Path, root: &Path, report: &mut Report) -> Result
     Ok(())
 }
 
-/// Returns `true` if the Rust source contains a `#[cfg(test)]` attribute as
-/// actual code (not inside a comment, doc comment, or string literal).
+/// Returns `true` if the Rust source contains an **inline** test module —
+/// i.e. `#[cfg(test)]` followed by `mod <name> { ... }` (with braces).
+///
+/// `#[cfg(test)]` that merely imports a separate file (`mod tests;` with a
+/// semicolon) or gates a `use` statement is allowed and not flagged.
 fn has_inline_test_attribute(source: &str) -> bool {
-    for line in source.lines() {
-        let trimmed = line.trim();
+    let lines: Vec<&str> = source.lines().collect();
+    let mut i = 0;
+    while i < lines.len() {
+        let trimmed = lines[i].trim();
         // Skip comments and doc comments.
         if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+            i += 1;
             continue;
         }
-        // Only match if `#[cfg(test)]` appears at the start of the
-        // (trimmed) line — the canonical position for the attribute.
         if trimmed.starts_with("#[cfg(test)]") {
-            return true;
+            // Look at the rest of this line and subsequent non-blank,
+            // non-attribute lines for `mod <name> {`.
+            let after_attr = trimmed.strip_prefix("#[cfg(test)]").unwrap().trim();
+            if is_inline_mod(after_attr) {
+                return true;
+            }
+            // Check following lines (the mod declaration may be on the next line).
+            for next_line in &lines[i + 1..] {
+                let next = next_line.trim();
+                if next.is_empty() || next.starts_with("#[") {
+                    continue;
+                }
+                return is_inline_mod(next);
+            }
         }
+        i += 1;
+    }
+    false
+}
+
+/// Returns `true` if the line declares a module with a body (`mod foo {`),
+/// as opposed to an external file reference (`mod foo;`).
+fn is_inline_mod(line: &str) -> bool {
+    if let Some(rest) = line.strip_prefix("mod ") {
+        // `mod tests {` or `mod tests{` → inline; `mod tests;` → external file
+        let rest = rest.trim();
+        return rest.contains('{');
     }
     false
 }
