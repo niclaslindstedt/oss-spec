@@ -63,8 +63,10 @@ Dependency direction is top-down: `main` → `lib` → `cli` → (`interview`, `
 
 ## Test conventions
 
-- Unit tests live next to the code they test in `#[cfg(test)] mod tests` blocks.
-- Integration tests live in `tests/`. Use `tempfile::tempdir()` for any test that writes files.
+- **All tests live in `tests/`** as separate files — never as inline `#[cfg(test)]` blocks in `src/`. This keeps source files free of test scaffolding and lets agents, hooks, and linters treat source and test code differently.
+- Test files are named `<module>_test.rs` (e.g. `check_test.rs`, `prompts_test.rs`). The stem must end with `_test` or `_tests` per §20 of `OSS_SPEC.md`.
+- Functions that tests need to call must be `pub` on the library crate.
+- Use `tempfile::tempdir()` for any test that writes files.
 - Snapshot tests use `insta`. The self-conformance test runs `check::run(".")` against this repo and must always pass.
 
 ## Documentation sync points

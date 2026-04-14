@@ -70,7 +70,7 @@ pub fn load<S: Serialize>(name: &str, ctx: S) -> Result<Prompt> {
 
 /// Parse `1_0`, `2_13`, etc. into `(major, minor)`. Returns `None` for
 /// anything else (like `README.md` sitting next to the versioned files).
-fn parse_version(stem: &str) -> Option<(u32, u32)> {
+pub fn parse_version(stem: &str) -> Option<(u32, u32)> {
     let (maj, min) = stem.split_once('_')?;
     Some((maj.parse().ok()?, min.parse().ok()?))
 }
@@ -108,29 +108,4 @@ fn split_sections(body: &str) -> Result<(String, String)> {
         bail!("missing required sections");
     }
     Ok((system, user))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn loads_interpret_prompt() {
-        let p = load(
-            "interpret-prompt",
-            minijinja::context! { prompt => "make a python cli" },
-        )
-        .unwrap();
-        assert!(p.system.contains("oss-spec"));
-        assert!(p.user.contains("make a python cli"));
-    }
-
-    #[test]
-    fn picks_highest_version() {
-        // 1_0 must exist for every shipped prompt; if we ever add 1_1 it
-        // should win automatically. This test just guards the parser.
-        assert_eq!(parse_version("1_0"), Some((1, 0)));
-        assert_eq!(parse_version("2_13"), Some((2, 13)));
-        assert_eq!(parse_version("README"), None);
-    }
 }

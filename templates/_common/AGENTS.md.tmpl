@@ -37,7 +37,9 @@ _Describe the module layout and dependency direction in 1–3 paragraphs._
 
 ## Test conventions
 
-_Where tests live, how they're named, what coverage is expected._
+- **All tests live in separate files** — never inline in source files (no `#[cfg(test)]` blocks, no `if __name__ == "__main__"` test harnesses). This keeps source files free of test scaffolding and lets agents, hooks, and linters treat source and test code differently.
+- Test files are named with a `_test` or `_tests` suffix (e.g. `check_test.rs`, `utils_test.py`). The stem must match the pattern `_?[Tt]ests?$` per §20 of `OSS_SPEC.md`.
+- Tests live in `tests/`. Use `tempfile` or equivalent for any test that writes to the filesystem.
 
 ## Documentation sync points
 

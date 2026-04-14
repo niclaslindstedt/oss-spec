@@ -169,7 +169,8 @@ guidance. It must live at the repository root and cover:
   dependency direction.
 - **Where new code goes** — a routing table mapping common change types
   to the directories they belong in.
-- **Test file conventions** — where tests live and how they are named.
+- **Test file conventions** — where tests live and how they are named
+  (see §20 for the naming rule and rationale).
 - **Documentation sync points** — a table of "if you change X, update Y".
 - **Parity / checklist rules** — any cross-cutting rules (e.g. updating
   multiple bindings, keeping a CLI and library in sync).
@@ -1171,7 +1172,79 @@ outside the output module except for machine-readable output required by
 a contract (e.g. §12 agent discoverability surfaces, which require plain
 text on stdout with no ANSI escapes).
 
-## 20. Bootstrap checklist
+## 20. Test organization
+
+Tests must live in **dedicated test files**, separate from the source
+files they exercise. Inline test blocks embedded in production source
+files (e.g. Rust `#[cfg(test)] mod tests`, Python `if __name__ ==
+"__main__"` test harnesses, or ad-hoc assertions at module scope) are
+forbidden.
+
+### 20.1 Why separate test files?
+
+Keeping tests out of source files provides three concrete benefits:
+
+1. **Different rules for source and tests.** Linters, formatters, and
+   review tools can apply stricter policies to production code (e.g.
+   no `unwrap()`, mandatory doc comments) while relaxing them in test
+   code — without file-level `#[allow(...)]` annotations or language-
+   specific lint toggles.
+2. **Agent hooks and automation.** CI, pre-commit hooks, and AI coding
+   agents can detect when a change modifies tests vs. production code
+   by simple path or filename matching. This enables workflows like
+   "require a test change for every source change" or "re-run only
+   affected test files."
+3. **Clean reading.** Agents and humans reading source code see only
+   production logic, without hundreds of lines of test scaffolding
+   interleaved. Agents that need to understand the test suite can
+   target the test directory directly.
+
+### 20.2 Test file naming convention
+
+Every test file's **stem** (the filename without its extension) must end
+with one of the following suffixes:
+
+| Suffix   | Example                          |
+|----------|----------------------------------|
+| `_test`  | `check_test.rs`, `utils_test.py` |
+| `_tests` | `check_tests.rs`, `utils_tests.py` |
+| `Test`   | `CheckTest.java`, `UtilsTest.kt` |
+| `Tests`  | `CheckTests.cs`, `UtilsTests.swift` |
+
+Expressed as a regex on the stem: `_?[Tt]ests?$`.
+
+This convention is already idiomatic in most ecosystems (Go's `_test.go`,
+JUnit's `*Test.java`, pytest's `test_*.py` / `*_test.py`) and enables
+glob-based tooling (`*_test.*`, `*Test.*`) to enumerate all test files
+without parsing build configs.
+
+### 20.3 Where test files live
+
+| Language / ecosystem | Test location | Notes |
+|---|---|---|
+| Rust | `tests/` directory at crate root | No `#[cfg(test)]` blocks in `src/`. Functions that need testing from outside the crate must be `pub`. |
+| Python | `tests/` directory at project root | Follow pytest discovery: files named `test_*.py` or `*_test.py`. |
+| Go | `*_test.go` alongside source files | Go enforces separate test files by convention; they already match the naming rule. |
+| Node / TypeScript | `tests/` or `__tests__/` directory | Frameworks like Jest and Vitest discover `*.test.ts` / `*.spec.ts` by default; prefer `*_test.ts` or `*Test.ts` to stay within the naming convention. |
+| JVM (Java, Kotlin) | `src/test/` per Maven/Gradle convention | Files named `*Test.java`, `*Tests.java`, `*Test.kt`, etc. |
+| C# / .NET | Separate test project (e.g. `*.Tests.csproj`) | Files named `*Test.cs` or `*Tests.cs`. |
+
+Projects using a language not listed above must document their test
+location and naming convention in `AGENTS.md` and ensure the naming
+rule in §20.2 is satisfied.
+
+### 20.4 AGENTS.md must describe testing patterns
+
+The `AGENTS.md` file (§7) must include a **Test conventions** section
+that tells agents and contributors:
+
+- Where test files live (directory / path pattern).
+- The naming convention in use (which suffix from §20.2).
+- How to run tests (`make test` at minimum, plus any subset commands).
+- Any test-specific dependencies or setup (e.g. `tempfile` crate,
+  Docker containers, fixture files).
+
+## 21. Bootstrap checklist
 
 Use this checklist when creating a new repository. Every box should be
 checked before the first public tag.
@@ -1216,6 +1289,9 @@ checked before the first public tag.
 [ ] Pre-commit hooks installable                        (§16)
 [ ] Governance documented                               (§17)
 [ ] Communication channels linked in README             (§18)
+[ ] Tests in separate files (*_test, *_tests, *Test,
+    *Tests), no inline test blocks in source              (§20)
+[ ] AGENTS.md documents test conventions                  (§20.4)
 [ ] Central output module, no raw print statements       (§19.4)
 [ ] Always-on debug log file                             (§19.2)
 [ ] --debug flag for verbose terminal output             (§19.3)
