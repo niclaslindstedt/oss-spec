@@ -6,27 +6,40 @@
 //! surfaces (--help-agent, --debug-agent, commands, docs, man).
 //!
 //! Logging is dual-target:
-//! - **File**: always-on, appends to `<data_local_dir>/oss-spec/debug.log` at
-//!   `Debug` level with timestamps.
+//! - **File**: always-on, writes to `~/.oss-spec/logs/<timestamp>.log` at
+//!   `Debug` level with timestamps. Each run gets its own log file.
 //! - **Stderr**: `log::debug!` messages appear only when `--debug` is set.
 //!   Semantic output functions (`status`, `warn`, etc.) always write to stderr
 //!   directly with styling, bypassing the log framework for terminal output.
 
 use std::io::Write as _;
+use std::sync::OnceLock;
 
 /// Target prefix used by semantic output functions. The stderr dispatch
 /// filters this out to avoid double-printing (the functions already write
 /// styled output to stderr directly).
 const OUTPUT_TARGET: &str = "oss_spec::_output";
 
+/// Stores the log file path for the current run so `log_path()` can return it.
+static LOG_FILE_PATH: OnceLock<std::path::PathBuf> = OnceLock::new();
+
+/// Return the base directory for oss-spec data (`~/.oss-spec`).
+pub fn base_dir() -> std::path::PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join(".oss-spec")
+}
+
 /// Initialise dual-target logging. Call once from `main`, before any output.
 pub fn init(debug: bool) -> anyhow::Result<()> {
     let file_dispatch = {
-        let log_dir = dirs::data_local_dir()
-            .unwrap_or_else(|| std::path::PathBuf::from("."))
-            .join("oss-spec");
+        let log_dir = base_dir().join("logs");
         std::fs::create_dir_all(&log_dir)?;
-        let log_path = log_dir.join("debug.log");
+        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+        let log_path = log_dir.join(format!("{timestamp}.log"));
+        LOG_FILE_PATH
+            .set(log_path.clone())
+            .expect("init called once");
         let file = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
@@ -76,12 +89,12 @@ pub fn init(debug: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Return the path to the debug log file.
+/// Return the path to the debug log file for the current run.
 pub fn log_path() -> std::path::PathBuf {
-    dirs::data_local_dir()
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
-        .join("oss-spec")
-        .join("debug.log")
+    LOG_FILE_PATH
+        .get()
+        .cloned()
+        .unwrap_or_else(|| base_dir().join("logs").join("debug.log"))
 }
 
 /// Success message with green checkmark prefix.
