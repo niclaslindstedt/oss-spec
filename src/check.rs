@@ -179,7 +179,132 @@ pub fn run(path: &Path) -> Result<Report> {
         }
     }
 
+    // §20 Test organization: tests must live in separate files, not inline.
+    // Check that no source file contains inline test blocks.
+    let src_dir = path.join("src");
+    if src_dir.is_dir() {
+        check_no_inline_tests(&src_dir, &path, &mut report)?;
+    }
+
+    // §20.2 Test file naming: every file in tests/ must have a stem ending
+    // with _test, _tests, Test, or Tests.
+    let tests_dir = path.join("tests");
+    if tests_dir.is_dir() {
+        for entry in std::fs::read_dir(&tests_dir)
+            .with_context(|| format!("read {}", tests_dir.display()))?
+            .flatten()
+        {
+            let p = entry.path();
+            if !p.is_file() {
+                continue;
+            }
+            if let Some(stem) = p.file_stem().and_then(|s| s.to_str()) {
+                if !is_valid_test_stem(stem) {
+                    let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("?");
+                    report.violations.push(Violation {
+                        spec_section: "§20.2",
+                        message: format!(
+                            "tests/{name}: file stem '{stem}' does not end with \
+                             _test, _tests, Test, or Tests"
+                        ),
+                    });
+                }
+            }
+        }
+    }
+
     Ok(report)
+}
+
+/// Returns `true` if the stem ends with `_test`, `_tests`, `Test`, or `Tests`.
+fn is_valid_test_stem(stem: &str) -> bool {
+    stem.ends_with("_test")
+        || stem.ends_with("_tests")
+        || stem.ends_with("Test")
+        || stem.ends_with("Tests")
+}
+
+/// Recursively scan a directory for source files containing inline test blocks
+/// (e.g. `#[cfg(test)]` in Rust). Each match is a §20 violation.
+///
+/// Only lines where the marker appears as actual code are flagged — occurrences
+/// inside string literals, comments, or doc comments are ignored.
+fn check_no_inline_tests(dir: &Path, root: &Path, report: &mut Report) -> Result<()> {
+    for entry in std::fs::read_dir(dir)
+        .with_context(|| format!("read {}", dir.display()))?
+        .flatten()
+    {
+        let p = entry.path();
+        if p.is_dir() {
+            check_no_inline_tests(&p, root, report)?;
+            continue;
+        }
+        let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
+        if ext != "rs" {
+            continue;
+        }
+        if let Ok(content) = std::fs::read_to_string(&p) {
+            if has_inline_test_attribute(&content) {
+                let rel = p.strip_prefix(root).unwrap_or(&p);
+                let rel_str = rel.display().to_string().replace('\\', "/");
+                report.violations.push(Violation {
+                    spec_section: "§20",
+                    message: format!(
+                        "{rel_str}: contains inline test block; \
+                         move tests to a separate file in tests/"
+                    ),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Returns `true` if the Rust source contains an **inline** test module —
+/// i.e. `#[cfg(test)]` followed by `mod <name> { ... }` (with braces).
+///
+/// `#[cfg(test)]` that merely imports a separate file (`mod tests;` with a
+/// semicolon) or gates a `use` statement is allowed and not flagged.
+fn has_inline_test_attribute(source: &str) -> bool {
+    let lines: Vec<&str> = source.lines().collect();
+    let mut i = 0;
+    while i < lines.len() {
+        let trimmed = lines[i].trim();
+        // Skip comments and doc comments.
+        if trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with('*') {
+            i += 1;
+            continue;
+        }
+        if trimmed.starts_with("#[cfg(test)]") {
+            // Look at the rest of this line and subsequent non-blank,
+            // non-attribute lines for `mod <name> {`.
+            let after_attr = trimmed.strip_prefix("#[cfg(test)]").unwrap().trim();
+            if is_inline_mod(after_attr) {
+                return true;
+            }
+            // Check following lines (the mod declaration may be on the next line).
+            for next_line in &lines[i + 1..] {
+                let next = next_line.trim();
+                if next.is_empty() || next.starts_with("#[") {
+                    continue;
+                }
+                return is_inline_mod(next);
+            }
+        }
+        i += 1;
+    }
+    false
+}
+
+/// Returns `true` if the line declares a module with a body (`mod foo {`),
+/// as opposed to an external file reference (`mod foo;`).
+fn is_inline_mod(line: &str) -> bool {
+    if let Some(rest) = line.strip_prefix("mod ") {
+        // `mod tests {` or `mod tests{` → inline; `mod tests;` → external file
+        let rest = rest.trim();
+        return rest.contains('{');
+    }
+    false
 }
 
 #[allow(dead_code)]
@@ -218,7 +343,7 @@ fn min_version(lang: &str) -> &'static str {
 /// Compare two dotted version strings segment-by-segment. Shorter versions
 /// are zero-padded, so `"1.82"` == `"1.82.0"`. Returns `None` if either
 /// side contains a non-numeric segment.
-fn version_ge(lhs: &str, rhs: &str) -> Option<bool> {
+pub fn version_ge(lhs: &str, rhs: &str) -> Option<bool> {
     let parse = |s: &str| -> Option<Vec<u32>> { s.split('.').map(|p| p.parse().ok()).collect() };
     let mut a = parse(lhs)?;
     let mut b = parse(rhs)?;
@@ -259,7 +384,7 @@ fn find_value_after(lines: &[&str], anchor_idx: usize, key: &str, window: usize)
 /// the spec minimum. Absent toolchains do **not** produce a violation —
 /// a Rust-only project has no `actions/setup-node` block, and that is
 /// fine.
-pub(crate) fn check_toolchain_versions(file: &str, content: &str) -> Vec<Violation> {
+pub fn check_toolchain_versions(file: &str, content: &str) -> Vec<Violation> {
     let mut out = Vec::new();
     let lines: Vec<&str> = content.lines().collect();
 
@@ -326,146 +451,5 @@ fn evaluate(lang: &str, spec: &str, file: &str) -> Option<Violation> {
                  pin to >= {min}"
             ),
         }),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn version_ge_pads_shorter_segments() {
-        assert_eq!(version_ge("1.82", "1.82.0"), Some(true));
-        assert_eq!(version_ge("1.82.0", "1.82"), Some(true));
-        assert_eq!(version_ge("1.83", "1.82.0"), Some(true));
-        assert_eq!(version_ge("1.81.9", "1.82.0"), Some(false));
-        assert_eq!(version_ge("22", "22"), Some(true));
-        assert_eq!(version_ge("21", "22"), Some(false));
-    }
-
-    #[test]
-    fn rust_pinned_exact_minimum_is_ok() {
-        let yml = "      - uses: dtolnay/rust-toolchain@1.82.0\n";
-        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
-    }
-
-    #[test]
-    fn rust_pinned_above_minimum_is_ok() {
-        let yml = "      - uses: dtolnay/rust-toolchain@1.85.0\n";
-        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
-    }
-
-    #[test]
-    fn rust_stable_is_floating() {
-        let yml = "      - uses: dtolnay/rust-toolchain@stable\n";
-        let v = check_toolchain_versions("ci.yml", yml);
-        assert_eq!(v.len(), 1);
-        assert_eq!(v[0].spec_section, "§10.3");
-        assert!(v[0].message.contains("Rust"));
-        assert!(v[0].message.contains("floating specifier 'stable'"));
-    }
-
-    #[test]
-    fn rust_below_minimum_is_violation() {
-        let yml = "      - uses: dtolnay/rust-toolchain@1.75.0\n";
-        let v = check_toolchain_versions("ci.yml", yml);
-        assert_eq!(v.len(), 1);
-        assert!(v[0].message.contains("1.75.0"));
-        assert!(v[0].message.contains("minimum is 1.82.0"));
-    }
-
-    #[test]
-    fn node_lts_star_is_floating() {
-        let yml = "\
-      - uses: actions/setup-node@v4
-        with:
-          node-version: \"lts/*\"
-";
-        let v = check_toolchain_versions("ci.yml", yml);
-        assert_eq!(v.len(), 1);
-        assert!(v[0].message.contains("Node"));
-        assert!(v[0].message.contains("floating specifier 'lts/*'"));
-    }
-
-    #[test]
-    fn node_22_is_ok() {
-        let yml = "\
-      - uses: actions/setup-node@v4
-        with:
-          node-version: \"22\"
-";
-        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
-    }
-
-    #[test]
-    fn node_20_is_below_minimum() {
-        let yml = "\
-      - uses: actions/setup-node@v4
-        with:
-          node-version: \"20\"
-";
-        let v = check_toolchain_versions("ci.yml", yml);
-        assert_eq!(v.len(), 1);
-        assert!(v[0].message.contains("Node"));
-        assert!(v[0].message.contains("pinned to 20"));
-        assert!(v[0].message.contains("minimum is 22"));
-    }
-
-    #[test]
-    fn python_312_is_ok() {
-        let yml = "\
-      - uses: actions/setup-python@v5
-        with:
-          python-version: \"3.12\"
-";
-        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
-    }
-
-    #[test]
-    fn python_311_is_below_minimum() {
-        let yml = "\
-      - uses: actions/setup-python@v5
-        with:
-          python-version: \"3.11\"
-";
-        let v = check_toolchain_versions("ci.yml", yml);
-        assert_eq!(v.len(), 1);
-        assert!(v[0].message.contains("Python"));
-    }
-
-    #[test]
-    fn go_stable_is_floating() {
-        let yml = "\
-      - uses: actions/setup-go@v5
-        with:
-          go-version: \"stable\"
-";
-        let v = check_toolchain_versions("ci.yml", yml);
-        assert_eq!(v.len(), 1);
-        assert!(v[0].message.contains("Go"));
-        assert!(v[0].message.contains("floating specifier 'stable'"));
-    }
-
-    #[test]
-    fn go_122_is_ok() {
-        let yml = "\
-      - uses: actions/setup-go@v5
-        with:
-          go-version: \"1.22\"
-";
-        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
-    }
-
-    #[test]
-    fn missing_toolchain_block_is_not_a_violation() {
-        let yml = "name: CI\njobs:\n  noop:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n";
-        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
-    }
-
-    #[test]
-    fn rust_short_version_is_accepted() {
-        // `@1.82` (no patch) should be treated as `1.82.0` and accepted.
-        let yml = "      - uses: dtolnay/rust-toolchain@1.82\n";
-        assert!(check_toolchain_versions("ci.yml", yml).is_empty());
     }
 }

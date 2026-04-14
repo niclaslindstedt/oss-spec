@@ -182,12 +182,12 @@ fn create_agents_symlinks(target: &Path) -> Result<()> {
 }
 
 #[cfg(unix)]
-fn symlink_file(src: &Path, link: &Path) -> std::io::Result<()> {
+pub fn symlink_file(src: &Path, link: &Path) -> std::io::Result<()> {
     std::os::unix::fs::symlink(src, link)
 }
 
 #[cfg(windows)]
-fn symlink_file(src: &Path, link: &Path) -> std::io::Result<()> {
+pub fn symlink_file(src: &Path, link: &Path) -> std::io::Result<()> {
     // Windows distinguishes file and directory symlinks. All our targets
     // (AGENTS.md / ../AGENTS.md) resolve to files, so symlink_file is correct.
     // Requires Developer Mode or admin; GitHub-hosted windows-latest runners
