@@ -139,7 +139,9 @@ pub async fn interpret_prompt(prompt: &str) -> Result<ProjectManifest> {
     });
 
     let p = crate::prompts::load("interpret-prompt", context! { prompt => prompt })?;
+    log::debug!("interpret_prompt: system prompt length={}, user prompt length={}", p.system.len(), p.user.len());
     let raw = run_zag_json(&p.system, &p.user, schema).await?;
+    log::debug!("interpret_prompt: zag response: {raw}");
 
     #[derive(Deserialize)]
     struct Wire {
@@ -182,7 +184,9 @@ pub async fn draft_readme_why(description: &str, name: &str) -> Result<Vec<Strin
         "draft-readme-why",
         context! { name => name, description => description },
     )?;
+    log::debug!("draft_readme_why: system prompt length={}, user prompt length={}", p.system.len(), p.user.len());
     let raw = run_zag_json(&p.system, &p.user, schema).await?;
+    log::debug!("draft_readme_why: zag response: {raw}");
 
     #[derive(Deserialize)]
     struct Wire {
@@ -235,6 +239,7 @@ async fn run_zag_json(system: &str, prompt: &str, schema: serde_json::Value) -> 
     use zag::builder::AgentBuilder;
 
     log::debug!("starting zag one-shot JSON request");
+    log::debug!("zag request: system_prompt={}B, user_prompt={}B, schema={}", system.len(), prompt.len(), schema);
     let progress = std::sync::Arc::new(OutputProgress::new(true));
     let result = AgentBuilder::new()
         .system_prompt(system)
@@ -249,12 +254,14 @@ async fn run_zag_json(system: &str, prompt: &str, schema: serde_json::Value) -> 
     match result {
         Ok(output) => {
             progress.finish_spinner("AI response received", true);
+            log::debug!("zag output: agent={}, session={}, is_error={}, usage={:?}, result={:?}", output.agent, output.session_id, output.is_error, output.usage, output.result);
             output
                 .result
                 .ok_or_else(|| anyhow!("zag returned no result text"))
         }
         Err(e) => {
             progress.finish_spinner("AI request failed", false);
+            log::debug!("zag error: {e:#}");
             Err(e)
         }
     }
@@ -277,6 +284,7 @@ async fn run_zag_agent(system: &str, user_prompt: &str, root: &Path, max_turns: 
         root.display(),
         max_turns
     ));
+    log::debug!("zag agent: system_prompt={}B, user_prompt={}B", system.len(), user_prompt.len());
     AgentBuilder::new()
         .system_prompt(system)
         .root(&root_str)

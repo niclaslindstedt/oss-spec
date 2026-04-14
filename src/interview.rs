@@ -73,11 +73,17 @@ pub async fn run(
 pub async fn from_prompt(cli: &Cli, prompt: &str) -> Result<ProjectManifest> {
     log::debug!("from_prompt: interpreting freeform prompt");
     let mut m = if cli.no_ai {
+        log::debug!("from_prompt: --no-ai set, using skeleton manifest");
         ProjectManifest::skeleton("new-project", prompt)
     } else {
+        log::debug!("from_prompt: calling ai::interpret_prompt with prompt={prompt:?}");
         match ai::interpret_prompt(prompt).await {
-            Ok(m) => m,
+            Ok(m) => {
+                log::debug!("from_prompt: ai interpreted as name={}, lang={}, kind={}", m.name, m.language, m.kind);
+                m
+            }
             Err(e) => {
+                log::debug!("from_prompt: ai interpretation error: {e:#}");
                 crate::output::warn(&format!(
                     "ai interpretation failed ({e}); falling back to defaults"
                 ));

@@ -186,6 +186,8 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
         return Ok(());
     }
 
+    log::debug!("dispatch: command={:?}, debug={}, no_ai={}, no_git={}, no_gh={}, yes={}", cli.command, cli.debug, cli.no_ai, cli.no_git, cli.no_gh, cli.yes);
+
     match cli.command.clone() {
         Some(Command::Commands { name, examples }) => {
             crate::agent_help::print_commands(name.as_deref(), examples);
@@ -298,6 +300,7 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
                 .prompt
                 .clone()
                 .context("no prompt and no subcommand — try `oss-spec --help`")?;
+            log::debug!("default prompt flow: prompt={prompt:?}");
             let manifest = crate::interview::from_prompt(&cli, &prompt).await?;
             let target = resolve_target_dir(&cli, Some(&manifest.name))?;
             crate::bootstrap::write(&manifest, &target)?;
