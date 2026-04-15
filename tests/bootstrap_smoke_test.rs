@@ -27,6 +27,7 @@ fn bootstrap_then_check_passes() {
     for rel in [
         "LICENSE",
         "README.md",
+        "OSS_SPEC.md",
         "AGENTS.md",
         "CONTRIBUTING.md",
         "CODE_OF_CONDUCT.md",

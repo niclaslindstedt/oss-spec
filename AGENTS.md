@@ -8,6 +8,10 @@ This file is the canonical source of truth for AI coding agents working in this 
 
 The repo is its own first customer: `oss-spec check .` against this directory passes.
 
+## OSS Spec conformance
+
+This repository adheres to [`OSS_SPEC.md`](OSS_SPEC.md), which lives at the repository root and is also the canonical spec this CLI generates projects against. The spec is versioned in its YAML front matter (semver); **bump the `version` field every time you modify `OSS_SPEC.md`**. Use major for breaking changes to existing mandates, minor for new mandates or sections, patch for clarifications and typo fixes. Generated projects receive the spec via the symlink `templates/_common/OSS_SPEC.md -> ../../OSS_SPEC.md`, so edits to the root file automatically flow into every future bootstrap.
+
 ## Build and test commands
 
 ```sh
@@ -77,7 +81,7 @@ A CLI flag or subcommand | `man/oss-spec.md`, `docs/agent/help-agent.txt`, `agen
 A template file | `templates/_common/` (or overlay) — and re-run `oss-spec check` against a generated demo
 A §19 rule | `src/check.rs`, `OSS_SPEC.md`, this `## Documentation sync points` table
 The list of supported languages | `manifest::Language`, `templates/<lang>/`, `Makefile.tmpl`, `ci.yml.tmpl`, `dependabot.yml.tmpl`
-`OSS_SPEC.md` | `README.md`, `docs/`, `templates/_common/AGENTS.md.tmpl`, this file
+`OSS_SPEC.md` | Bump the `version` field in its YAML front matter (semver — `feat!`/breaking bumps major, `feat` or new mandate bumps minor, pure clarifications bump patch). Also update `README.md`, `docs/`, `templates/_common/AGENTS.md.tmpl`, and this file as needed. The spec is mirrored into generated projects via the symlink `templates/_common/OSS_SPEC.md -> ../../OSS_SPEC.md`, so there is only one source of truth.
 
 ## Reference implementation
 
