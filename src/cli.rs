@@ -263,7 +263,10 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
                 }
             };
 
-            // AI quality verification (skip with --no-ai).
+            // AI quality verification (skip with --no-ai). A zag failure here
+            // is fatal: we exit early with the error so the user sees what
+            // went wrong (and where the debug log lives) instead of a silent
+            // success that masks a broken AI path.
             if !no_ai {
                 let file_contents = crate::check::gather_file_contents(&target);
                 if !file_contents.is_empty() {
@@ -272,8 +275,10 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
                             report.ai_findings = findings;
                         }
                         Err(e) => {
-                            log::warn!("AI verification failed (non-fatal): {e:#}");
-                            crate::output::warn(&format!("AI quality check skipped: {e}"));
+                            if cleanup {
+                                let _ = std::fs::remove_dir_all(&target);
+                            }
+                            return Err(e);
                         }
                     }
                 }

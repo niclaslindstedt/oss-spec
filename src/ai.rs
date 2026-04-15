@@ -347,13 +347,9 @@ pub async fn verify_conformance(
         p.user.len()
     );
 
-    let raw = match run_zag_json(&p.system, &p.user, schema).await {
-        Ok(r) => r,
-        Err(e) => {
-            log::warn!("AI verification failed (non-fatal): {e:#}");
-            return Ok(vec![]);
-        }
-    };
+    let raw = run_zag_json(&p.system, &p.user, schema)
+        .await
+        .context("AI verification request to zag failed")?;
     log::debug!("verify_conformance: response: {raw}");
 
     #[derive(Deserialize)]
@@ -361,13 +357,9 @@ pub async fn verify_conformance(
         findings: Vec<crate::check::AiFinding>,
     }
 
-    match serde_json::from_str::<Wire>(&raw) {
-        Ok(wire) => Ok(wire.findings),
-        Err(e) => {
-            log::warn!("AI verification returned unparseable JSON: {e}");
-            Ok(vec![])
-        }
-    }
+    let wire: Wire = serde_json::from_str(&raw)
+        .with_context(|| format!("AI verification returned unparseable JSON: {raw}"))?;
+    Ok(wire.findings)
 }
 
 /// One-shot JSON request — used by `interpret_prompt` and `draft_readme_why`.
