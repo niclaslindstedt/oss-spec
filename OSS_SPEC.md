@@ -536,7 +536,7 @@ Design constraints:
   |---|---|---|
   | Rust   | 1.82 | `dtolnay/rust-toolchain@1.82.0` |
   | Python | 3.12 | `actions/setup-python` with `python-version: "3.12"` |
-  | Node   | 22   | `actions/setup-node` with `node-version: "22"` |
+  | Node   | 24   | `actions/setup-node` with `node-version: "24"` |
   | Go     | 1.22 | `actions/setup-go` with `go-version: "1.22"` |
 
   The same minimums must be reflected in `README.md` "Prerequisites"

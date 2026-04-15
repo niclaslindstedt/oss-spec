@@ -328,7 +328,7 @@ fn parse_version(stem: &str) -> Option<(u32, u32)> {
 const MIN_TOOLCHAIN_VERSIONS: &[(&str, &str)] = &[
     ("Rust", "1.82.0"),
     ("Python", "3.12"),
-    ("Node", "22"),
+    ("Node", "24"),
     ("Go", "1.22"),
 ];
 

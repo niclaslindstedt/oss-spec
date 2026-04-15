@@ -64,7 +64,7 @@ jobs:
       # - uses: pypa/gh-action-pypi-publish@release/v1
 {% elif language == "node" %}      - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
       - run: npm ci
       - run: npm run build
