@@ -89,7 +89,7 @@ const COMMAND_SPECS: &[(&str, &str)] = &[
     ),
     (
         "check",
-        "oss-spec check [--path .] [--url <URL>] [--shallow] [--create-issues] [--max-turns N]\n\
+        "oss-spec check [--path .] [--url <URL>] [--shallow] [--no-ai] [--create-issues] [--max-turns N] [--fix]\n\
          \n\
          Walks the target repo and reports every §19 checklist item that is\n\
          missing or malformed. Exits 1 on any violation, 0 if clean.\n\
@@ -106,7 +106,7 @@ const COMMAND_SPECS: &[(&str, &str)] = &[
     ),
     (
         "fix",
-        "oss-spec fix [--path .] [--url <URL>] [--shallow] [--create-issues] [--max-turns N]\n\
+        "oss-spec fix [--path .] [--url <URL>] [--shallow] [--create-issues] [--max-turns N] [--yes] [--no-ai]\n\
          \n\
          Runs `check` against the target repo, then dispatches a zag-driven\n\
          agent to bring it into conformance.\n\
