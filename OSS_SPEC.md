@@ -1,3 +1,9 @@
+---
+title: Open Source Project Bootstrap Specification
+description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
+version: 1.0.0
+---
+
 # Open Source Project Bootstrap Specification
 
 This document is a prescriptive specification for bootstrapping a new open
