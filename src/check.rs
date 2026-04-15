@@ -621,11 +621,19 @@ fn validate_skill_dir(dir: &Path, name: &str, report: &mut Report) {
 
 /// Extract the YAML front matter block from a markdown file. Returns the
 /// raw body between the opening `---` line and the closing `---` line, or
-/// `None` if the file does not start with front matter.
+/// `None` if the file does not start with front matter. Accepts both LF
+/// and CRLF line endings so files checked out through git on Windows
+/// (where `core.autocrlf` may rewrite LF → CRLF) still validate.
 pub fn extract_front_matter(content: &str) -> Option<&str> {
-    let rest = content.strip_prefix("---\n")?;
+    let rest = content
+        .strip_prefix("---\n")
+        .or_else(|| content.strip_prefix("---\r\n"))?;
+    // Find the closing `---` line. It may be preceded by `\n` or `\r\n`.
     let end = rest.find("\n---")?;
-    Some(&rest[..end])
+    // Trim a trailing `\r` off the captured body when running on CRLF files
+    // so `has_yaml_key` sees clean line tails.
+    let body = &rest[..end];
+    Some(body.trim_end_matches('\r'))
 }
 
 /// Return `true` if the YAML fragment contains a top-level `<key>:` line.
