@@ -475,27 +475,26 @@ pub fn check_agent_skills(path: &Path, report: &mut Report) {
         return;
     }
 
-    // 21.2: `.claude/skills` must be a symlink resolving to `.agent/skills`.
+    // 21.2: `.claude/skills` must be a symlink whose target (after
+    // normalizing path separators) ends with `.agent/skills`. We deliberately
+    // avoid `canonicalize` here: on Windows it returns verbatim `\\?\` UNC
+    // paths that may not compare equal even for the same location, and the
+    // directory-vs-file symlink distinction can make following the link
+    // brittle. Checking the raw link target is sufficient to verify intent.
     let claude_skills = path.join(".claude/skills");
-    match std::fs::symlink_metadata(&claude_skills) {
-        Ok(meta) if meta.file_type().is_symlink() => {
-            // Verify the symlink actually resolves to .agent/skills (canonicalize
-            // both sides so relative links compare correctly).
-            let resolved = std::fs::canonicalize(&claude_skills).ok();
-            let canonical = std::fs::canonicalize(&skills_root).ok();
-            if resolved != canonical || canonical.is_none() {
-                report.violations.push(Violation {
-                    spec_section: "§21.2",
-                    message: ".claude/skills must be a symlink to ../.agent/skills".into(),
-                });
-            }
-        }
-        _ => {
-            report.violations.push(Violation {
-                spec_section: "§21.2",
-                message: ".claude/skills must be a symlink to ../.agent/skills".into(),
-            });
-        }
+    let link_ok = match std::fs::symlink_metadata(&claude_skills) {
+        Ok(meta) if meta.file_type().is_symlink() => std::fs::read_link(&claude_skills)
+            .ok()
+            .and_then(|t| t.to_str().map(|s| s.replace('\\', "/")))
+            .map(|s| s.trim_end_matches('/').ends_with(".agent/skills"))
+            .unwrap_or(false),
+        _ => false,
+    };
+    if !link_ok {
+        report.violations.push(Violation {
+            spec_section: "§21.2",
+            message: ".claude/skills must be a symlink to ../.agent/skills".into(),
+        });
     }
 
     // 21.3/21.4: every subdirectory under `.agent/skills/` must be a valid
