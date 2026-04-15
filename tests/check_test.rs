@@ -382,6 +382,37 @@ fn minimal_repo_passes_section_21() {
 
     let report = check::run(root).unwrap();
     let v = v21(&report);
+    if !v.is_empty() {
+        // Diagnostic dump for Windows CI (file types, read_link output).
+        let claude_skills = root.join(".claude/skills");
+        let agent_skills = root.join(".agent/skills");
+        if let Ok(meta) = fs::symlink_metadata(&claude_skills) {
+            eprintln!(
+                "::error::scaffold .claude/skills file_type: symlink={} dir={} file={}",
+                meta.file_type().is_symlink(),
+                meta.file_type().is_dir(),
+                meta.file_type().is_file(),
+            );
+        } else {
+            eprintln!("::error::scaffold .claude/skills: symlink_metadata failed");
+        }
+        if let Ok(t) = fs::read_link(&claude_skills) {
+            eprintln!(
+                "::error::scaffold .claude/skills read_link: {}",
+                t.display()
+            );
+        } else {
+            eprintln!("::error::scaffold .claude/skills: read_link failed");
+        }
+        eprintln!(
+            "::error::scaffold .agent/skills exists={} is_dir={}",
+            agent_skills.exists(),
+            agent_skills.is_dir(),
+        );
+        for v in &v {
+            eprintln!("::error::[{}] {}", v.spec_section, v.message);
+        }
+    }
     assert!(v.is_empty(), "expected no §21 violations, got {v:?}");
 }
 
