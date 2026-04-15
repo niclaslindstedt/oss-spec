@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is **auto-generated from conventional commits at release time** —
 do not edit manually.
 
+## [0.1.5] - 2026-04-15
+
+### Added
+
+- Version OSS_SPEC.md and ship it with generated projects (#16)
+- Store debug logs in ~/.oss-spec/logs/ with per-run timestamps
+- Add debug logging throughout and show log path on error
+- Add §20 test organization with conformance validation (#14)
+
+### Fixed
+
+- Clear init spinner instead of printing redundant "done"
+- Improve mobile friendliness (#13)
+
 ## [0.1.4] - 2026-04-13
 
 ### Added
