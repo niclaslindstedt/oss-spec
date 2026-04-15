@@ -1,5 +1,7 @@
-use oss_spec::bootstrap::symlink_file;
-use oss_spec::check::{self, check_toolchain_versions, version_ge};
+use oss_spec::bootstrap::{symlink_dir, symlink_file};
+use oss_spec::check::{
+    self, check_toolchain_versions, extract_front_matter, has_yaml_key, is_kebab_case, version_ge,
+};
 use std::fs;
 use std::path::Path;
 use tempfile::tempdir;
@@ -145,6 +147,15 @@ fn rust_short_version_is_accepted() {
 
 /// Helper: create a minimal repo skeleton that passes all non-§20 checks,
 /// so we can isolate §20 violations.
+/// Cross-platform symlink removal. On Unix, any symlink is removable with
+/// `remove_file`. On Windows, *directory* symlinks must be removed with
+/// `remove_dir` — `remove_file` fails with `ERROR_ACCESS_DENIED`. Try both.
+fn remove_symlink(p: &Path) {
+    if fs::remove_file(p).is_err() {
+        fs::remove_dir(p).unwrap();
+    }
+}
+
 fn scaffold_minimal_repo(root: &std::path::Path) {
     // Required files
     for f in [
@@ -186,6 +197,25 @@ fn scaffold_minimal_repo(root: &std::path::Path) {
     fs::write(root.join(".github/ISSUE_TEMPLATE/feature_request.md"), "").unwrap();
     fs::write(root.join(".github/ISSUE_TEMPLATE/config.yml"), "").unwrap();
     fs::write(root.join(".github/dependabot.yml"), "").unwrap();
+    // §21 agent skills: README is always present, so update-readme is
+    // mandatory. docs/ was created above, so update-docs is mandatory too.
+    // `maintenance` is always required (§21.6).
+    for skill in ["update-readme", "update-docs", "maintenance"] {
+        let dir = root.join(".agent/skills").join(skill);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("SKILL.md"),
+            format!(
+                "---\nname: {skill}\ndescription: \"test skill\"\n---\n\n\
+                 # {skill}\n\n## Tracking mechanism\n\n## Discovery process\n"
+            ),
+        )
+        .unwrap();
+        fs::write(dir.join(".last-updated"), "").unwrap();
+    }
+    // §21.2: `.claude/skills` -> `../.agent/skills`
+    fs::create_dir_all(root.join(".claude")).unwrap();
+    symlink_dir(Path::new("../.agent/skills"), &root.join(".claude/skills")).unwrap();
 }
 
 #[test]
@@ -331,4 +361,327 @@ fn test_file_with_valid_names_pass() {
         .filter(|v| v.spec_section == "§20.2")
         .collect();
     assert!(v202.is_empty());
+}
+
+// --- §21 agent skills checks ---
+
+/// Collect all §21* violations from a report for easy assertions.
+fn v21(report: &check::Report) -> Vec<&check::Violation> {
+    report
+        .violations
+        .iter()
+        .filter(|v| v.spec_section.starts_with("§21"))
+        .collect()
+}
+
+#[test]
+fn minimal_repo_passes_section_21() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+
+    let report = check::run(root).unwrap();
+    let v = v21(&report);
+    assert!(v.is_empty(), "expected no §21 violations, got {v:?}");
+}
+
+#[test]
+fn missing_agent_skills_dir_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    // Blow away the skills tree entirely.
+    fs::remove_dir_all(root.join(".agent")).unwrap();
+    remove_symlink(&root.join(".claude/skills"));
+
+    let report = check::run(root).unwrap();
+    let v: Vec<_> = v21(&report)
+        .into_iter()
+        .filter(|v| v.spec_section == "§21.2")
+        .collect();
+    assert!(
+        v.iter().any(|v| v.message.contains(".agent/skills")),
+        "expected a violation about missing .agent/skills, got {v:?}"
+    );
+}
+
+#[test]
+fn claude_skills_must_be_symlink() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    // Replace the symlink with a real directory.
+    remove_symlink(&root.join(".claude/skills"));
+    fs::create_dir_all(root.join(".claude/skills")).unwrap();
+
+    let report = check::run(root).unwrap();
+    let v: Vec<_> = v21(&report)
+        .into_iter()
+        .filter(|v| v.spec_section == "§21.2")
+        .collect();
+    assert!(
+        v.iter().any(|v| v.message.contains(".claude/skills")),
+        "expected a violation about .claude/skills, got {v:?}"
+    );
+}
+
+#[test]
+fn missing_update_readme_skill_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    fs::remove_dir_all(root.join(".agent/skills/update-readme")).unwrap();
+
+    let report = check::run(root).unwrap();
+    let v: Vec<_> = v21(&report)
+        .into_iter()
+        .filter(|v| v.spec_section == "§21.5")
+        .collect();
+    assert!(
+        v.iter().any(|v| v.message.contains("update-readme")),
+        "expected a violation about missing update-readme, got {v:?}"
+    );
+}
+
+#[test]
+fn missing_maintenance_umbrella_skill_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    fs::remove_dir_all(root.join(".agent/skills/maintenance")).unwrap();
+
+    let report = check::run(root).unwrap();
+    let v: Vec<_> = v21(&report)
+        .into_iter()
+        .filter(|v| v.spec_section == "§21.6")
+        .collect();
+    assert!(
+        v.iter().any(|v| v.message.contains("maintenance")),
+        "expected a §21.6 violation about missing maintenance skill, got {v:?}"
+    );
+}
+
+#[test]
+fn missing_update_docs_required_because_docs_exists() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    fs::remove_dir_all(root.join(".agent/skills/update-docs")).unwrap();
+
+    let report = check::run(root).unwrap();
+    let v: Vec<_> = v21(&report)
+        .into_iter()
+        .filter(|v| v.spec_section == "§21.5")
+        .collect();
+    assert!(
+        v.iter().any(|v| v.message.contains("update-docs")),
+        "expected a violation about missing update-docs, got {v:?}"
+    );
+}
+
+#[test]
+fn update_manpages_required_when_man_dir_exists() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    fs::create_dir_all(root.join("man")).unwrap();
+
+    let report = check::run(root).unwrap();
+    let v: Vec<_> = v21(&report)
+        .into_iter()
+        .filter(|v| v.spec_section == "§21.5")
+        .collect();
+    assert!(
+        v.iter().any(|v| v.message.contains("update-manpages")),
+        "expected update-manpages requirement once man/ exists, got {v:?}"
+    );
+}
+
+#[test]
+fn update_website_required_when_website_dir_exists() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    fs::create_dir_all(root.join("website")).unwrap();
+
+    let report = check::run(root).unwrap();
+    let v: Vec<_> = v21(&report)
+        .into_iter()
+        .filter(|v| v.spec_section == "§21.5")
+        .collect();
+    assert!(
+        v.iter().any(|v| v.message.contains("update-website")),
+        "expected update-website requirement once website/ exists, got {v:?}"
+    );
+}
+
+#[test]
+fn skill_missing_skill_md_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    // Add an empty skill directory (no SKILL.md).
+    fs::create_dir_all(root.join(".agent/skills/broken-skill")).unwrap();
+
+    let report = check::run(root).unwrap();
+    let v: Vec<_> = v21(&report)
+        .into_iter()
+        .filter(|v| v.spec_section == "§21.3")
+        .collect();
+    assert!(
+        v.iter().any(|v| v.message.contains("broken-skill")),
+        "expected a §21.3 violation about missing SKILL.md, got {v:?}"
+    );
+}
+
+#[test]
+fn skill_missing_front_matter_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    let dir = root.join(".agent/skills/plain-skill");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("SKILL.md"), "# plain-skill\n\nno front matter\n").unwrap();
+    fs::write(dir.join(".last-updated"), "").unwrap();
+
+    let report = check::run(root).unwrap();
+    let v: Vec<_> = v21(&report)
+        .into_iter()
+        .filter(|v| v.spec_section == "§21.3")
+        .collect();
+    assert!(
+        v.iter()
+            .any(|v| v.message.contains("plain-skill") && v.message.contains("front matter")),
+        "expected a §21.3 violation about missing front matter, got {v:?}"
+    );
+}
+
+#[test]
+fn skill_front_matter_missing_description_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    let dir = root.join(".agent/skills/nameless-skill");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("SKILL.md"),
+        "---\nname: nameless-skill\n---\n\n# nameless-skill\n",
+    )
+    .unwrap();
+    fs::write(dir.join(".last-updated"), "").unwrap();
+
+    let report = check::run(root).unwrap();
+    let v: Vec<_> = v21(&report)
+        .into_iter()
+        .filter(|v| v.spec_section == "§21.3")
+        .collect();
+    assert!(
+        v.iter().any(|v| v.message.contains("description")),
+        "expected a §21.3 violation about missing description, got {v:?}"
+    );
+}
+
+#[test]
+fn skill_missing_last_updated_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    let dir = root.join(".agent/skills/no-tracking");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("SKILL.md"),
+        "---\nname: no-tracking\ndescription: x\n---\n\n# no-tracking\n",
+    )
+    .unwrap();
+    // No .last-updated file.
+
+    let report = check::run(root).unwrap();
+    let v: Vec<_> = v21(&report)
+        .into_iter()
+        .filter(|v| v.spec_section == "§21.4")
+        .collect();
+    assert!(
+        v.iter().any(|v| v.message.contains("no-tracking")),
+        "expected a §21.4 violation about missing .last-updated, got {v:?}"
+    );
+}
+
+#[test]
+fn skill_name_must_be_kebab_case() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    let dir = root.join(".agent/skills/BadName");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(
+        dir.join("SKILL.md"),
+        "---\nname: BadName\ndescription: x\n---\n\n# BadName\n",
+    )
+    .unwrap();
+    fs::write(dir.join(".last-updated"), "").unwrap();
+
+    let report = check::run(root).unwrap();
+    let v: Vec<_> = v21(&report)
+        .into_iter()
+        .filter(|v| v.spec_section == "§21.5")
+        .collect();
+    assert!(
+        v.iter().any(|v| v.message.contains("kebab-case")),
+        "expected a §21.5 kebab-case violation, got {v:?}"
+    );
+}
+
+#[test]
+fn is_kebab_case_examples() {
+    assert!(is_kebab_case("update-readme"));
+    assert!(is_kebab_case("a"));
+    assert!(is_kebab_case("x1-y2-z3"));
+    assert!(!is_kebab_case(""));
+    assert!(!is_kebab_case("-leading"));
+    assert!(!is_kebab_case("trailing-"));
+    assert!(!is_kebab_case("double--hyphen"));
+    assert!(!is_kebab_case("Upper"));
+    assert!(!is_kebab_case("snake_case"));
+}
+
+#[test]
+fn extract_front_matter_basic() {
+    let src = "---\nname: x\ndescription: y\n---\n\n# body\n";
+    let fm = extract_front_matter(src).unwrap();
+    assert!(fm.contains("name: x"));
+    assert!(fm.contains("description: y"));
+}
+
+#[test]
+fn extract_front_matter_none_when_missing() {
+    assert!(extract_front_matter("# body without front matter\n").is_none());
+}
+
+#[test]
+fn extract_front_matter_handles_crlf() {
+    // Git on Windows may normalise LF → CRLF via `core.autocrlf`; the
+    // parser must still find the front matter. Covers the regression
+    // that broke §21 checks on windows-latest CI.
+    let src = "---\r\nname: x\r\ndescription: y\r\n---\r\n\r\n# body\r\n";
+    let fm = extract_front_matter(src).expect("front matter should parse with CRLF");
+    assert!(has_yaml_key(fm, "name"));
+    assert!(has_yaml_key(fm, "description"));
+}
+
+#[test]
+fn has_yaml_key_matches_top_level() {
+    let fm = "name: skill-name\ndescription: \"use when...\"\nother: z\n";
+    assert!(has_yaml_key(fm, "name"));
+    assert!(has_yaml_key(fm, "description"));
+    assert!(has_yaml_key(fm, "other"));
+    assert!(!has_yaml_key(fm, "missing"));
+}
+
+#[test]
+fn has_yaml_key_ignores_indented_lines() {
+    // Key nested under another key must not count as top-level.
+    let fm = "name: x\nparent:\n  nested: y\n";
+    assert!(has_yaml_key(fm, "name"));
+    assert!(has_yaml_key(fm, "parent"));
+    assert!(!has_yaml_key(fm, "nested"));
 }

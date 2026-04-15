@@ -66,6 +66,11 @@ fn bootstrap_then_check_passes() {
     }
 
     let report = check::run(&target).expect("check run");
+    if !report.is_clean() {
+        for v in &report.violations {
+            eprintln!("::error::[bootstrap {}] {}", v.spec_section, v.message);
+        }
+    }
     assert!(
         report.is_clean(),
         "generated repo should pass check: {:?}",
