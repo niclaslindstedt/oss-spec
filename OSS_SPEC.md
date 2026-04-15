@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -542,7 +542,7 @@ Design constraints:
 
   | Language | Minimum | `setup-*` specifier |
   |---|---|---|
-  | Rust   | 1.82 | `dtolnay/rust-toolchain@1.82.0` |
+  | Rust   | 1.88 | `dtolnay/rust-toolchain@1.88.0` |
   | Python | 3.12 | `actions/setup-python` with `python-version: "3.12"` |
   | Node   | 24   | `actions/setup-node` with `node-version: "24"` |
   | Go     | 1.22 | `actions/setup-go` with `go-version: "1.22"` |
@@ -550,6 +550,15 @@ Design constraints:
   The same minimums must be reflected in `README.md` "Prerequisites"
   (§3) and `CONTRIBUTING.md` "Prerequisites" (§4) so that
   contributors discover them before a CI failure does.
+
+  **Local/CI parity.** The toolchain version pinned in CI **should**
+  match the version developers use locally (e.g. via
+  `rust-toolchain.toml`, `.python-version`, `.node-version`, or
+  `.go-version`). When local and CI environments diverge, code that
+  passes on a developer's machine may break in CI — or vice versa —
+  leading to wasted cycles and eroded trust in the pipeline.
+  Projects should treat their CI configuration as the canonical
+  environment definition and keep local tooling in sync.
 
 - **Least-privilege workflow permissions.** Every job that publishes
   a release artifact **must** declare an explicit job-level

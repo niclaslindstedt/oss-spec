@@ -43,7 +43,7 @@ jobs:
           git tag -f "${{ '{{' }} steps.tag.outputs.tag {{ '}}' }}" HEAD
           git push origin HEAD:main
           git push origin "${{ '{{' }} steps.tag.outputs.tag {{ '}}' }}" --force
-{% if language == "rust" %}      - uses: dtolnay/rust-toolchain@1.82.0
+{% if language == "rust" %}      - uses: dtolnay/rust-toolchain@1.88.0
       - run: cargo build --release
       - run: cargo test
       # Publishing MUST use crates.io trusted publishing (OIDC).
