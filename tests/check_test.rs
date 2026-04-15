@@ -685,3 +685,85 @@ fn has_yaml_key_ignores_indented_lines() {
     assert!(has_yaml_key(fm, "parent"));
     assert!(!has_yaml_key(fm, "nested"));
 }
+
+// ---------------------------------------------------------------------------
+// AiFinding + gather_file_contents tests
+// ---------------------------------------------------------------------------
+
+use oss_spec::check::{AiFinding, gather_file_contents};
+
+#[test]
+fn ai_finding_deserializes_from_json() {
+    let json = r#"{
+        "file": "README.md",
+        "spec_section": "§3",
+        "severity": "warning",
+        "message": "Missing Why section",
+        "suggestion": "Add a ## Why section with 3-5 bullet points"
+    }"#;
+    let f: AiFinding = serde_json::from_str(json).unwrap();
+    assert_eq!(f.file, "README.md");
+    assert_eq!(f.spec_section, "§3");
+    assert_eq!(f.severity, "warning");
+    assert!(!f.message.is_empty());
+    assert!(!f.suggestion.is_empty());
+}
+
+#[test]
+fn ai_finding_array_deserializes() {
+    let json = r#"{"findings": [
+        {"file": "A", "spec_section": "§1", "severity": "error", "message": "bad", "suggestion": "fix"},
+        {"file": "B", "spec_section": "§2", "severity": "warning", "message": "meh", "suggestion": "improve"}
+    ]}"#;
+    #[derive(serde::Deserialize)]
+    struct Wire {
+        findings: Vec<AiFinding>,
+    }
+    let w: Wire = serde_json::from_str(json).unwrap();
+    assert_eq!(w.findings.len(), 2);
+}
+
+#[test]
+fn is_clean_ignores_ai_findings() {
+    let mut report = oss_spec::check::Report::default();
+    report.ai_findings.push(AiFinding {
+        file: "README.md".into(),
+        spec_section: "§3".into(),
+        severity: "warning".into(),
+        message: "test".into(),
+        suggestion: "test".into(),
+    });
+    // AI findings alone do not make the report "dirty".
+    assert!(report.is_clean());
+}
+
+#[test]
+fn gather_file_contents_includes_existing_files() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    // Create a subset of verifiable files.
+    std::fs::write(root.join("README.md"), "# Hello").unwrap();
+    std::fs::write(root.join("LICENSE"), "MIT").unwrap();
+    std::fs::write(root.join("Makefile"), "build:\n\tcargo build").unwrap();
+
+    let contents = gather_file_contents(root);
+    let names: Vec<&str> = contents.iter().map(|(n, _)| n.as_str()).collect();
+    assert!(names.contains(&"README.md"));
+    assert!(names.contains(&"LICENSE"));
+    assert!(names.contains(&"Makefile"));
+    // Non-existent files should not appear.
+    assert!(!names.contains(&"CONTRIBUTING.md"));
+}
+
+#[test]
+fn gather_file_contents_truncates_long_files() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let long_content: String = (0..500).map(|i| format!("line {i}\n")).collect();
+    std::fs::write(root.join("README.md"), &long_content).unwrap();
+
+    let contents = gather_file_contents(root);
+    let (_, content) = contents.iter().find(|(n, _)| n == "README.md").unwrap();
+    let line_count = content.lines().count();
+    assert_eq!(line_count, 200);
+}
