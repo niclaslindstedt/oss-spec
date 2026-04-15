@@ -33,7 +33,7 @@ jobs:
       - run: ruff format --check .
 {% elif language == "node" %}      - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
       - run: npm ci
       - run: npm run build
       - run: npm test

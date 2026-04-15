@@ -10,8 +10,8 @@ fn version_ge_pads_shorter_segments() {
     assert_eq!(version_ge("1.82.0", "1.82"), Some(true));
     assert_eq!(version_ge("1.83", "1.82.0"), Some(true));
     assert_eq!(version_ge("1.81.9", "1.82.0"), Some(false));
-    assert_eq!(version_ge("22", "22"), Some(true));
-    assert_eq!(version_ge("21", "22"), Some(false));
+    assert_eq!(version_ge("24", "24"), Some(true));
+    assert_eq!(version_ge("23", "24"), Some(false));
 }
 
 #[test]
@@ -59,27 +59,27 @@ fn node_lts_star_is_floating() {
 }
 
 #[test]
-fn node_22_is_ok() {
+fn node_24_is_ok() {
     let yml = "\
       - uses: actions/setup-node@v4
         with:
-          node-version: \"22\"
+          node-version: \"24\"
 ";
     assert!(check_toolchain_versions("ci.yml", yml).is_empty());
 }
 
 #[test]
-fn node_20_is_below_minimum() {
+fn node_22_is_below_minimum() {
     let yml = "\
       - uses: actions/setup-node@v4
         with:
-          node-version: \"20\"
+          node-version: \"22\"
 ";
     let v = check_toolchain_versions("ci.yml", yml);
     assert_eq!(v.len(), 1);
     assert!(v[0].message.contains("Node"));
-    assert!(v[0].message.contains("pinned to 20"));
-    assert!(v[0].message.contains("minimum is 22"));
+    assert!(v[0].message.contains("pinned to 22"));
+    assert!(v[0].message.contains("minimum is 24"));
 }
 
 #[test]
