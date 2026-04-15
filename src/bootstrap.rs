@@ -74,7 +74,13 @@ fn create_skills_symlink(target: &Path) -> Result<()> {
     std::fs::create_dir_all(target.join(".claude"))?;
     let link = target.join(".claude/skills");
     if link.is_symlink() || link.exists() {
-        std::fs::remove_file(&link).ok();
+        // On Windows a *directory* symlink cannot be removed with
+        // `remove_file` (fails with ACCESS_DENIED) — it must go through
+        // `remove_dir`. Try both; swallow the final error since the next
+        // `symlink_dir` call will surface any real problem.
+        if std::fs::remove_file(&link).is_err() {
+            std::fs::remove_dir(&link).ok();
+        }
     }
     symlink_dir(Path::new("../.agent/skills"), &link)
         .with_context(|| format!("symlink {} -> ../.agent/skills", link.display()))?;

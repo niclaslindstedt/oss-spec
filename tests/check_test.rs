@@ -147,6 +147,15 @@ fn rust_short_version_is_accepted() {
 
 /// Helper: create a minimal repo skeleton that passes all non-§20 checks,
 /// so we can isolate §20 violations.
+/// Cross-platform symlink removal. On Unix, any symlink is removable with
+/// `remove_file`. On Windows, *directory* symlinks must be removed with
+/// `remove_dir` — `remove_file` fails with `ERROR_ACCESS_DENIED`. Try both.
+fn remove_symlink(p: &Path) {
+    if fs::remove_file(p).is_err() {
+        fs::remove_dir(p).unwrap();
+    }
+}
+
 fn scaffold_minimal_repo(root: &std::path::Path) {
     // Required files
     for f in [
@@ -383,7 +392,7 @@ fn missing_agent_skills_dir_is_violation() {
     scaffold_minimal_repo(root);
     // Blow away the skills tree entirely.
     fs::remove_dir_all(root.join(".agent")).unwrap();
-    fs::remove_file(root.join(".claude/skills")).unwrap();
+    remove_symlink(&root.join(".claude/skills"));
 
     let report = check::run(root).unwrap();
     let v: Vec<_> = v21(&report)
@@ -402,7 +411,7 @@ fn claude_skills_must_be_symlink() {
     let root = tmp.path();
     scaffold_minimal_repo(root);
     // Replace the symlink with a real directory.
-    fs::remove_file(root.join(".claude/skills")).unwrap();
+    remove_symlink(&root.join(".claude/skills"));
     fs::create_dir_all(root.join(".claude/skills")).unwrap();
 
     let report = check::run(root).unwrap();
