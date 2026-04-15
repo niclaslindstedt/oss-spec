@@ -14,6 +14,46 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+/// Flags shared by all bootstrap paths (default prompt, `new`, `init`).
+#[derive(Debug, Clone, clap::Args)]
+pub struct BootstrapOpts {
+    /// Skip AI calls — produces a deterministic skeleton from defaults/flags only.
+    #[arg(long)]
+    pub no_ai: bool,
+
+    /// Skip `git init` and the first commit.
+    #[arg(long)]
+    pub no_git: bool,
+
+    /// Skip `gh repo create`.
+    #[arg(long)]
+    pub no_gh: bool,
+
+    /// Assume defaults for every interactive prompt.
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+
+    /// Override the parent directory the new repo gets created in.
+    #[arg(long, value_name = "DIR")]
+    pub path: Option<PathBuf>,
+
+    /// Override language: rust|python|node|go|generic.
+    #[arg(long)]
+    pub lang: Option<String>,
+
+    /// Override kind: lib|cli|service.
+    #[arg(long)]
+    pub kind: Option<String>,
+
+    /// Override license: MIT|Apache-2.0|MPL-2.0.
+    #[arg(long)]
+    pub license: Option<String>,
+
+    /// gh visibility: public|private. Defaults to public.
+    #[arg(long)]
+    pub visibility: Option<String>,
+}
+
 #[derive(Debug, Parser)]
 #[command(
     name = "oss-spec",
@@ -40,45 +80,13 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub debug: bool,
 
-    /// Skip AI calls — produces a deterministic skeleton from defaults/flags only.
-    #[arg(long, global = true)]
-    pub no_ai: bool,
-
-    /// Skip `git init` and the first commit.
-    #[arg(long, global = true)]
-    pub no_git: bool,
-
-    /// Skip `gh repo create`.
-    #[arg(long, global = true)]
-    pub no_gh: bool,
-
-    /// Assume defaults for every interactive prompt.
-    #[arg(long, short = 'y', global = true)]
-    pub yes: bool,
-
-    /// Override the parent directory the new repo gets created in.
-    #[arg(long, global = true, value_name = "DIR")]
-    pub path: Option<PathBuf>,
-
     /// Override the project name.
-    #[arg(long, global = true)]
+    #[arg(long)]
     pub name: Option<String>,
 
-    /// Override language: rust|python|node|go|generic.
-    #[arg(long, global = true)]
-    pub lang: Option<String>,
-
-    /// Override kind: lib|cli|service.
-    #[arg(long, global = true)]
-    pub kind: Option<String>,
-
-    /// Override license: MIT|Apache-2.0|MPL-2.0.
-    #[arg(long, global = true)]
-    pub license: Option<String>,
-
-    /// gh visibility: public|private. Defaults to public.
-    #[arg(long, global = true)]
-    pub visibility: Option<String>,
+    /// Bootstrap options (for the freeform-prompt flow).
+    #[command(flatten)]
+    pub bootstrap: BootstrapOpts,
 
     #[command(subcommand)]
     pub command: Option<Command>,
@@ -93,11 +101,18 @@ pub enum Command {
         /// Description; if omitted you will be prompted (or AI will infer).
         #[arg(long, short = 'd')]
         description: Option<String>,
+        #[command(flatten)]
+        opts: BootstrapOpts,
     },
     /// Bootstrap into the current directory (must be empty or contain only OSS_SPEC.md).
     Init {
         #[arg(long, short = 'd')]
         description: Option<String>,
+        /// Override the project name (defaults to the directory name).
+        #[arg(long)]
+        name: Option<String>,
+        #[command(flatten)]
+        opts: BootstrapOpts,
     },
     /// Validate an existing repo against the §19 checklist. With `--url`,
     /// clones a remote repo into a temp dir first. With `--create-issues`,
@@ -122,6 +137,9 @@ pub enum Command {
         /// Cap the issue-filing agent's iteration budget (with `--create-issues`).
         #[arg(long, default_value_t = 30)]
         max_turns: u32,
+        /// Skip AI calls — produces a deterministic check with no quality review.
+        #[arg(long)]
+        no_ai: bool,
         /// After AI verification, automatically fix all findings via a zag agent.
         #[arg(long)]
         fix: bool,
@@ -148,6 +166,12 @@ pub enum Command {
         /// Use a shallow (--depth 1) clone when `--url` is given.
         #[arg(long, default_value_t = true)]
         shallow: bool,
+        /// Assume defaults for every interactive prompt.
+        #[arg(long, short = 'y')]
+        yes: bool,
+        /// Skip AI calls.
+        #[arg(long)]
+        no_ai: bool,
     },
     /// Clone the public oss-spec repository into a local directory so a coding
     /// agent (or you) can browse OSS_SPEC.md, the templates, and the dogfood
@@ -192,15 +216,7 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
         return Ok(());
     }
 
-    log::debug!(
-        "dispatch: command={:?}, debug={}, no_ai={}, no_git={}, no_gh={}, yes={}",
-        cli.command,
-        cli.debug,
-        cli.no_ai,
-        cli.no_git,
-        cli.no_gh,
-        cli.yes
-    );
+    log::debug!("dispatch: command={:?}, debug={}", cli.command, cli.debug);
 
     match cli.command.clone() {
         Some(Command::Commands { name, examples }) => {
@@ -226,6 +242,7 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
             shallow,
             create_issues,
             max_turns,
+            no_ai,
             fix,
         }) => {
             let (target, cleanup) = match url {
@@ -247,7 +264,7 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
             };
 
             // AI quality verification (skip with --no-ai).
-            if !cli.no_ai {
+            if !no_ai {
                 let file_contents = crate::check::gather_file_contents(&target);
                 if !file_contents.is_empty() {
                     match crate::ai::verify_conformance(&file_contents, &report.violations).await {
@@ -296,6 +313,8 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
             max_turns,
             url,
             shallow,
+            yes,
+            no_ai: _,
         }) => {
             let (target, cleanup) = match url {
                 Some(u) => {
@@ -311,25 +330,33 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
                 }
                 None => (path, false),
             };
-            let result = crate::fix::run(&target, create_issues, max_turns, cli.yes).await;
+            let result = crate::fix::run(&target, create_issues, max_turns, yes).await;
             if cleanup {
                 let _ = std::fs::remove_dir_all(&target);
             }
             result
         }
-        Some(Command::New { name, description }) => {
-            let target = resolve_target_dir(&cli, Some(&name))?;
+        Some(Command::New {
+            name,
+            description,
+            opts,
+        }) => {
+            let target = resolve_target_dir(&opts, Some(&name))?;
             let manifest =
-                crate::interview::run(&cli, Some(name.clone()), description, false).await?;
+                crate::interview::run(&opts, Some(name.clone()), description, false).await?;
             crate::bootstrap::write(&manifest, &target)?;
-            post_bootstrap(&cli, &manifest, &target).await?;
+            post_bootstrap(&opts, &manifest, &target).await?;
             Ok(())
         }
-        Some(Command::Init { description }) => {
+        Some(Command::Init {
+            description,
+            name,
+            opts,
+        }) => {
             let target = std::env::current_dir().context("cannot read current directory")?;
-            let manifest = crate::interview::run(&cli, cli.name.clone(), description, true).await?;
+            let manifest = crate::interview::run(&opts, name, description, true).await?;
             crate::bootstrap::write(&manifest, &target)?;
-            post_bootstrap(&cli, &manifest, &target).await?;
+            post_bootstrap(&opts, &manifest, &target).await?;
             Ok(())
         }
         None => {
@@ -339,17 +366,19 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
                 .clone()
                 .context("no prompt and no subcommand — try `oss-spec --help`")?;
             log::debug!("default prompt flow: prompt={prompt:?}");
-            let manifest = crate::interview::from_prompt(&cli, &prompt).await?;
-            let target = resolve_target_dir(&cli, Some(&manifest.name))?;
+            let opts = &cli.bootstrap;
+            let manifest =
+                crate::interview::from_prompt(opts, &prompt, cli.name.as_deref()).await?;
+            let target = resolve_target_dir(opts, Some(&manifest.name))?;
             crate::bootstrap::write(&manifest, &target)?;
-            post_bootstrap(&cli, &manifest, &target).await?;
+            post_bootstrap(opts, &manifest, &target).await?;
             Ok(())
         }
     }
 }
 
-fn resolve_target_dir(cli: &Cli, name: Option<&str>) -> Result<PathBuf> {
-    let parent = cli
+fn resolve_target_dir(opts: &BootstrapOpts, name: Option<&str>) -> Result<PathBuf> {
+    let parent = opts
         .path
         .clone()
         .or_else(|| std::env::current_dir().ok())
@@ -361,20 +390,20 @@ fn resolve_target_dir(cli: &Cli, name: Option<&str>) -> Result<PathBuf> {
 }
 
 async fn post_bootstrap(
-    cli: &Cli,
+    opts: &BootstrapOpts,
     manifest: &crate::manifest::ProjectManifest,
     target: &std::path::Path,
 ) -> Result<()> {
-    if !cli.no_git {
+    if !opts.no_git {
         crate::git::init_and_commit(target)?;
     }
-    if !cli.no_gh {
+    if !opts.no_gh {
         crate::git::gh_create(
             target,
             &manifest.github_owner,
             &manifest.name,
-            cli.visibility.as_deref().unwrap_or("public"),
-            cli.yes,
+            opts.visibility.as_deref().unwrap_or("public"),
+            opts.yes,
         )?;
     }
     crate::output::status(&format!(

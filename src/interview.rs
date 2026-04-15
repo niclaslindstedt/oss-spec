@@ -6,19 +6,18 @@ use anyhow::{Context, Result};
 use dialoguer::{Confirm, Input, Select};
 
 use crate::ai;
-use crate::cli::Cli;
+use crate::cli::BootstrapOpts;
 use crate::manifest::{Kind, Language, License, ProjectManifest};
 
 /// Build a manifest by asking the user (and optionally calling zag) for missing
 /// fields. `init_mode` is true when called from `oss-spec init`.
 pub async fn run(
-    cli: &Cli,
+    opts: &BootstrapOpts,
     name: Option<String>,
     description: Option<String>,
     init_mode: bool,
 ) -> Result<ProjectManifest> {
     let name = name
-        .or_else(|| cli.name.clone())
         .or_else(|| {
             if init_mode {
                 std::env::current_dir()
@@ -31,19 +30,19 @@ pub async fn run(
         .map(Ok)
         .unwrap_or_else(|| ask_text("Project name", None))?;
 
-    let description = match description.or(cli.prompt.clone()) {
+    let description = match description {
         Some(d) => d,
-        None if cli.yes => format!("TODO: describe {name}"),
+        None if opts.yes => format!("TODO: describe {name}"),
         None => ask_text("One-sentence description", None)?,
     };
 
     let mut m = ProjectManifest::skeleton(&name, &description);
 
     // Apply explicit flag overrides first.
-    apply_flag_overrides(cli, &mut m)?;
+    apply_flag_overrides(opts, &mut m)?;
     fill_author_defaults(&mut m);
 
-    if cli.yes {
+    if opts.yes {
         return Ok(m);
     }
 
@@ -52,7 +51,7 @@ pub async fn run(
     m.kind = ask_kind(m.kind)?;
     m.license = ask_license(m.license)?;
 
-    if !cli.no_ai
+    if !opts.no_ai
         && Confirm::new()
             .with_prompt("Generate README 'Why?' bullets with AI?")
             .default(true)
@@ -70,9 +69,13 @@ pub async fn run(
 
 /// Default flow: a freeform prompt is interpreted by zag into a manifest, then
 /// the user is asked to confirm.
-pub async fn from_prompt(cli: &Cli, prompt: &str) -> Result<ProjectManifest> {
+pub async fn from_prompt(
+    opts: &BootstrapOpts,
+    prompt: &str,
+    name_override: Option<&str>,
+) -> Result<ProjectManifest> {
     log::debug!("from_prompt: interpreting freeform prompt");
-    let mut m = if cli.no_ai {
+    let mut m = if opts.no_ai {
         log::debug!("from_prompt: --no-ai set, using skeleton manifest");
         ProjectManifest::skeleton("new-project", prompt)
     } else {
@@ -97,10 +100,13 @@ pub async fn from_prompt(cli: &Cli, prompt: &str) -> Result<ProjectManifest> {
         }
     };
 
-    apply_flag_overrides(cli, &mut m)?;
+    if let Some(n) = name_override {
+        m.name = n.to_string();
+    }
+    apply_flag_overrides(opts, &mut m)?;
     fill_author_defaults(&mut m);
 
-    if cli.yes {
+    if opts.yes {
         return Ok(m);
     }
 
@@ -130,17 +136,14 @@ pub async fn from_prompt(cli: &Cli, prompt: &str) -> Result<ProjectManifest> {
     Ok(m)
 }
 
-fn apply_flag_overrides(cli: &Cli, m: &mut ProjectManifest) -> Result<()> {
-    if let Some(n) = &cli.name {
-        m.name = n.clone();
-    }
-    if let Some(l) = &cli.lang {
+fn apply_flag_overrides(opts: &BootstrapOpts, m: &mut ProjectManifest) -> Result<()> {
+    if let Some(l) = &opts.lang {
         m.language = Language::parse(l).with_context(|| format!("unknown --lang {l}"))?;
     }
-    if let Some(k) = &cli.kind {
+    if let Some(k) = &opts.kind {
         m.kind = Kind::parse(k).with_context(|| format!("unknown --kind {k}"))?;
     }
-    if let Some(lic) = &cli.license {
+    if let Some(lic) = &opts.license {
         m.license = License::parse(lic).with_context(|| format!("unknown --license {lic}"))?;
     }
     Ok(())
