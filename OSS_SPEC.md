@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -182,6 +182,8 @@ guidance. It must live at the repository root and cover:
   multiple bindings, keeping a CLI and library in sync).
 - **Website staleness policy** — a pointer to §11.2 stating that the
   website must be regenerated whenever source-derived content changes.
+- **Maintenance skills** — a pointer to §21 describing the agent
+  skills the project ships for keeping drift-prone artifacts in sync.
 
 ### 7.1 Tool-specific files as symlinks
 
@@ -1255,7 +1257,185 @@ that tells agents and contributors:
 - Any test-specific dependencies or setup (e.g. `tempfile` crate,
   Docker containers, fixture files).
 
-## 21. Bootstrap checklist
+## 21. Agent skills — maintenance playbooks for drift-prone artifacts
+
+### 21.1 Motivation
+
+Every non-trivial project has curated or generated artifacts whose truth
+lives somewhere else: a README that describes a CLI, docs that explain
+config keys, man pages that mirror flags, a website that restates
+features, SDK bindings that wrap an API, examples that exercise the
+current surface. When the source of truth changes and the mirror
+doesn't, the project rots — and readers get contradictory answers
+depending on which file they read first.
+
+CI can *detect* drift (§12.3 manpage ↔ flag parity, §11.2 website
+staleness) but cannot usually *fix* it. An **agent skill** closes that
+gap: it is a versioned, machine-readable playbook that gives an AI
+coding agent the exact procedure for bringing one drift-prone artifact
+back into sync with its sources of truth. Skills are stored alongside
+the code, improved over time, and re-run on demand.
+
+### 21.2 Canonical location
+
+Agent skills live at:
+
+```
+.agent/skills/<skill-name>/SKILL.md
+```
+
+`.agent/` is the generic, tool-neutral home for any file an AI coding
+agent needs but a human typically does not. Tool-specific directories
+(e.g. `.claude/skills/` for Claude Code) must be **symbolic links** to
+`.agent/skills/` so that any tool which discovers skills from a fixed
+path sees the same canonical set. This is the same single-source-of-
+truth rule as §7.1.
+
+Required directory symlinks:
+
+| Link path            | Tool          | Target            |
+|----------------------|---------------|-------------------|
+| `.claude/skills`     | Claude Code   | `../.agent/skills`|
+
+Additional tool-specific paths may be added as support lands, but every
+such path must be a symlink — editing skills through a tool-specific
+path (turning the symlink into a real directory) is forbidden and
+should be caught by the same kind of symlink-verification job used in
+§7.1.
+
+### 21.3 Required SKILL.md structure
+
+Every `SKILL.md` must contain:
+
+1. **YAML front matter** with at least `name` and `description`:
+
+   ```markdown
+   ---
+   name: update-readme
+   description: "Use when README.md may be stale. Discovers commits since the last README update, identifies what changed, and merges updates into README.md."
+   ---
+   ```
+
+   The `description` must be a one-sentence imperative that tells an
+   agent *when* to invoke the skill. This field is what a parent agent
+   reads when deciding whether the skill applies to the current task.
+
+2. **An H1 heading** naming the skill's purpose.
+
+3. **A "Tracking mechanism" section** pointing at a sibling `.last-updated`
+   file that holds the git commit hash of the last successful run.
+
+4. **A "Discovery process" section** containing the exact shell commands
+   the agent should run to compute what has changed since the baseline
+   (typically `git log` and `git diff --name-only`).
+
+5. **A mapping table** that maps changed source paths or commit scopes
+   to the output files that need updating. This is the skill's core
+   asset — it is where domain knowledge accumulates.
+
+6. **An "Update checklist"** the agent walks through while fixing drift.
+
+7. **A "Verification" section** describing how the agent confirms the
+   update is correct (typically by re-reading the updated files and
+   comparing them against the sources of truth, and by running the
+   relevant checks such as `make test` or `oss-spec check .`).
+
+8. **A "Skill self-improvement" section** that instructs the agent to
+   update the mapping table, patterns, and checklist with any new
+   knowledge discovered during the run, and to commit those skill
+   edits alongside the documentation edits. Without this, the skill
+   rots the same way the docs it fixes would.
+
+### 21.4 Tracking file
+
+Each skill directory must contain a `.last-updated` file:
+
+```
+.agent/skills/<skill-name>/.last-updated
+```
+
+It holds a single line: the git commit hash of the last successful run
+of the skill. The skill updates it at the end of every run. An empty
+file means "never run"; the skill must then use the repository's
+initial commit as the baseline.
+
+Using a committed tracking file (as opposed to, say, a git tag or CI
+artifact) keeps the baseline visible in diffs and lets agents reason
+about staleness without network or API access.
+
+### 21.5 Required maintenance skills
+
+Every project must ship at least one maintenance skill for each
+drift-prone artifact it publishes. The following are required whenever
+the corresponding artifact exists:
+
+| Artifact      | Required skill      | Exists when                        |
+|---------------|---------------------|------------------------------------|
+| `README.md`   | `update-readme`     | Always (§3)                        |
+| `docs/`       | `update-docs`       | Always (§11.1)                     |
+| `man/`        | `update-manpages`   | CLI projects (§12.3)               |
+| `website/`    | `update-website`    | A website is published (§11.2)     |
+| *(umbrella)*  | `maintenance`       | Always — routes to all `update-*`  |
+
+Projects with additional drift-prone surfaces should add further skills
+such as `update-bindings` (SDK bindings mirroring a core API),
+`update-examples` (examples exercising the current CLI), or project-
+specific skills like `update-spec` (for spec repositories). Skill names
+must be kebab-case and should start with a verb.
+
+The skills in §21.5 are the floor, not the ceiling. A healthy project
+adds a skill for every recurring "I forgot to update X when I changed
+Y" bug report.
+
+### 21.6 The `maintenance` umbrella skill
+
+In addition to the per-artifact skills above, every project must ship a
+**`maintenance`** skill whose sole job is to dispatch to the individual
+`update-*` skills in the correct order and aggregate their output.
+`.agent/skills/maintenance/SKILL.md` is the entry point for any agent
+that wants to bring the whole repository back into sync without first
+diagnosing *which* artifact is stale.
+
+The `maintenance` skill must contain a **Registry** section: a single
+table listing every `update-*` skill that exists in the repository,
+together with a deterministic **run order**. The registry is the only
+source of truth for which sync skills exist — adding a new `update-*`
+skill without adding its row to the registry is a drift bug in its own
+right.
+
+Run order matters: upstream fixes must land before downstream skills
+read them. Typical order is `update-spec` → `update-manpages` →
+`update-docs` → `update-readme` → `update-website`. Projects that do
+not publish a given artifact simply omit its row.
+
+The `maintenance` skill does no rewriting itself. It only schedules
+other skills, runs them in order, aggregates the combined diff, and
+(after a successful sweep) rewrites its own `.last-updated` file.
+
+### 21.7 What skills are not
+
+- Skills are **not** CI jobs. They complement CI: CI detects drift;
+  skills fix it. A skill run may be initiated by a human, by an agent
+  noticing a failing CI check, or by another skill.
+- Skills are **not** git hooks. Hooks run synchronously and must be
+  fast; skills are long-running procedures that expect an agent in the
+  loop.
+- Skills are **not** one-shot prompts. They are iterated on over time
+  and committed to version control; the mapping table and checklist are
+  the skill's long-lived memory.
+- Skills are **not** a substitute for good module boundaries. If a
+  skill's mapping table keeps growing without bound, that is a signal
+  that the underlying code needs refactoring, not that the skill needs
+  more entries.
+
+### 21.8 AGENTS.md integration
+
+The `AGENTS.md` file (§7) must include a **Maintenance skills** section
+that lists every skill the project ships and describes when each one
+should run. This is the discovery surface for agents that do not yet
+autoload skills from `.agent/skills/`.
+
+## 22. Bootstrap checklist
 
 Use this checklist when creating a new repository. Every box should be
 checked before the first public tag.
@@ -1306,6 +1486,14 @@ checked before the first public tag.
 [ ] Central output module, no raw print statements       (§19.4)
 [ ] Always-on debug log file                             (§19.2)
 [ ] --debug flag for verbose terminal output             (§19.3)
+[ ] .agent/skills/update-readme/ with SKILL.md +
+    .last-updated                                       (§21.5)
+[ ] .agent/skills/update-docs/ with SKILL.md +
+    .last-updated                                       (§21.5)
+[ ] .agent/skills/maintenance/ umbrella skill routing
+    to every update-* skill                             (§21.6)
+[ ] .claude/skills symlinked to ../.agent/skills         (§21.2)
+[ ] AGENTS.md documents maintenance skills                (§21.8)
 
 CLI projects additionally:
 
@@ -1318,6 +1506,8 @@ CLI projects additionally:
     <name> --examples                                   (§12.4)
 [ ] CI check: manpage ↔ flag parity                     (§12.3)
 [ ] CI snapshot test: --help-agent / --debug-agent      (§12.1, §12.2)
+[ ] .agent/skills/update-manpages/ with SKILL.md +
+    .last-updated                                       (§21.5)
 ```
 
 A repository that satisfies this checklist has the foundational

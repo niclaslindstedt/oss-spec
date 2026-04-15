@@ -58,6 +58,26 @@ pub fn write(manifest: &ProjectManifest, target_dir: &Path) -> Result<()> {
     crate::output::info("Creating AGENTS.md symlinks...");
     create_agents_symlinks(target_dir)?;
 
+    // 6. Agent-skills symlink: `.claude/skills` -> `../.agent/skills` (§21.2).
+    crate::output::info("Creating agent-skills symlink...");
+    create_skills_symlink(target_dir)?;
+
+    Ok(())
+}
+
+fn create_skills_symlink(target: &Path) -> Result<()> {
+    let skills_root = target.join(".agent/skills");
+    if !skills_root.is_dir() {
+        // Nothing to link to — the template set did not ship any skills.
+        return Ok(());
+    }
+    std::fs::create_dir_all(target.join(".claude"))?;
+    let link = target.join(".claude/skills");
+    if link.is_symlink() || link.exists() {
+        std::fs::remove_file(&link).ok();
+    }
+    symlink_dir(Path::new("../.agent/skills"), &link)
+        .with_context(|| format!("symlink {} -> ../.agent/skills", link.display()))?;
     Ok(())
 }
 
@@ -193,6 +213,16 @@ pub fn symlink_file(src: &Path, link: &Path) -> std::io::Result<()> {
     // Requires Developer Mode or admin; GitHub-hosted windows-latest runners
     // satisfy this.
     std::os::windows::fs::symlink_file(src, link)
+}
+
+#[cfg(unix)]
+pub fn symlink_dir(src: &Path, link: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(src, link)
+}
+
+#[cfg(windows)]
+pub fn symlink_dir(src: &Path, link: &Path) -> std::io::Result<()> {
+    std::os::windows::fs::symlink_dir(src, link)
 }
 
 /// Helper for tests/inspection: list all output paths a manifest would create.

@@ -186,6 +186,12 @@ pub fn run(path: &Path) -> Result<Report> {
         check_no_inline_tests(&src_dir, &path, &mut report)?;
     }
 
+    // §21 Agent skills: every project must ship a canonical skills tree
+    // at `.agent/skills/`, with tool-specific locations (e.g. `.claude/skills`)
+    // symlinked to it, and at least one required maintenance skill per
+    // drift-prone artifact that the project publishes.
+    check_agent_skills(&path, &mut report);
+
     // §20.2 Test file naming: every file in tests/ must have a stem ending
     // with _test, _tests, Test, or Tests.
     let tests_dir = path.join("tests");
@@ -452,4 +458,215 @@ fn evaluate(lang: &str, spec: &str, file: &str) -> Option<Violation> {
             ),
         }),
     }
+}
+
+/// §21 Agent skills. Every repo must ship the canonical `.agent/skills/`
+/// tree, the `.claude/skills` symlink, and at least one maintenance skill
+/// per drift-prone artifact it publishes.
+pub fn check_agent_skills(path: &Path, report: &mut Report) {
+    let skills_root = path.join(".agent/skills");
+
+    // 21.2: canonical tree must exist.
+    if !skills_root.is_dir() {
+        report.violations.push(Violation {
+            spec_section: "§21.2",
+            message: "missing directory .agent/skills (see §21 Agent skills)".into(),
+        });
+        return;
+    }
+
+    // 21.2: `.claude/skills` must be a symlink resolving to `.agent/skills`.
+    let claude_skills = path.join(".claude/skills");
+    match std::fs::symlink_metadata(&claude_skills) {
+        Ok(meta) if meta.file_type().is_symlink() => {
+            // Verify the symlink actually resolves to .agent/skills (canonicalize
+            // both sides so relative links compare correctly).
+            let resolved = std::fs::canonicalize(&claude_skills).ok();
+            let canonical = std::fs::canonicalize(&skills_root).ok();
+            if resolved != canonical || canonical.is_none() {
+                report.violations.push(Violation {
+                    spec_section: "§21.2",
+                    message: ".claude/skills must be a symlink to ../.agent/skills".into(),
+                });
+            }
+        }
+        _ => {
+            report.violations.push(Violation {
+                spec_section: "§21.2",
+                message: ".claude/skills must be a symlink to ../.agent/skills".into(),
+            });
+        }
+    }
+
+    // 21.3/21.4: every subdirectory under `.agent/skills/` must be a valid
+    // skill (SKILL.md with YAML front matter + `.last-updated` file).
+    let entries = match std::fs::read_dir(&skills_root) {
+        Ok(it) => it,
+        Err(_) => return,
+    };
+    let mut present_skills: Vec<String> = Vec::new();
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if !p.is_dir() {
+            continue;
+        }
+        let name = match p.file_name().and_then(|s| s.to_str()) {
+            Some(n) => n.to_string(),
+            None => continue,
+        };
+        present_skills.push(name.clone());
+        validate_skill_dir(&p, &name, report);
+    }
+
+    // 21.5 / 21.6: required skills per drift-prone artifact, plus the
+    // always-required `maintenance` umbrella skill.
+    let mut required: Vec<(&'static str, &'static str)> = vec![("maintenance", "always")];
+    if path.join("README.md").exists() {
+        required.push(("update-readme", "README.md"));
+    }
+    if path.join("docs").is_dir() {
+        required.push(("update-docs", "docs/"));
+    }
+    if path.join("man").is_dir() {
+        required.push(("update-manpages", "man/"));
+    }
+    if path.join("website").is_dir() {
+        required.push(("update-website", "website/"));
+    }
+    for (skill, artifact) in required {
+        if !present_skills.iter().any(|s| s == skill) {
+            let sec = if skill == "maintenance" {
+                "§21.6"
+            } else {
+                "§21.5"
+            };
+            let reason = if artifact == "always" {
+                "always required".to_string()
+            } else {
+                format!("required because {artifact} is present")
+            };
+            report.violations.push(Violation {
+                spec_section: sec,
+                message: format!(
+                    "missing maintenance skill .agent/skills/{skill}/SKILL.md ({reason})"
+                ),
+            });
+        }
+    }
+}
+
+/// Validate a single `.agent/skills/<name>/` directory. Pushes a violation
+/// for each problem found — missing SKILL.md, missing front matter, missing
+/// tracking file, etc.
+fn validate_skill_dir(dir: &Path, name: &str, report: &mut Report) {
+    // Kebab-case naming (§21.5).
+    if !is_kebab_case(name) {
+        report.violations.push(Violation {
+            spec_section: "§21.5",
+            message: format!(
+                ".agent/skills/{name}: skill name must be kebab-case \
+                 (lowercase letters, digits, hyphens)"
+            ),
+        });
+    }
+
+    let skill_md = dir.join("SKILL.md");
+    let last_updated = dir.join(".last-updated");
+
+    if !skill_md.is_file() {
+        report.violations.push(Violation {
+            spec_section: "§21.3",
+            message: format!(".agent/skills/{name}: missing SKILL.md"),
+        });
+        return;
+    }
+    if !last_updated.is_file() {
+        report.violations.push(Violation {
+            spec_section: "§21.4",
+            message: format!(
+                ".agent/skills/{name}: missing .last-updated tracking file \
+                 (see §21.4)"
+            ),
+        });
+    }
+
+    let content = match std::fs::read_to_string(&skill_md) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let Some(front) = extract_front_matter(&content) else {
+        report.violations.push(Violation {
+            spec_section: "§21.3",
+            message: format!(
+                ".agent/skills/{name}/SKILL.md: missing YAML front matter \
+                 with `name` and `description`"
+            ),
+        });
+        return;
+    };
+    if !has_yaml_key(front, "name") {
+        report.violations.push(Violation {
+            spec_section: "§21.3",
+            message: format!(".agent/skills/{name}/SKILL.md: front matter missing `name` field"),
+        });
+    }
+    if !has_yaml_key(front, "description") {
+        report.violations.push(Violation {
+            spec_section: "§21.3",
+            message: format!(
+                ".agent/skills/{name}/SKILL.md: front matter missing `description` field"
+            ),
+        });
+    }
+}
+
+/// Extract the YAML front matter block from a markdown file. Returns the
+/// raw body between the opening `---` line and the closing `---` line, or
+/// `None` if the file does not start with front matter.
+pub fn extract_front_matter(content: &str) -> Option<&str> {
+    let rest = content.strip_prefix("---\n")?;
+    let end = rest.find("\n---")?;
+    Some(&rest[..end])
+}
+
+/// Return `true` if the YAML fragment contains a top-level `<key>:` line.
+/// This is a deliberately shallow parser — we only need to confirm that
+/// the key exists with some value; detailed schema validation is out of
+/// scope for `oss-spec check`.
+pub fn has_yaml_key(yaml: &str, key: &str) -> bool {
+    for line in yaml.lines() {
+        // Ignore indented continuation lines and comments.
+        if line.starts_with(' ') || line.starts_with('\t') || line.starts_with('#') {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix(key) {
+            let rest = rest.trim_start();
+            if rest.starts_with(':') {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Return `true` if `name` is a valid kebab-case identifier: one or more
+/// segments of `[a-z0-9]+` separated by single hyphens.
+pub fn is_kebab_case(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    let mut prev_hyphen = true; // disallow leading hyphen
+    for c in name.chars() {
+        if c == '-' {
+            if prev_hyphen {
+                return false;
+            }
+            prev_hyphen = true;
+        } else if c.is_ascii_lowercase() || c.is_ascii_digit() {
+            prev_hyphen = false;
+        } else {
+            return false;
+        }
+    }
+    !prev_hyphen // disallow trailing hyphen
 }

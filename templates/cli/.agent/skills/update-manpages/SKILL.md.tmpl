@@ -1,0 +1,78 @@
+---
+name: update-manpages
+description: "Use when files under man/ may be stale. Discovers commits since the last manpage update, maps changed CLI definitions to affected pages, and updates man/<cmd>.md to match the current implementation."
+---
+
+# Updating the Manpages
+
+`man/` contains the reference-style command documentation shipped with {{ name }} — one markdown file per command. These pages are the authoritative command-level reference and rot whenever a flag, subcommand, or default changes without a matching edit.
+
+## Tracking mechanism
+
+`.agent/skills/update-manpages/.last-updated` contains the git commit hash from the last successful run. Empty means "never run" — fall back to the repository's initial commit.
+
+## Discovery process
+
+1. Read the baseline:
+
+   ```sh
+   BASELINE=$(cat .agent/skills/update-manpages/.last-updated)
+   ```
+
+2. List commits since the baseline:
+
+   ```sh
+   git log --oneline "$BASELINE"..HEAD
+   ```
+
+3. List changed files:
+
+   ```sh
+   git diff --name-only "$BASELINE"..HEAD
+   ```
+
+4. Categorize using the mapping table below.
+
+## Mapping table
+
+| Changed files / scope | Manpage(s) to update |
+|---|---|
+| CLI parser (new or renamed subcommand) | Top-level `man/{{ name }}.md`; create a new `man/<cmd>.md` if missing |
+| CLI parser (new flag on existing command) | The corresponding command section |
+| Global flags | `man/{{ name }}.md` Global Flags section |
+| Default values or error messages | The affected command section |
+
+Extend this table every time you find a new source file that feeds the manpages.
+
+## Format conventions
+
+Preserve these when editing:
+
+- H1 title matches `{{ name }} man <cmd>` output.
+- Standard sections in order: Synopsis → Description → Arguments → Flags → Examples → See Also.
+- Synopsis and flag blocks are 4-space indented code blocks (not fenced).
+- See Also entries point at related commands with one-line descriptions.
+
+## Update checklist
+
+- [ ] Read baseline from `.last-updated` and run `git log` / `git diff --name-only`
+- [ ] Read the CLI parser source file for the current flag definitions
+- [ ] Read every affected `man/*.md`
+- [ ] Update command-level flags, defaults, and examples
+- [ ] Create `man/<cmd>.md` for any new subcommand
+- [ ] Run `make test` — manpage parity tests must pass
+- [ ] Write the new baseline:
+
+      git rev-parse HEAD > .agent/skills/update-manpages/.last-updated
+
+## Verification
+
+1. Build and run `{{ name }} man <cmd>` for every edited page.
+2. Compare every flag block against the CLI parser source.
+3. Confirm `.last-updated` was rewritten.
+
+## Skill self-improvement
+
+1. **Grow the mapping table** with any new source → manpage relationship you discovered.
+2. **Record format quirks** (e.g. alignment rules) you had to normalize.
+3. **Commit the skill edit** alongside the manpage edits.

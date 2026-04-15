@@ -64,6 +64,7 @@ Dependency direction is top-down: `main` → `lib` → `cli` → (`interview`, `
 | New AI-driven step | `src/ai.rs` (thin wrapper) + caller in `interview.rs` |
 | New language overlay | `templates/<lang>/`, plus `Language` enum variant in `manifest.rs` |
 | Tests | `tests/` |
+| New agent skill | `.agent/skills/<name>/SKILL.md` (+ `.last-updated`); also `templates/_common/.agent/skills/<name>/` for generated projects |
 
 ## Test conventions
 
@@ -99,3 +100,21 @@ This repo is the canonical reference implementation of `OSS_SPEC.md`. Other proj
 - **`zag` is isolated.** Only `src/ai.rs` may import from `zag`. Every AI call must have a deterministic fallback so `--no-ai` keeps working.
 - **`oss-spec check .` must always pass on this repo.** A self-conformance test (`tests/self_conformance.rs`) enforces it; if you add a new §19 rule that breaks the dogfood, fix the dogfood at the same time.
 - **No raw prints.** All user-facing output goes through `src/output.rs` (`output::status`, `output::warn`, `output::info`, `output::header`, `output::error`). The only exception is machine-readable §12 contract output in `agent_help.rs`. Use `log::debug!` for verbose diagnostics.
+
+## Maintenance skills
+
+Per §21 of `OSS_SPEC.md`, this repo ships agent skills for keeping drift-prone artifacts in sync with their sources of truth. Skills live under `.agent/skills/<name>/`; `.claude/skills` is a symlink into that tree so Claude Code picks them up at their canonical location.
+
+| Skill | When to run | Artifacts it fixes |
+|---|---|---|
+| `maintenance`     | When several artifacts have likely drifted at once (after a big merge, before a release) — umbrella skill that dispatches to every `update-*` skill in order | all of the below, in one sweep |
+| `update-spec`     | Whenever `OSS_SPEC.md` is edited — propagates the new mandate through `check.rs`, tests, templates, and docs | everything downstream of the spec |
+| `update-manpages` | Whenever `src/cli.rs` clap definitions change | `man/oss-spec.md` |
+| `update-docs`     | Whenever user-visible behavior described in `docs/` changes | `docs/*.md` |
+| `update-readme`   | Whenever a CLI flag, subcommand, §19 rule, supported language, or the spec version changes | `README.md` |
+| `update-website`  | Whenever a source-derived section of the website (hero, version, CLI table) drifts from README / docs / spec | `website/` |
+| `commit`          | After any feature or fix, to run quality gates, commit, push, and open/update the PR | — |
+
+The `maintenance` skill reads a **Registry** table (its single source of truth) that lists every `update-*` skill and the order they must run in. When you add a new `update-*` skill, add a matching row to `maintenance/SKILL.md` — `oss-spec check .` treats a missing row as a drift bug.
+
+Each skill has a `SKILL.md` (the playbook) and a `.last-updated` file (baseline commit hash). A run ends by rewriting `.last-updated` with the current `HEAD` so the next run sees a smaller diff. Skills are expected to improve their own mapping tables when they discover new drift paths — commit those edits alongside the artifact edits.
