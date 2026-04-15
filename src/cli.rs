@@ -102,6 +102,9 @@ pub enum Command {
     /// Validate an existing repo against the §19 checklist. With `--url`,
     /// clones a remote repo into a temp dir first. With `--create-issues`,
     /// files one GitHub issue per violation after reporting.
+    ///
+    /// By default, also runs an AI quality review of file contents (skip
+    /// with `--no-ai`). With `--fix`, automatically fixes all findings.
     Check {
         /// Local repo to validate. Defaults to the current directory.
         #[arg(long, default_value = ".", conflicts_with = "url")]
@@ -119,6 +122,9 @@ pub enum Command {
         /// Cap the issue-filing agent's iteration budget (with `--create-issues`).
         #[arg(long, default_value_t = 30)]
         max_turns: u32,
+        /// After AI verification, automatically fix all findings via a zag agent.
+        #[arg(long)]
+        fix: bool,
     },
     /// Bring an existing repo into OSS_SPEC.md conformance via a zag agent.
     /// Without flags: edits files in place to remove every §19 violation.
@@ -220,6 +226,7 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
             shallow,
             create_issues,
             max_turns,
+            fix,
         }) => {
             let (target, cleanup) = match url {
                 Some(u) => (
@@ -229,7 +236,7 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
                 None => (path, false),
             };
             let check_result = crate::check::run(&target);
-            let report = match check_result {
+            let mut report = match check_result {
                 Ok(r) => r,
                 Err(e) => {
                     if cleanup {
@@ -238,12 +245,35 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
                     return Err(e);
                 }
             };
+
+            // AI quality verification (skip with --no-ai).
+            if !cli.no_ai {
+                let file_contents = crate::check::gather_file_contents(&target);
+                if !file_contents.is_empty() {
+                    match crate::ai::verify_conformance(&file_contents, &report.violations).await {
+                        Ok(findings) => {
+                            report.ai_findings = findings;
+                        }
+                        Err(e) => {
+                            log::warn!("AI verification failed (non-fatal): {e:#}");
+                            crate::output::warn(&format!("AI quality check skipped: {e}"));
+                        }
+                    }
+                }
+            }
+
             report.print();
 
+            // --fix: hand the full report to the fix agent.
+            if fix && (!report.is_clean() || !report.ai_findings.is_empty()) {
+                let fix_result = crate::ai::fix_conformance(&target, &report, 30).await;
+                if cleanup {
+                    let _ = std::fs::remove_dir_all(&target);
+                }
+                return fix_result;
+            }
+
             if create_issues && !report.is_clean() {
-                // Same code path as `fix --create-issues`. Issues land on the
-                // clone's `origin` remote, which (when cloned via --url) is
-                // the real source GitHub repo.
                 let ai_result =
                     crate::ai::file_conformance_issues(&target, &report, max_turns).await;
                 if cleanup {

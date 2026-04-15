@@ -205,15 +205,21 @@ pub async fn draft_readme_why(description: &str, name: &str) -> Result<Vec<Strin
     Ok(wire.bullets)
 }
 
-/// Drive a zag agent loop in `repo` to remove every §19 violation.
+/// Drive a zag agent loop in `repo` to remove every §19 violation
+/// and address AI quality findings.
 pub async fn fix_conformance(
     repo: &Path,
     report: &crate::check::Report,
     max_turns: u32,
 ) -> Result<()> {
+    let violations_text = if report.ai_findings.is_empty() {
+        format_violations(report)
+    } else {
+        format_full_report(report)
+    };
     let p = crate::prompts::load(
         "fix-conformance",
-        context! { violations => format_violations(report) },
+        context! { violations => violations_text },
     )?;
     run_zag_agent(&p.system, &p.user, repo, max_turns).await
 }
@@ -240,6 +246,128 @@ fn format_violations(report: &crate::check::Report) -> String {
         .map(|(i, v)| format!("{:>2}. [{}] {}", i + 1, v.spec_section, v.message))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// Format the full report (structural violations + AI findings) for the
+/// fix agent prompt.
+fn format_full_report(report: &crate::check::Report) -> String {
+    let mut out = String::new();
+    if !report.violations.is_empty() {
+        out.push_str("## Structural violations\n\n");
+        for (i, v) in report.violations.iter().enumerate() {
+            out.push_str(&format!(
+                "{:>2}. [{}] {}\n",
+                i + 1,
+                v.spec_section,
+                v.message
+            ));
+        }
+    }
+    if !report.ai_findings.is_empty() {
+        out.push_str("\n## Quality findings (from AI review)\n\n");
+        for (i, f) in report.ai_findings.iter().enumerate() {
+            out.push_str(&format!(
+                "{:>2}. [{}] [{}] {}: {}\n    Suggestion: {}\n",
+                i + 1,
+                f.severity,
+                f.spec_section,
+                f.file,
+                f.message,
+                f.suggestion
+            ));
+        }
+    }
+    out
+}
+
+/// One-shot JSON review of file contents against OSS_SPEC.md. Returns
+/// structured quality findings that the CLI can display alongside
+/// structural violations.
+pub async fn verify_conformance(
+    file_contents: &[(String, String)],
+    existing_violations: &[crate::check::Violation],
+) -> Result<Vec<crate::check::AiFinding>> {
+    log::debug!(
+        "verify_conformance: {} files to review",
+        file_contents.len()
+    );
+
+    // Format file contents for the prompt.
+    let mut contents_block = String::new();
+    for (name, content) in file_contents {
+        contents_block.push_str(&format!(
+            "=== FILE: {name} ===\n{content}\n=== END: {name} ===\n\n"
+        ));
+    }
+
+    // Format existing violations so the AI can skip them.
+    let violations_text = if existing_violations.is_empty() {
+        "(none)".to_string()
+    } else {
+        existing_violations
+            .iter()
+            .enumerate()
+            .map(|(i, v)| format!("{:>2}. [{}] {}", i + 1, v.spec_section, v.message))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    let schema = serde_json::json!({
+        "type": "object",
+        "required": ["findings"],
+        "properties": {
+            "findings": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["file", "spec_section", "severity", "message", "suggestion"],
+                    "properties": {
+                        "file": { "type": "string", "description": "Relative path of the file" },
+                        "spec_section": { "type": "string", "description": "Spec section, e.g. §3" },
+                        "severity": { "type": "string", "enum": ["error", "warning"] },
+                        "message": { "type": "string", "description": "What is wrong" },
+                        "suggestion": { "type": "string", "description": "How to fix it" }
+                    }
+                }
+            }
+        }
+    });
+
+    let p = crate::prompts::load(
+        "verify-conformance",
+        context! {
+            spec => crate::embedded::OSS_SPEC,
+            violations => violations_text,
+            file_contents => contents_block,
+        },
+    )?;
+    log::debug!(
+        "verify_conformance: system={}B, user={}B",
+        p.system.len(),
+        p.user.len()
+    );
+
+    let raw = match run_zag_json(&p.system, &p.user, schema).await {
+        Ok(r) => r,
+        Err(e) => {
+            log::warn!("AI verification failed (non-fatal): {e:#}");
+            return Ok(vec![]);
+        }
+    };
+    log::debug!("verify_conformance: response: {raw}");
+
+    #[derive(Deserialize)]
+    struct Wire {
+        findings: Vec<crate::check::AiFinding>,
+    }
+
+    match serde_json::from_str::<Wire>(&raw) {
+        Ok(wire) => Ok(wire.findings),
+        Err(e) => {
+            log::warn!("AI verification returned unparseable JSON: {e}");
+            Ok(vec![])
+        }
+    }
 }
 
 /// One-shot JSON request — used by `interpret_prompt` and `draft_readme_why`.
