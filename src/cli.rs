@@ -186,7 +186,15 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
         return Ok(());
     }
 
-    log::debug!("dispatch: command={:?}, debug={}, no_ai={}, no_git={}, no_gh={}, yes={}", cli.command, cli.debug, cli.no_ai, cli.no_git, cli.no_gh, cli.yes);
+    log::debug!(
+        "dispatch: command={:?}, debug={}, no_ai={}, no_git={}, no_gh={}, yes={}",
+        cli.command,
+        cli.debug,
+        cli.no_ai,
+        cli.no_git,
+        cli.no_gh,
+        cli.yes
+    );
 
     match cli.command.clone() {
         Some(Command::Commands { name, examples }) => {
