@@ -375,7 +375,7 @@ fn parse_version(stem: &str) -> Option<(u32, u32)> {
 /// same string that `oss-spec check` will compare declared versions
 /// against.
 const MIN_TOOLCHAIN_VERSIONS: &[(&str, &str)] = &[
-    ("Rust", "1.82.0"),
+    ("Rust", "1.88.0"),
     ("Python", "3.12"),
     ("Node", "24"),
     ("Go", "1.22"),

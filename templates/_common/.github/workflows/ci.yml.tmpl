@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-{% if language == "rust" %}      - uses: dtolnay/rust-toolchain@1.82.0
+{% if language == "rust" %}      - uses: dtolnay/rust-toolchain@1.88.0
         with:
           components: clippy, rustfmt
       - run: cargo build --all-targets

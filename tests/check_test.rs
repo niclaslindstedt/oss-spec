@@ -8,23 +8,23 @@ use tempfile::tempdir;
 
 #[test]
 fn version_ge_pads_shorter_segments() {
-    assert_eq!(version_ge("1.82", "1.82.0"), Some(true));
-    assert_eq!(version_ge("1.82.0", "1.82"), Some(true));
-    assert_eq!(version_ge("1.83", "1.82.0"), Some(true));
-    assert_eq!(version_ge("1.81.9", "1.82.0"), Some(false));
+    assert_eq!(version_ge("1.88", "1.88.0"), Some(true));
+    assert_eq!(version_ge("1.88.0", "1.88"), Some(true));
+    assert_eq!(version_ge("1.89", "1.88.0"), Some(true));
+    assert_eq!(version_ge("1.87.9", "1.88.0"), Some(false));
     assert_eq!(version_ge("24", "24"), Some(true));
     assert_eq!(version_ge("23", "24"), Some(false));
 }
 
 #[test]
 fn rust_pinned_exact_minimum_is_ok() {
-    let yml = "      - uses: dtolnay/rust-toolchain@1.82.0\n";
+    let yml = "      - uses: dtolnay/rust-toolchain@1.88.0\n";
     assert!(check_toolchain_versions("ci.yml", yml).is_empty());
 }
 
 #[test]
 fn rust_pinned_above_minimum_is_ok() {
-    let yml = "      - uses: dtolnay/rust-toolchain@1.85.0\n";
+    let yml = "      - uses: dtolnay/rust-toolchain@1.89.0\n";
     assert!(check_toolchain_versions("ci.yml", yml).is_empty());
 }
 
@@ -44,7 +44,7 @@ fn rust_below_minimum_is_violation() {
     let v = check_toolchain_versions("ci.yml", yml);
     assert_eq!(v.len(), 1);
     assert!(v[0].message.contains("1.75.0"));
-    assert!(v[0].message.contains("minimum is 1.82.0"));
+    assert!(v[0].message.contains("minimum is 1.88.0"));
 }
 
 #[test]
@@ -138,8 +138,8 @@ fn missing_toolchain_block_is_not_a_violation() {
 
 #[test]
 fn rust_short_version_is_accepted() {
-    // `@1.82` (no patch) should be treated as `1.82.0` and accepted.
-    let yml = "      - uses: dtolnay/rust-toolchain@1.82\n";
+    // `@1.88` (no patch) should be treated as `1.88.0` and accepted.
+    let yml = "      - uses: dtolnay/rust-toolchain@1.88\n";
     assert!(check_toolchain_versions("ci.yml", yml).is_empty());
 }
 
