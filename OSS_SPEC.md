@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 1.2.0
+version: 2.0.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -141,9 +141,29 @@ contributors. It must cover:
 
 Projects must adopt a code of conduct. The recommended baseline is the
 [Contributor Covenant](https://www.contributor-covenant.org/) v2.1 or
-later. The document must include a working contact address (email, form,
-or dedicated chat channel) for reporting violations, and it must name an
-enforcement responder.
+later.
+
+`CODE_OF_CONDUCT.md` **must link out** to the canonical external text of
+the chosen code (e.g. the Contributor Covenant v2.1 URL) rather than
+embedding the full document verbatim. This is a deliberate constraint:
+AI coding agents — which bootstrap and maintain many OSS_SPEC.md
+projects — are commonly blocked by content filters from reproducing
+sections of a code of conduct verbatim (harassment examples, protected
+characteristics, etc.), so a link-first policy is the only form that can
+be reliably generated and updated end-to-end by an agent.
+
+The file must:
+
+- Name the code being adopted and link to its canonical URL.
+- Describe briefly where it applies (project spaces, issues, PRs, chat).
+- Point reporters at the contact path defined in `SECURITY.md` for
+  reporting violations — `SECURITY.md` is the single source of truth for
+  contact addresses; do not duplicate an email here.
+
+The file must **not** be required to contain the full Contributor
+Covenant text, a named individual enforcement responder, or a contact
+address of its own. Conformance checks (including AI quality review)
+must not flag a link-only `CODE_OF_CONDUCT.md` as a violation.
 
 ## 6. SECURITY.md
 
@@ -351,12 +371,24 @@ Releases must be fully automated, reproducible, and triggered by an
 explicit human intent — never by an incidental push. The canonical flow
 uses **two chained workflows**, a `version-bump` workflow that a
 maintainer dispatches manually, and a `release` workflow that runs
-automatically when `version-bump` completes successfully.
+automatically when the tag that `version-bump` pushes lands on the
+repository.
 
-The release pipeline is intentionally **not triggered by a tag push**.
-The tag is an output of the release, not its input. Binding the release
-to the successful completion of `version-bump` gives a single,
-auditable "start button" and keeps humans from pushing tags by hand.
+The release pipeline is triggered by the **`v*` tag push** that the
+`version-bump` workflow performs — not by a `workflow_run` event on
+`version-bump`. `workflow_run` from a sibling workflow does not
+reliably fire when the upstream workflow pushed a tag with a PAT /
+GitHub App token, and the event that does fire runs against the
+default-branch commit rather than the tagged commit, which is the
+wrong ref for every downstream build and publish step. Triggering on
+`push: tags: ['v*']` is what works end-to-end, and it keeps the audit
+trail simple: there is exactly one release per tag, and every tag can
+only be created by a successful run of the `version-bump` workflow
+(which is itself `workflow_dispatch`-only — see below).
+
+Humans still must not push `v*` tags by hand. That restriction is
+enforced by branch/tag protection rules on the repository, not by the
+workflow trigger.
 
 #### Workflow 1 — `version-bump`
 
@@ -400,34 +432,40 @@ locally, with the same semantics, as a break-glass procedure.
 
 #### Workflow 2 — `release`
 
-Trigger: the `workflow_run` event on successful completion of
-`version-bump`, **not** a tag push:
+Trigger: the `push` event on any `v*` tag. The tag is pushed by the
+`version-bump` workflow using `RELEASE_TOKEN` (see below), which is
+what causes the downstream trigger to fire — the default
+`GITHUB_TOKEN` deliberately suppresses recursive workflow triggers, so
+`version-bump` must authenticate the tag push with a PAT or GitHub App
+token.
 
 ```yaml
 on:
-  workflow_run:
-    workflows: ['version-bump']
-    types: [completed]
-
-jobs:
-  update-repo:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    ...
+  push:
+    tags:
+      - 'v*'
 ```
 
-Binding the release workflow to `workflow_run` rather than to `push:
-tags: ['v*']` means:
+**Why not `workflow_run`?** A `workflow_run:
+workflows: ['version-bump']` trigger does not work reliably: it fires
+against the default-branch commit rather than the tagged commit, and
+in practice it does not fire at all when the upstream workflow pushes
+its tag with a PAT / GitHub App token. The `push: tags: ['v*']` form
+runs cleanly end-to-end — the triggering event carries the tag ref,
+so every downstream checkout/build/publish step sees the right
+sources without any extra `git describe` gymnastics.
 
-- Nobody can trigger a release by pushing a hand-crafted tag.
-- Re-running the version-bump workflow re-runs the release pipeline.
-- The audit trail has exactly one entry point: "who dispatched
-  `version-bump`, when, and with which input?"
+Hand-pushed tags must still not be accepted. That is enforced
+out-of-band by tag protection rules on the repository (restricting
+`v*` creation to the release bot identity that `version-bump` uses),
+not by the workflow trigger.
 
 The release workflow performs the following steps in order:
 
-1. **Resolve the new tag.** The workflow reads the tag that
-   `version-bump` just pushed (e.g. from a workflow artifact or from
-   `git describe --tags --abbrev=0`).
+1. **Resolve the new tag.** The workflow reads the tag from
+   `GITHUB_REF_NAME` (the tag that caused the `push` event). No `git
+   describe` fallback is needed — the triggering event already names
+   the tag.
 2. **Check out the default branch** with full history
    (`fetch-depth: 0`) — not the tagged commit. The workflow must
    commit back to `main`.
@@ -492,16 +530,21 @@ The release workflow performs the following steps in order:
 Design constraints:
 
 - **Single entry point.** `workflow_dispatch` on `version-bump` is
-  the only supported way to start a release. Pushing `v*` tags by
-  hand must not trigger anything.
+  the only supported way to start a release. Hand-pushing `v*` tags
+  must be prevented by tag protection rules on the repository — the
+  release workflow will happily run against any `v*` tag push, so
+  the integrity of the pipeline depends on the protection rule
+  scoping tag creation to the release bot identity.
 - **Idempotent version-bump step.** If the computed version already
   matches every manifest, step 5 is a no-op.
 - **RELEASE_TOKEN secret.** Both workflows need a token with write
   access to `main` and to tags. `version-bump` needs it so its tag
-  push does not silently disable downstream workflow triggers (the
-  default `GITHUB_TOKEN` suppresses them); `release` needs it for
-  the commit-to-`main` and force-push-tag steps. A dedicated
-  `RELEASE_TOKEN` PAT or GitHub App token is the canonical choice.
+  push actually triggers the `release` workflow (the default
+  `GITHUB_TOKEN` deliberately suppresses downstream workflow
+  triggers, so a tag pushed with it would not fire the release pipeline);
+  `release` needs it for the commit-to-`main` and force-push-tag
+  steps. A dedicated `RELEASE_TOKEN` PAT or GitHub App token is the
+  canonical choice.
 - **Branch protection.** `main` must be protected, and the release
   bot (or `github-actions[bot]`) must have a narrowly scoped
   exception to push the `chore(release): ...` commit. Disable branch
@@ -1464,10 +1507,11 @@ checked before the first public tag.
 [ ] Default branch protected with status checks         (§10.2)
 [ ] Makefile with build/test/lint/fmt/website targets   (§9)
 [ ] CI workflow: build, test, lint, fmt-check           (§10.1)
-[ ] version-bump workflow (workflow_dispatch, tags)     (§10.3)
-[ ] release workflow triggered by version-bump
-    workflow_run, generating changelog, updating
-    versions, force-pushing the tag, matrix-building
+[ ] version-bump workflow (workflow_dispatch, pushes
+    `v*` tag via RELEASE_TOKEN)                         (§10.3)
+[ ] release workflow triggered by `push: tags: ['v*']`,
+    generating changelog, updating versions,
+    force-pushing the rewritten tag, matrix-building
     and publishing                                      (§10.3)
 [ ] RELEASE_TOKEN secret with main-branch bypass        (§10.3)
 [ ] Trusted publishing (OIDC) configured for every

@@ -1,9 +1,14 @@
 name: release
 
+# Triggered by the `v*` tag push that version-bump performs. The tag
+# push must be authenticated with RELEASE_TOKEN (a PAT or GitHub App
+# token) — the default GITHUB_TOKEN deliberately suppresses downstream
+# workflow triggers, so a tag pushed with it would not fire this
+# workflow. See OSS_SPEC §10.3.
 on:
-  workflow_run:
-    workflows: ["version-bump"]
-    types: [completed]
+  push:
+    tags:
+      - 'v*'
 
 # Default to no permissions; every job declares its own
 # least-privilege `permissions:` block (see OSS_SPEC §10.3).
@@ -11,7 +16,6 @@ permissions: {}
 
 jobs:
   release:
-    if: ${{ '{{' }} github.event.workflow_run.conclusion == 'success' {{ '}}' }}
     runs-on: ubuntu-latest
     # contents: write — this job pushes the release commit and
     #                   force-pushes the rewritten tag to `main`.
@@ -29,7 +33,7 @@ jobs:
           token: ${{ '{{' }} secrets.RELEASE_TOKEN {{ '}}' }}
       - name: Resolve tag
         id: tag
-        run: echo "tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
+        run: echo "tag=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
       - name: Generate changelog
         run: ./scripts/generate-changelog.sh ${{ '{{' }} steps.tag.outputs.tag {{ '}}' }}
       - name: Update versions

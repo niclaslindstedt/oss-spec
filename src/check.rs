@@ -84,6 +84,11 @@ impl Report {
 
 pub fn run(path: &Path) -> Result<Report> {
     log::debug!("checking conformance at {}", path.display());
+    crate::output::info(
+        "note: bringing a repo fully into spec usually takes a few `oss-spec check` runs — \
+         fixing one violation (e.g. creating a missing file) often uncovers the next layer \
+         (e.g. that file not yet being complete). Re-run until the report is clean.",
+    );
     let path = path
         .canonicalize()
         .with_context(|| format!("cannot canonicalize {}", path.display()))?;
