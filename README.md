@@ -6,6 +6,7 @@
 [![release](https://github.com/niclaslindstedt/oss-spec/actions/workflows/release.yml/badge.svg)](https://github.com/niclaslindstedt/oss-spec/actions/workflows/release.yml)
 [![pages](https://github.com/niclaslindstedt/oss-spec/actions/workflows/pages.yml/badge.svg)](https://github.com/niclaslindstedt/oss-spec/actions/workflows/pages.yml)
 [![crates](https://img.shields.io/crates/v/oss-spec.svg)](https://crates.io/crates/oss-spec)
+[![spec](https://img.shields.io/badge/OSS__SPEC-v2.0.1-blueviolet)](OSS_SPEC.md)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Why?
@@ -55,6 +56,12 @@ Or point `validate` at any git URL to clone + validate in one step:
 oss-spec validate --url https://github.com/niclaslindstedt/oss-spec.git
 ```
 
+To auto-fix all findings in one pass:
+
+```sh
+oss-spec validate --fix
+```
+
 Add `--create-issues` to open one GitHub issue per violation on the source
 repo (works with both `validate` and `fix`):
 
@@ -68,8 +75,8 @@ oss-spec validate --url https://github.com/foo/bar.git --create-issues --yes
 |---|---|
 | `oss-spec init [<PROMPT>]` | Bootstrap into the current directory (with optional AI prompt). |
 | `oss-spec new <NAME>` | Explicit bootstrap with flags only. |
-| `oss-spec validate [--path .] [--url URL] [--create-issues]` | Validate a local or remote repo against `OSS_SPEC.md` §19; optionally open one GitHub issue per violation. |
-| `oss-spec fix [--path .] [--url URL] [--create-issues]` | Fix §19 violations in place, or file one GitHub issue per violation cluster. |
+| `oss-spec validate [--path .] [--url URL] [--no-ai] [--fix] [--create-issues]` | Validate a local or remote repo against `OSS_SPEC.md` §19; includes AI quality review by default. |
+| `oss-spec fix [--path .] [--url URL] [--create-issues] [--yes] [--no-ai]` | Fix §19 violations in place, or file one GitHub issue per violation cluster. |
 | `oss-spec fetch [--into DIR]` | Clone the public oss-spec repo so a coding agent can browse the spec, templates, and the dogfood implementation locally. |
 | `oss-spec commands [<NAME>] [--examples]` | Stable, machine-readable command index (§12.4). |
 | `oss-spec docs [<TOPIC>]` | Print an embedded `docs/` topic (§12.3). |
