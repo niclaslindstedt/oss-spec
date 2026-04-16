@@ -8,6 +8,20 @@ This file is the canonical source of truth for AI coding agents working in this 
 
 The repo is its own first customer: `oss-spec validate .` against this directory passes.
 
+## Cloning related repositories
+
+If you need to inspect or modify the source code of `zag` or `oss-spec` itself (e.g. to debug a dependency, check upstream behavior, or contribute a fix), clone them to a temporary directory:
+
+```sh
+git clone https://github.com/niclaslindstedt/zag.git /tmp/zag
+git clone https://github.com/niclaslindstedt/oss-spec.git /tmp/oss-spec
+```
+
+- **`zag`** (`niclaslindstedt/zag`) — the LLM integration library that `oss-spec` depends on. Clone it when you need to understand how prompt interpretation works under the hood, trace a bug across the dependency boundary, or test a local patch (use a `[patch]` override in `Cargo.toml` to point at the local clone).
+- **`oss-spec`** (`niclaslindstedt/oss-spec`) — this project. The spec (`OSS_SPEC.md`) defines the project structure that all generated repositories adhere to. A second clone can be useful for diffing against `main` or testing validation changes against a pristine copy.
+
+Clean up the clones when you're done: `rm -rf /tmp/zag /tmp/oss-spec`.
+
 ## OSS Spec conformance
 
 This repository adheres to [`OSS_SPEC.md`](OSS_SPEC.md), which lives at the repository root and is also the canonical spec this CLI generates projects against. The spec is versioned in its YAML front matter (semver); **bump the `version` field every time you modify `OSS_SPEC.md`**. Use major for breaking changes to existing mandates, minor for new mandates or sections, patch for clarifications and typo fixes. Generated projects receive the spec via the symlink `templates/_common/OSS_SPEC.md -> ../../OSS_SPEC.md`, so edits to the root file automatically flow into every future bootstrap.
