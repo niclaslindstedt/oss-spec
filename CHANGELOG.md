@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is **auto-generated from conventional commits at release time** —
 do not edit manually.
 
+## [0.2.0] - 2026-04-16
+
+### Added
+
+- Require Rust 1.88 minimum and add local/CI parity guidance (#20)
+- Add AI quality verification and --fix flag (#18)
+- Add §21 agent skills with maintenance umbrella (#17)
+
+### Fixed
+
+- Exit non-zero when AI verification fails (#21)
+
 ## [0.1.5] - 2026-04-15
 
 ### Added
