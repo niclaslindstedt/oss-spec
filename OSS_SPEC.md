@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.0.0
+version: 2.0.1
 ---
 
 # Open Source Project Bootstrap Specification
@@ -579,7 +579,7 @@ Design constraints:
   tested is still a supply-chain risk.
 
   The floor versions below apply to every language this spec
-  supports. Projects are free to pin higher, but `oss-spec check`
+  supports. Projects are free to pin higher, but `oss-spec validate`
   will fail the build if a workflow declares anything lower or uses
   a floating specifier:
 
@@ -1390,7 +1390,7 @@ Every `SKILL.md` must contain:
 7. **A "Verification" section** describing how the agent confirms the
    update is correct (typically by re-reading the updated files and
    comparing them against the sources of truth, and by running the
-   relevant checks such as `make test` or `oss-spec check .`).
+   relevant checks such as `make test` or `oss-spec validate .`).
 
 8. **A "Skill self-improvement" section** that instructs the agent to
    update the mapping table, patterns, and checklist with any new

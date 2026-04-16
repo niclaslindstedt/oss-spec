@@ -14,7 +14,7 @@ pub async fn run(path: &Path, create_issues: bool, max_turns: u32, assume_yes: b
         "fix: checking {} (create_issues={create_issues})",
         path.display()
     );
-    let report = crate::check::run(path)?;
+    let report = crate::validate::run(path)?;
     if report.is_clean() {
         crate::output::status("repo already conforms — nothing to do");
         return Ok(());
@@ -49,8 +49,8 @@ pub async fn run(path: &Path, create_issues: bool, max_turns: u32, assume_yes: b
         crate::ai::fix_conformance(path, &report, max_turns).await?;
     }
 
-    crate::output::info("\nRe-running check...");
-    let after = crate::check::run(path)?;
+    crate::output::info("\nRe-running validation...");
+    let after = crate::validate::run(path)?;
     after.print();
     if !after.is_clean() && !create_issues {
         std::process::exit(1);

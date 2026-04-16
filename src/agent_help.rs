@@ -15,20 +15,16 @@ pub const DEBUG_AGENT: &str = include_str!("../docs/agent/debug-agent.txt");
 /// Stable, machine-parseable command index.
 const COMMANDS_TABLE: &[(&str, &str)] = &[
     (
-        "default",
-        "oss-spec <prompt>                             # interpret + bootstrap via zag",
+        "init",
+        "oss-spec init [<prompt>] [--lang ..] [--kind ..]  # bootstrap into current dir (with optional AI prompt)",
     ),
     (
         "new",
-        "oss-spec new <name> [--lang ..] [--kind ..]    # explicit bootstrap",
+        "oss-spec new <name> [--lang ..] [--kind ..]    # explicit bootstrap into new dir",
     ),
     (
-        "init",
-        "oss-spec init                                  # bootstrap into current dir",
-    ),
-    (
-        "check",
-        "oss-spec check [--path .] [--url <URL>] [--create-issues]    # validate local or remote repo",
+        "validate",
+        "oss-spec validate [--path .] [--url <URL>] [--create-issues]    # validate local or remote repo",
     ),
     (
         "fix",
@@ -54,16 +50,22 @@ const COMMANDS_TABLE: &[(&str, &str)] = &[
 
 const COMMAND_SPECS: &[(&str, &str)] = &[
     (
-        "default",
-        "oss-spec <PROMPT>\n\
+        "init",
+        "oss-spec init [<PROMPT>] [-d <DESCRIPTION>] [--name <NAME>]\n\
          \n\
-         Freeform prompt mode. The string is sent to the zag library, which\n\
-         returns a structured manifest (name, language, kind, license, why\n\
-         bullets). After confirmation, the bootstrap engine writes a full\n\
-         OSS_SPEC.md-compliant repo.\n\
+         Bootstrap into the current working directory (or --path). With a\n\
+         freeform prompt, the string is sent to the zag library, which returns\n\
+         a structured manifest (language, kind, license, description, why\n\
+         bullets). Without a prompt, runs the interactive interview.\n\
          \n\
-         Common flags: --no-ai --no-git --no-gh --yes --path <dir>\n\
-                       --name --lang --kind --license --visibility\n",
+         The project name defaults to the directory name; override with\n\
+         --name. Existing files are overwritten.\n\
+         \n\
+         Flags: --lang rust|python|node|go|generic\n\
+                --kind lib|cli|service\n\
+                --license MIT|Apache-2.0|MPL-2.0\n\
+                --visibility public|private\n\
+                --no-ai --no-git --no-gh --yes --path <dir> --name <name>\n",
     ),
     (
         "new",
@@ -80,16 +82,8 @@ const COMMAND_SPECS: &[(&str, &str)] = &[
                 --no-ai --no-git --no-gh --yes --path <dir>\n",
     ),
     (
-        "init",
-        "oss-spec init [-d <DESCRIPTION>]\n\
-         \n\
-         Bootstrap into the current working directory. Existing files are\n\
-         overwritten. Use this to convert an in-progress repo into an\n\
-         OSS_SPEC.md-compliant one.\n",
-    ),
-    (
-        "check",
-        "oss-spec check [--path .] [--url <URL>] [--shallow] [--no-ai] [--create-issues] [--max-turns N] [--fix]\n\
+        "validate",
+        "oss-spec validate [--path .] [--url <URL>] [--shallow] [--no-ai] [--create-issues] [--max-turns N] [--fix]\n\
          \n\
          Walks the target repo and reports every §19 checklist item that is\n\
          missing or malformed. Exits 1 on any violation, 0 if clean.\n\
@@ -108,7 +102,7 @@ const COMMAND_SPECS: &[(&str, &str)] = &[
         "fix",
         "oss-spec fix [--path .] [--url <URL>] [--shallow] [--create-issues] [--max-turns N] [--yes] [--no-ai]\n\
          \n\
-         Runs `check` against the target repo, then dispatches a zag-driven\n\
+         Runs `validate` against the target repo, then dispatches a zag-driven\n\
          agent to bring it into conformance.\n\
          \n\
          Without --create-issues: the agent edits files in place to remove\n\
@@ -165,17 +159,16 @@ const COMMAND_SPECS: &[(&str, &str)] = &[
 
 const EXAMPLES: &[(&str, &str)] = &[
     (
-        "default",
-        "oss-spec \"create a python cli for finding stock buys\"",
+        "init",
+        "oss-spec init \"create a python cli for finding stock buys\"",
     ),
     (
         "new",
         "oss-spec new my-tool --lang rust --kind cli --license MIT --no-ai --yes",
     ),
-    ("init", "cd existing-repo && oss-spec init --no-ai --yes"),
     (
-        "check",
-        "oss-spec check --url https://github.com/niclaslindstedt/oss-spec.git",
+        "validate",
+        "oss-spec validate --url https://github.com/niclaslindstedt/oss-spec.git",
     ),
     (
         "fix",

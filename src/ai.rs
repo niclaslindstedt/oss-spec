@@ -209,7 +209,7 @@ pub async fn draft_readme_why(description: &str, name: &str) -> Result<Vec<Strin
 /// and address AI quality findings.
 pub async fn fix_conformance(
     repo: &Path,
-    report: &crate::check::Report,
+    report: &crate::validate::Report,
     max_turns: u32,
 ) -> Result<()> {
     let violations_text = if report.ai_findings.is_empty() {
@@ -228,7 +228,7 @@ pub async fn fix_conformance(
 /// violation cluster (via `gh`).
 pub async fn file_conformance_issues(
     repo: &Path,
-    report: &crate::check::Report,
+    report: &crate::validate::Report,
     max_turns: u32,
 ) -> Result<()> {
     let p = crate::prompts::load(
@@ -238,7 +238,7 @@ pub async fn file_conformance_issues(
     run_zag_agent(&p.system, &p.user, repo, max_turns).await
 }
 
-fn format_violations(report: &crate::check::Report) -> String {
+fn format_violations(report: &crate::validate::Report) -> String {
     report
         .violations
         .iter()
@@ -250,7 +250,7 @@ fn format_violations(report: &crate::check::Report) -> String {
 
 /// Format the full report (structural violations + AI findings) for the
 /// fix agent prompt.
-fn format_full_report(report: &crate::check::Report) -> String {
+fn format_full_report(report: &crate::validate::Report) -> String {
     let mut out = String::new();
     if !report.violations.is_empty() {
         out.push_str("## Structural violations\n\n");
@@ -285,8 +285,8 @@ fn format_full_report(report: &crate::check::Report) -> String {
 /// structural violations.
 pub async fn verify_conformance(
     file_contents: &[(String, String)],
-    existing_violations: &[crate::check::Violation],
-) -> Result<Vec<crate::check::AiFinding>> {
+    existing_violations: &[crate::validate::Violation],
+) -> Result<Vec<crate::validate::AiFinding>> {
     log::debug!(
         "verify_conformance: {} files to review",
         file_contents.len()
@@ -354,7 +354,7 @@ pub async fn verify_conformance(
 
     #[derive(Deserialize)]
     struct Wire {
-        findings: Vec<crate::check::AiFinding>,
+        findings: Vec<crate::validate::AiFinding>,
     }
 
     let wire: Wire = serde_json::from_str(&raw)

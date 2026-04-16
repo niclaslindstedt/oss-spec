@@ -7,7 +7,7 @@ export const terminalDemos: TerminalTab[] = [
       { type: "comment", text: "# Bootstrap a new project from a prompt" },
       {
         type: "command",
-        text: 'oss-spec "create a python cli for finding stock buys"',
+        text: 'oss-spec init "create a python cli for finding stock buys"',
       },
       { type: "pause", duration: 500 },
       {
@@ -58,12 +58,12 @@ export const terminalDemos: TerminalTab[] = [
     ],
   },
   {
-    label: "Check",
+    label: "Validate",
     sequence: [
       { type: "comment", text: "# Validate a remote repo against OSS_SPEC.md" },
       {
         type: "command",
-        text: "oss-spec check --url https://github.com/example/my-project",
+        text: "oss-spec validate --url https://github.com/example/my-project",
       },
       { type: "pause", duration: 500 },
       {
@@ -92,7 +92,7 @@ export const terminalDemos: TerminalTab[] = [
       { type: "comment", text: "# Auto-file GitHub issues for each violation" },
       {
         type: "command",
-        text: "oss-spec check --url https://github.com/example/my-project --create-issues --yes",
+        text: "oss-spec validate --url https://github.com/example/my-project --create-issues --yes",
       },
       { type: "pause", duration: 400 },
       {
@@ -122,7 +122,7 @@ export const terminalDemos: TerminalTab[] = [
         type: "output",
         delay: 200,
         lines: [
-          { text: "\u25b6 Running oss-spec check...", style: "spec" },
+          { text: "\u25b6 Running oss-spec validate...", style: "spec" },
           { text: "  5 violations found", style: "warn" },
           "",
           { text: "\u25b6 Fixing via zag agent...", style: "spec" },
@@ -166,7 +166,7 @@ export const terminalDemos: TerminalTab[] = [
         lines: [
           { text: "  new         Bootstrap a new project", style: "diffStat" },
           { text: "  init        Bootstrap into the current directory", style: "diffStat" },
-          { text: "  check       Validate repo against \u00a719 checklist", style: "diffStat" },
+          { text: "  validate    Validate repo against \u00a719 checklist", style: "diffStat" },
           { text: "  fix         Fix \u00a719 violations in place", style: "diffStat" },
           { text: "  fetch       Clone oss-spec repo for reference", style: "diffStat" },
           { text: "  commands    Machine-readable command index", style: "diffStat" },
@@ -188,7 +188,7 @@ export const terminalDemos: TerminalTab[] = [
           { text: "  # Getting started with oss-spec", style: "assistant" },
           { text: "  ", style: "dim" },
           { text: "  ## Quick start", style: "assistant" },
-          { text: '  oss-spec "create a python cli for stock analysis"', style: "diffStat" },
+          { text: '  oss-spec init "create a python cli for stock analysis"', style: "diffStat" },
           { text: "  ", style: "dim" },
           { text: "  ## Deterministic mode", style: "assistant" },
           { text: "  oss-spec new my-tool --lang rust --kind cli --no-ai -y", style: "diffStat" },

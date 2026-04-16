@@ -14,15 +14,15 @@ src/
 ├── embedded.rs    # include_dir!("templates")
 ├── bootstrap.rs   # walks embedded tree → writes target dir
 ├── git.rs         # git init / gh repo create wrappers
-├── check.rs       # §19 conformance validator
+├── validate.rs    # §19 conformance validator
 └── agent_help.rs  # §12 CLI discoverability contract
 ```
 
-## Data flow for `oss-spec "<prompt>"`
+## Data flow for `oss-spec init "<prompt>"`
 
 1. `main` parses `Cli` (clap).
-2. `cli::dispatch` notices no subcommand + a positional prompt → calls
-   `interview::from_prompt`.
+2. `cli::dispatch` matches the `init` subcommand and sees a prompt →
+   calls `interview::from_prompt`.
 3. `interview::from_prompt` calls `ai::interpret_prompt`, which uses `zag`
    to get a JSON-schema-validated manifest.
 4. The user confirms (or refines via `interview::run`).

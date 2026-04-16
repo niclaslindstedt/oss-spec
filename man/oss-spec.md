@@ -5,10 +5,9 @@
 ## Synopsis
 
 ```
-oss-spec <PROMPT>
+oss-spec init [<PROMPT>] [-d <DESCRIPTION>] [flags]
 oss-spec new <NAME> [-d <DESCRIPTION>] [flags]
-oss-spec init [-d <DESCRIPTION>] [flags]
-oss-spec check [--path .] [--url <URL>] [--create-issues]
+oss-spec validate [--path .] [--url <URL>] [--create-issues]
 oss-spec fix   [--path .] [--url <URL>] [--create-issues] [--max-turns N]
 oss-spec fetch [--into <DIR>] [--url <URL>] [--shallow]
 oss-spec commands [<NAME>] [--examples]
@@ -23,18 +22,16 @@ AGENTS.md + symlinks, CI workflows, docs, examples, website, language
 manifests, Makefile, .claude skills, etc.) following the conventions in
 `OSS_SPEC.md`.
 
-The default invocation takes a freeform prompt, sends it to the `zag` library
-for interpretation, shows the proposed manifest, and on confirmation writes
-the project to disk.
+Use `oss-spec init` to bootstrap a project — optionally with a freeform
+prompt that the `zag` library interprets into a structured manifest.
 
 ## Subcommands
 
 | Command | Description |
 |---|---|
-| (default) | Interpret a prompt via zag and bootstrap. |
+| `init` | Bootstrap into the current directory (with optional AI prompt). |
 | `new` | Explicit bootstrap with flags only. |
-| `init` | Bootstrap into the current directory. |
-| `check` | Validate a local or remote repo against OSS_SPEC.md §19. |
+| `validate` | Validate a local or remote repo against OSS_SPEC.md §19. |
 | `fix` | Fix §19 violations in place, or file one GitHub issue per violation. |
 | `fetch` | Clone the public oss-spec repo for local reference. |
 | `commands` | Stable, machine-readable command index. |
@@ -72,30 +69,30 @@ the project to disk.
 | Code | Meaning |
 |---|---|
 | 0 | Success |
-| 1 | Bootstrap or check failure |
+| 1 | Bootstrap or validation failure |
 | 2 | Usage error / unknown command |
 
 ## Examples
 
 ```sh
-oss-spec "create a python cli for finding stock buys"
+oss-spec init "create a python cli for finding stock buys"
 oss-spec new demo --lang rust --kind cli --license MIT --no-ai --yes
-cd demo && oss-spec check
-oss-spec check --url https://github.com/niclaslindstedt/oss-spec.git
-oss-spec check --url https://github.com/foo/bar.git --create-issues --yes
+cd demo && oss-spec validate
+oss-spec validate --url https://github.com/niclaslindstedt/oss-spec.git
+oss-spec validate --url https://github.com/foo/bar.git --create-issues --yes
 oss-spec fix   --url https://github.com/foo/bar.git --create-issues --yes
 oss-spec commands --examples
 ```
 
-## `check` / `fix` flags
+## `validate` / `fix` flags
 
 | Flag | Applies to | Description |
 |---|---|---|
-| `--path <DIR>` | check, fix | Local repo to validate / fix. Defaults to `.`. |
-| `--url <URL>` | check, fix | Clone a remote git repo into a temp dir and run against the clone. The clone is removed on exit. Mutually exclusive with `--path`. |
-| `--shallow` | check, fix | Use `git clone --depth 1` when `--url` is given. Defaults to `true`. |
-| `--create-issues` | check, fix | After reporting, file one GitHub issue per violation via `gh`. On `fix`, required whenever `--url` is used. |
-| `--max-turns <N>` | check, fix | Iteration budget for the issue-filing / fix agent. Default 30. |
+| `--path <DIR>` | validate, fix | Local repo to validate / fix. Defaults to `.`. |
+| `--url <URL>` | validate, fix | Clone a remote git repo into a temp dir and run against the clone. The clone is removed on exit. Mutually exclusive with `--path`. |
+| `--shallow` | validate, fix | Use `git clone --depth 1` when `--url` is given. Defaults to `true`. |
+| `--create-issues` | validate, fix | After reporting, file one GitHub issue per violation via `gh`. On `fix`, required whenever `--url` is used. |
+| `--max-turns <N>` | validate, fix | Iteration budget for the issue-filing / fix agent. Default 30. |
 
 ## See also
 

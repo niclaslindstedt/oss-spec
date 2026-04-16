@@ -1,9 +1,9 @@
 //! Smoke test: bootstrap a deterministic Rust CLI into a tempdir, then assert
-//! `check::run` reports zero violations and the expected key files exist.
+//! `validate::run` reports zero violations and the expected key files exist.
 
 use oss_spec::bootstrap;
-use oss_spec::check;
 use oss_spec::manifest::{Kind, Language, License, ProjectManifest};
+use oss_spec::validate;
 
 fn fixture() -> ProjectManifest {
     let mut m = ProjectManifest::skeleton("smoke", "Smoke test project.");
@@ -65,7 +65,7 @@ fn bootstrap_then_check_passes() {
         assert!(p.is_symlink(), "{link} should be a symlink");
     }
 
-    let report = check::run(&target).expect("check run");
+    let report = validate::run(&target).expect("check run");
     if !report.is_clean() {
         for v in &report.violations {
             eprintln!("::error::[bootstrap {}] {}", v.spec_section, v.message);
@@ -73,7 +73,7 @@ fn bootstrap_then_check_passes() {
     }
     assert!(
         report.is_clean(),
-        "generated repo should pass check: {:?}",
+        "generated repo should pass validate: {:?}",
         report.violations
     );
 }

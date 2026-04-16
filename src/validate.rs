@@ -1,4 +1,4 @@
-//! `oss-spec check` — validate an existing repo against the §19 checklist.
+//! `oss-spec validate` — validate an existing repo against the §19 checklist.
 //!
 //! Two layers of checking:
 //!
@@ -85,7 +85,7 @@ impl Report {
 pub fn run(path: &Path) -> Result<Report> {
     log::debug!("checking conformance at {}", path.display());
     crate::output::info(
-        "note: bringing a repo fully into spec usually takes a few `oss-spec check` runs — \
+        "note: bringing a repo fully into spec usually takes a few `oss-spec validate` runs — \
          fixing one violation (e.g. creating a missing file) often uncovers the next layer \
          (e.g. that file not yet being complete). Re-run until the report is clean.",
     );
@@ -377,7 +377,7 @@ fn parse_version(stem: &str) -> Option<(u32, u32)> {
 
 /// Spec-defined minimum toolchain versions (§10.3). Mirrors the table in
 /// `OSS_SPEC.md`. Each entry is `(language, minimum)`; the minimum is the
-/// same string that `oss-spec check` will compare declared versions
+/// same string that `oss-spec validate` will compare declared versions
 /// against.
 const MIN_TOOLCHAIN_VERSIONS: &[(&str, &str)] = &[
     ("Rust", "1.88.0"),
@@ -687,7 +687,7 @@ pub fn extract_front_matter(content: &str) -> Option<&str> {
 /// Return `true` if the YAML fragment contains a top-level `<key>:` line.
 /// This is a deliberately shallow parser — we only need to confirm that
 /// the key exists with some value; detailed schema validation is out of
-/// scope for `oss-spec check`.
+/// scope for `oss-spec validate`.
 pub fn has_yaml_key(yaml: &str, key: &str) -> bool {
     for line in yaml.lines() {
         // Ignore indented continuation lines and comments.

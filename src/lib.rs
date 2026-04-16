@@ -6,7 +6,6 @@
 pub mod agent_help;
 pub mod ai;
 pub mod bootstrap;
-pub mod check;
 pub mod cli;
 pub mod embedded;
 pub mod fix;
@@ -16,6 +15,7 @@ pub mod manifest;
 pub mod output;
 pub mod prompts;
 pub mod render;
+pub mod validate;
 
 use anyhow::Result;
 

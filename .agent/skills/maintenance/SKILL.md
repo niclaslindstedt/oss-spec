@@ -70,7 +70,7 @@ Between skills, do **not** commit — aggregate all edits into a single working 
     - [ ] `make fmt`
     - [ ] `make lint`
     - [ ] `make test`
-    - [ ] `oss-spec check .`
+    - [ ] `oss-spec validate .`
 - [ ] Stage every touched file (including each updated `.last-updated`)
 - [ ] Commit with a conventional-commit message:
 
@@ -87,7 +87,7 @@ Between skills, do **not** commit — aggregate all edits into a single working 
 ## Verification
 
 1. Every scheduled skill's verification section must pass.
-2. `oss-spec check .` must report zero violations.
+2. `oss-spec validate .` must report zero violations.
 3. The final diff should touch only documentation files, skill `.last-updated` files, and (rarely) small code adjustments that the skills flagged.
 4. Every skill that ran must have its `.last-updated` rewritten with the same commit hash — this is what tells the next run of `maintenance` that the sweep completed.
 

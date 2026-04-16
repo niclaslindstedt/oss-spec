@@ -4,13 +4,13 @@ const features = [
   {
     title: "One Command to a Real Repo",
     description:
-      'Give oss-spec a prompt like "create a python cli for stock analysis" and get a complete project — LICENSE, README, AGENTS.md, CI, docs, website, and more.',
+      'Run oss-spec init with a prompt like "create a python cli for stock analysis" and get a complete project — LICENSE, README, AGENTS.md, CI, docs, website, and more.',
     icon: "\u{1F680}",
   },
   {
     title: "Spec is the Source of Truth",
     description:
-      "Every file is derived from OSS_SPEC.md — a 20-section prescriptive specification. Run `oss-spec check` to see exactly which items a repo is missing.",
+      "Every file is derived from OSS_SPEC.md — a 20-section prescriptive specification. Run `oss-spec validate` to see exactly which items a repo is missing.",
     icon: "\u{1F4DC}",
   },
   {
@@ -32,15 +32,15 @@ const features = [
     icon: "\u{1F916}",
   },
   {
-    title: "Remote Check & Fix",
+    title: "Remote Validate & Fix",
     description:
-      "Point check or fix at any git URL with --url. Add --create-issues to automatically file one GitHub issue per violation. Works on repos you don't own.",
+      "Point validate or fix at any git URL with --url. Add --create-issues to automatically file one GitHub issue per violation. Works on repos you don't own.",
     icon: "\u{1F527}",
   },
   {
     title: "Self-Dogfooding",
     description:
-      "oss-spec is its own first customer — `oss-spec check .` against the oss-spec repo passes. The tool eats its own dog food.",
+      "oss-spec is its own first customer — `oss-spec validate .` against the oss-spec repo passes. The tool eats its own dog food.",
     icon: "\u{1F436}",
   },
   {

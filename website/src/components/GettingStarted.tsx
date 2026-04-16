@@ -75,11 +75,6 @@ export default function GettingStarted() {
             Command reference
           </h3>
           <div className="mx-auto max-w-2xl space-y-2">
-            {/* Default prompt form */}
-            <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <code className="shrink-0 text-sm font-semibold text-accent">oss-spec &lt;PROMPT&gt;</code>
-              <span className="text-xs text-text-dim sm:text-right">AI-powered project creation from a freeform prompt</span>
-            </div>
             {commands.map((c) => (
               <div key={c.name} className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <code className="shrink-0 text-sm font-semibold text-accent">oss-spec {c.name}</code>

@@ -51,7 +51,7 @@ export default function TheSpec() {
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-center text-text-secondary">
           Every generated file traces back to a section of the spec. Run{" "}
-          <code className="rounded bg-surface-alt px-1.5 py-0.5 text-sm text-accent">oss-spec check</code>{" "}
+          <code className="rounded bg-surface-alt px-1.5 py-0.5 text-sm text-accent">oss-spec validate</code>{" "}
           to validate any repo against it.
         </p>
 

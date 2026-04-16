@@ -1,11 +1,11 @@
 ---
 name: update-spec
-description: "Use when OSS_SPEC.md has been edited. Bumps the spec version field, propagates the new mandate through check.rs, tests, templates, docs, README, AGENTS.md, and the self-conformance test."
+description: "Use when OSS_SPEC.md has been edited. Bumps the spec version field, propagates the new mandate through validate.rs, tests, templates, docs, README, AGENTS.md, and the self-conformance test."
 ---
 
 # Updating OSS_SPEC.md
 
-`OSS_SPEC.md` is the single source of truth for every mandate this CLI emits into bootstrapped projects and enforces in `oss-spec check`. Because the spec is embedded into generated projects via the symlink `templates/_common/OSS_SPEC.md -> ../../OSS_SPEC.md`, every edit ripples outward. This skill exists to ensure the ripples land.
+`OSS_SPEC.md` is the single source of truth for every mandate this CLI emits into bootstrapped projects and enforces in `oss-spec validate`. Because the spec is embedded into generated projects via the symlink `templates/_common/OSS_SPEC.md -> ../../OSS_SPEC.md`, every edit ripples outward. This skill exists to ensure the ripples land.
 
 ## Tracking mechanism
 
@@ -41,12 +41,12 @@ description: "Use when OSS_SPEC.md has been edited. Bumps the spec version field
 | What changed in OSS_SPEC.md | What else must change |
 |---|---|
 | Version field in YAML front matter | bump per semver — major / minor / patch |
-| New required root file | `src/check.rs` (`required_files`), `templates/_common/<file>`, `README.md`, tests |
-| New required directory | `src/check.rs` (`required_dirs`), `templates/_common/<dir>/`, tests |
-| New required symlink | `src/check.rs` (`symlinks`), `src/bootstrap.rs::create_agents_symlinks` (if rooted at AGENTS.md), tests |
-| New §19 content rule | `src/check.rs` (new validator fn), `tests/check_test.rs`, `src/fix.rs` if auto-fixable |
-| New required workflow | `src/check.rs` (`required_workflows`), `templates/_common/.github/workflows/<file>.tmpl`, tests |
-| New required agent skill | `src/check.rs::check_agent_skills`, `templates/_common/.agent/skills/<name>/`, tests |
+| New required root file | `src/validate.rs` (`required_files`), `templates/_common/<file>`, `README.md`, tests |
+| New required directory | `src/validate.rs` (`required_dirs`), `templates/_common/<dir>/`, tests |
+| New required symlink | `src/validate.rs` (`symlinks`), `src/bootstrap.rs::create_agents_symlinks` (if rooted at AGENTS.md), tests |
+| New §19 content rule | `src/validate.rs` (new validator fn), `tests/validate_test.rs`, `src/fix.rs` if auto-fixable |
+| New required workflow | `src/validate.rs` (`required_workflows`), `templates/_common/.github/workflows/<file>.tmpl`, tests |
+| New required agent skill | `src/validate.rs::check_agent_skills`, `templates/_common/.agent/skills/<name>/`, tests |
 | Spec-wide guidance touching AGENTS.md | `templates/_common/AGENTS.md.tmpl`, this repo's `AGENTS.md` |
 | README-visible change | `README.md` (run `update-readme` afterwards) |
 | Docs-visible change | `docs/` (run `update-docs` afterwards) |
@@ -57,7 +57,7 @@ description: "Use when OSS_SPEC.md has been edited. Bumps the spec version field
 - [ ] Walk the mapping table — update every affected file
 - [ ] Update `CHANGELOG.md`? No — it is generated at release time
 - [ ] Run `make fmt`, `make lint`, `make test`
-- [ ] Run `oss-spec check .` — the self-conformance test must still pass
+- [ ] Run `oss-spec validate .` — the self-conformance test must still pass
 - [ ] Run `update-readme` and `update-docs` skills if they are now stale
 - [ ] Write the new baseline:
 
@@ -66,7 +66,7 @@ description: "Use when OSS_SPEC.md has been edited. Bumps the spec version field
 ## Verification
 
 1. `cargo test -p oss-spec` (the full suite)
-2. `oss-spec check .` against a freshly bootstrapped demo repo
+2. `oss-spec validate .` against a freshly bootstrapped demo repo
 3. Confirm the new spec version renders in `README.md` and (if applicable) the website
 4. Confirm `.last-updated` was rewritten
 
