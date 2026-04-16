@@ -45,6 +45,7 @@ src/
 ├── bootstrap.rs   # walks embedded tree → writes target dir
 ├── git.rs         # git init / gh repo create wrappers
 ├── validate.rs    # §19 conformance validator
+├── fix.rs         # zag-driven auto-fix agent
 ├── agent_help.rs  # §12 CLI discoverability contract
 └── output.rs      # central logging + styled output (§19 logging)
 templates/         # all the files the bootstrap engine emits, with {{ jinja }} placeholders
@@ -61,6 +62,7 @@ Dependency direction is top-down: `main` → `lib` → `cli` → (`interview`, `
 | New CLI flag / subcommand | `src/cli.rs` (clap) + `src/agent_help.rs` (commands table, COMMAND_SPECS, EXAMPLES) + `man/oss-spec.md` |
 | New template file | `templates/_common/`, `templates/<lang>/`, or `templates/cli/` |
 | New §19 conformance rule | `src/validate.rs` |
+| New auto-fix behavior | `src/fix.rs` (zag agent orchestration) |
 | New AI-driven step | `src/ai.rs` (thin wrapper) + caller in `interview.rs` |
 | New language overlay | `templates/<lang>/`, plus `Language` enum variant in `manifest.rs` |
 | Tests | `tests/` |

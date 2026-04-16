@@ -11,7 +11,9 @@ in order of precedence:
 3. **Environment defaults** — `git config user.name` / `user.email` for
    author, `gh api user -q .login` for the GitHub owner.
 
-## Behavior flags
+## Bootstrap flags (`init`, `new`)
+
+These flags are scoped to the `init` and `new` subcommands:
 
 | Flag | Default | Effect |
 |---|---|---|
@@ -19,3 +21,6 @@ in order of precedence:
 | `--no-git` | off | Skip `git init` and the first commit. |
 | `--no-gh` | off | Skip `gh repo create`. |
 | `-y, --yes` | off | Accept defaults for every interactive prompt. |
+
+`--no-ai` also appears on `validate` (skip AI quality review) and `fix` (skip
+AI calls). `--yes` also appears on `fix` (skip the confirmation prompt).

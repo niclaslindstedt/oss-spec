@@ -43,7 +43,7 @@ function extractCommands() {
   const re = /\/\/\/\s*(.+(?:\n\s*\/\/\/\s*.+)*)\n\s+(\w+)\s*[\{,]/g;
   let m;
   while ((m = re.exec(block[1])) !== null) {
-    const desc = m[1].replace(/\n\s*\/\/\/\s*/g, " ").trim();
+    const desc = m[1].replace(/\n\s*\/\/\/\s*/g, " ").replace(/\s*\/\/\/\s*/g, " ").replace(/\s{2,}/g, " ").trim();
     const name = camelToKebab(m[2]);
     commands.push({ name, description: desc });
   }

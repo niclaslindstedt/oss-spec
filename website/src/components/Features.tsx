@@ -10,7 +10,7 @@ const features = [
   {
     title: "Spec is the Source of Truth",
     description:
-      "Every file is derived from OSS_SPEC.md — a 20-section prescriptive specification. Run `oss-spec validate` to see exactly which items a repo is missing.",
+      "Every file is derived from OSS_SPEC.md — a 21-section prescriptive specification. Run `oss-spec validate` to see exactly which items a repo is missing.",
     icon: "\u{1F4DC}",
   },
   {

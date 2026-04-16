@@ -15,7 +15,9 @@ src/
 ├── bootstrap.rs   # walks embedded tree → writes target dir
 ├── git.rs         # git init / gh repo create wrappers
 ├── validate.rs    # §19 conformance validator
-└── agent_help.rs  # §12 CLI discoverability contract
+├── fix.rs         # zag-driven auto-fix agent
+├── agent_help.rs  # §12 CLI discoverability contract
+└── output.rs      # central logging + styled output (§19 logging)
 ```
 
 ## Data flow for `oss-spec init "<prompt>"`
