@@ -4,9 +4,9 @@ This file is the canonical source of truth for AI coding agents working in this 
 
 ## What this repo is
 
-`oss-spec` is a Rust CLI that bootstraps new open source repositories conforming to [`OSS_SPEC.md`](OSS_SPEC.md). The default invocation takes a freeform prompt, sends it to the [`zag`](https://crates.io/crates/zag) library for LLM interpretation, then writes a complete repo to disk.
+`oss-spec` is a Rust CLI that bootstraps new open source repositories conforming to [`OSS_SPEC.md`](OSS_SPEC.md). The `init` subcommand takes an optional freeform prompt, sends it to the [`zag`](https://crates.io/crates/zag) library for LLM interpretation, then writes a complete repo to disk.
 
-The repo is its own first customer: `oss-spec check .` against this directory passes.
+The repo is its own first customer: `oss-spec validate .` against this directory passes.
 
 ## OSS Spec conformance
 
@@ -44,7 +44,7 @@ src/
 ├── embedded.rs    # include_dir!("templates")
 ├── bootstrap.rs   # walks embedded tree → writes target dir
 ├── git.rs         # git init / gh repo create wrappers
-├── check.rs       # §19 conformance validator
+├── validate.rs    # §19 conformance validator
 ├── agent_help.rs  # §12 CLI discoverability contract
 └── output.rs      # central logging + styled output (§19 logging)
 templates/         # all the files the bootstrap engine emits, with {{ jinja }} placeholders
@@ -52,7 +52,7 @@ docs/              # oss-spec's own user docs
 man/               # oss-spec's own manpage(s)
 ```
 
-Dependency direction is top-down: `main` → `lib` → `cli` → (`interview`, `bootstrap`, `check`, `agent_help`); each leaf module owns its own concern. `ai.rs` is the **only** module allowed to `use zag::*` — keep zag isolated behind it so AI failures stay non-fatal and `--no-ai` continues to work.
+Dependency direction is top-down: `main` → `lib` → `cli` → (`interview`, `bootstrap`, `validate`, `agent_help`); each leaf module owns its own concern. `ai.rs` is the **only** module allowed to `use zag::*` — keep zag isolated behind it so AI failures stay non-fatal and `--no-ai` continues to work.
 
 ## Where new code goes
 
@@ -60,7 +60,7 @@ Dependency direction is top-down: `main` → `lib` → `cli` → (`interview`, `
 |---|---|
 | New CLI flag / subcommand | `src/cli.rs` (clap) + `src/agent_help.rs` (commands table, COMMAND_SPECS, EXAMPLES) + `man/oss-spec.md` |
 | New template file | `templates/_common/`, `templates/<lang>/`, or `templates/cli/` |
-| New §19 conformance rule | `src/check.rs` |
+| New §19 conformance rule | `src/validate.rs` |
 | New AI-driven step | `src/ai.rs` (thin wrapper) + caller in `interview.rs` |
 | New language overlay | `templates/<lang>/`, plus `Language` enum variant in `manifest.rs` |
 | Tests | `tests/` |
@@ -69,18 +69,18 @@ Dependency direction is top-down: `main` → `lib` → `cli` → (`interview`, `
 ## Test conventions
 
 - **All tests live in `tests/`** as separate files — never as inline `#[cfg(test)]` blocks in `src/`. This keeps source files free of test scaffolding and lets agents, hooks, and linters treat source and test code differently.
-- Test files are named `<module>_test.rs` (e.g. `check_test.rs`, `prompts_test.rs`). The stem must end with `_test` or `_tests` per §20 of `OSS_SPEC.md`.
+- Test files are named `<module>_test.rs` (e.g. `validate_test.rs`, `prompts_test.rs`). The stem must end with `_test` or `_tests` per §20 of `OSS_SPEC.md`.
 - Functions that tests need to call must be `pub` on the library crate.
 - Use `tempfile::tempdir()` for any test that writes files.
-- Snapshot tests use `insta`. The self-conformance test runs `check::run(".")` against this repo and must always pass.
+- Snapshot tests use `insta`. The self-conformance test runs `validate::run(".")` against this repo and must always pass.
 
 ## Documentation sync points
 
 When you change… | Update…
 --- | ---
 A CLI flag or subcommand | `man/oss-spec.md`, `docs/agent/help-agent.txt`, `agent_help::COMMANDS_TABLE`, `agent_help::COMMAND_SPECS`, `README.md` Usage table
-A template file | `templates/_common/` (or overlay) — and re-run `oss-spec check` against a generated demo
-A §19 rule | `src/check.rs`, `OSS_SPEC.md`, this `## Documentation sync points` table
+A template file | `templates/_common/` (or overlay) — and re-run `oss-spec validate` against a generated demo
+A §19 rule | `src/validate.rs`, `OSS_SPEC.md`, this `## Documentation sync points` table
 The list of supported languages | `manifest::Language`, `templates/<lang>/`, `Makefile.tmpl`, `ci.yml.tmpl`, `dependabot.yml.tmpl`
 `OSS_SPEC.md` | Bump the `version` field in its YAML front matter (semver — `feat!`/breaking bumps major, `feat` or new mandate bumps minor, pure clarifications bump patch). Also update `README.md`, `docs/`, `templates/_common/AGENTS.md.tmpl`, and this file as needed. The spec is mirrored into generated projects via the symlink `templates/_common/OSS_SPEC.md -> ../../OSS_SPEC.md`, so there is only one source of truth.
 
@@ -98,7 +98,7 @@ This repo is the canonical reference implementation of `OSS_SPEC.md`. Other proj
 - **Embedded templates discipline.** `templates/`, `docs/`, and `man/` are compiled into the binary via `include_dir!`. After adding a new file under any of those directories, run `cargo clean && cargo build` to make sure it gets picked up.
 - **AGENTS.md symlinks.** When generating projects, all of `CLAUDE.md`, `.cursorrules`, `.windsurfrules`, `GEMINI.md`, `.aider.conf.md`, and `.github/copilot-instructions.md` must be symlinks to `AGENTS.md`. The same rule applies to this repo.
 - **`zag` is isolated.** Only `src/ai.rs` may import from `zag`. Every AI call must have a deterministic fallback so `--no-ai` keeps working.
-- **`oss-spec check .` must always pass on this repo.** A self-conformance test (`tests/self_conformance.rs`) enforces it; if you add a new §19 rule that breaks the dogfood, fix the dogfood at the same time.
+- **`oss-spec validate .` must always pass on this repo.** A self-conformance test (`tests/self_conformance.rs`) enforces it; if you add a new §19 rule that breaks the dogfood, fix the dogfood at the same time.
 - **No raw prints.** All user-facing output goes through `src/output.rs` (`output::status`, `output::warn`, `output::info`, `output::header`, `output::error`). The only exception is machine-readable §12 contract output in `agent_help.rs`. Use `log::debug!` for verbose diagnostics.
 
 ## Maintenance skills
@@ -108,13 +108,13 @@ Per §21 of `OSS_SPEC.md`, this repo ships agent skills for keeping drift-prone 
 | Skill | When to run | Artifacts it fixes |
 |---|---|---|
 | `maintenance`     | When several artifacts have likely drifted at once (after a big merge, before a release) — umbrella skill that dispatches to every `update-*` skill in order | all of the below, in one sweep |
-| `update-spec`     | Whenever `OSS_SPEC.md` is edited — propagates the new mandate through `check.rs`, tests, templates, and docs | everything downstream of the spec |
+| `update-spec`     | Whenever `OSS_SPEC.md` is edited — propagates the new mandate through `validate.rs`, tests, templates, and docs | everything downstream of the spec |
 | `update-manpages` | Whenever `src/cli.rs` clap definitions change | `man/oss-spec.md` |
 | `update-docs`     | Whenever user-visible behavior described in `docs/` changes | `docs/*.md` |
 | `update-readme`   | Whenever a CLI flag, subcommand, §19 rule, supported language, or the spec version changes | `README.md` |
 | `update-website`  | Whenever a source-derived section of the website (hero, version, CLI table) drifts from README / docs / spec | `website/` |
 | `commit`          | After any feature or fix, to run quality gates, commit, push, and open/update the PR | — |
 
-The `maintenance` skill reads a **Registry** table (its single source of truth) that lists every `update-*` skill and the order they must run in. When you add a new `update-*` skill, add a matching row to `maintenance/SKILL.md` — `oss-spec check .` treats a missing row as a drift bug.
+The `maintenance` skill reads a **Registry** table (its single source of truth) that lists every `update-*` skill and the order they must run in. When you add a new `update-*` skill, add a matching row to `maintenance/SKILL.md` — `oss-spec validate .` treats a missing row as a drift bug.
 
 Each skill has a `SKILL.md` (the playbook) and a `.last-updated` file (baseline commit hash). A run ends by rewriting `.last-updated` with the current `HEAD` so the next run sees a smaller diff. Skills are expected to improve their own mapping tables when they discover new drift paths — commit those edits alongside the artifact edits.

@@ -48,7 +48,7 @@ oss-spec new stocks-cli \
 ## Verify it conforms
 
 ```sh
-oss-spec check --path /tmp/stocks-cli
+oss-spec validate --path /tmp/stocks-cli
 # ✓ repo conforms to OSS_SPEC.md
 ```
 

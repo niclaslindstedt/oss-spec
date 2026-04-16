@@ -92,11 +92,11 @@ function extractLicenses() {
 }
 
 // ---------------------------------------------------------------------------
-// 6. Spec checks (from src/check.rs)
+// 6. Spec checks (from src/validate.rs)
 // ---------------------------------------------------------------------------
 
 function extractSpecChecks() {
-  const src = read("src/check.rs");
+  const src = read("src/validate.rs");
   const checks = [];
 
   // Required files
@@ -152,7 +152,7 @@ function generate() {
 //   - Cargo.toml (version)
 //   - src/cli.rs (commands)
 //   - src/manifest.rs (languages, kinds, licenses)
-//   - src/check.rs (spec checks)
+//   - src/validate.rs (spec checks)
 
 // --- Types ---
 

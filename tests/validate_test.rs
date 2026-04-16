@@ -1,5 +1,5 @@
 use oss_spec::bootstrap::{symlink_dir, symlink_file};
-use oss_spec::check::{
+use oss_spec::validate::{
     self, check_toolchain_versions, extract_front_matter, has_yaml_key, is_kebab_case, version_ge,
 };
 use std::fs;
@@ -233,7 +233,7 @@ fn inline_cfg_test_in_src_is_violation() {
     )
     .unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v20: Vec<_> = report
         .violations
         .iter()
@@ -257,7 +257,7 @@ fn no_inline_tests_means_no_violation() {
     )
     .unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v20: Vec<_> = report
         .violations
         .iter()
@@ -281,7 +281,7 @@ fn cfg_test_importing_separate_file_is_allowed() {
     )
     .unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v20: Vec<_> = report
         .violations
         .iter()
@@ -307,7 +307,7 @@ fn cfg_test_with_use_statement_is_allowed() {
     )
     .unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v20: Vec<_> = report
         .violations
         .iter()
@@ -328,7 +328,7 @@ fn test_file_with_bad_name_is_violation() {
     fs::create_dir_all(root.join("tests")).unwrap();
     fs::write(root.join("tests/my_checks.rs"), "#[test] fn t() {}\n").unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v202: Vec<_> = report
         .violations
         .iter()
@@ -354,7 +354,7 @@ fn test_file_with_valid_names_pass() {
         fs::write(root.join("tests").join(name), "#[test] fn t() {}\n").unwrap();
     }
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v202: Vec<_> = report
         .violations
         .iter()
@@ -366,7 +366,7 @@ fn test_file_with_valid_names_pass() {
 // --- §21 agent skills checks ---
 
 /// Collect all §21* violations from a report for easy assertions.
-fn v21(report: &check::Report) -> Vec<&check::Violation> {
+fn v21(report: &validate::Report) -> Vec<&validate::Violation> {
     report
         .violations
         .iter()
@@ -380,7 +380,7 @@ fn minimal_repo_passes_section_21() {
     let root = tmp.path();
     scaffold_minimal_repo(root);
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v = v21(&report);
     assert!(v.is_empty(), "expected no §21 violations, got {v:?}");
 }
@@ -394,7 +394,7 @@ fn missing_agent_skills_dir_is_violation() {
     fs::remove_dir_all(root.join(".agent")).unwrap();
     remove_symlink(&root.join(".claude/skills"));
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
         .into_iter()
         .filter(|v| v.spec_section == "§21.2")
@@ -414,7 +414,7 @@ fn claude_skills_must_be_symlink() {
     remove_symlink(&root.join(".claude/skills"));
     fs::create_dir_all(root.join(".claude/skills")).unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
         .into_iter()
         .filter(|v| v.spec_section == "§21.2")
@@ -432,7 +432,7 @@ fn missing_update_readme_skill_is_violation() {
     scaffold_minimal_repo(root);
     fs::remove_dir_all(root.join(".agent/skills/update-readme")).unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
         .into_iter()
         .filter(|v| v.spec_section == "§21.5")
@@ -450,7 +450,7 @@ fn missing_maintenance_umbrella_skill_is_violation() {
     scaffold_minimal_repo(root);
     fs::remove_dir_all(root.join(".agent/skills/maintenance")).unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
         .into_iter()
         .filter(|v| v.spec_section == "§21.6")
@@ -468,7 +468,7 @@ fn missing_update_docs_required_because_docs_exists() {
     scaffold_minimal_repo(root);
     fs::remove_dir_all(root.join(".agent/skills/update-docs")).unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
         .into_iter()
         .filter(|v| v.spec_section == "§21.5")
@@ -486,7 +486,7 @@ fn update_manpages_required_when_man_dir_exists() {
     scaffold_minimal_repo(root);
     fs::create_dir_all(root.join("man")).unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
         .into_iter()
         .filter(|v| v.spec_section == "§21.5")
@@ -504,7 +504,7 @@ fn update_website_required_when_website_dir_exists() {
     scaffold_minimal_repo(root);
     fs::create_dir_all(root.join("website")).unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
         .into_iter()
         .filter(|v| v.spec_section == "§21.5")
@@ -523,7 +523,7 @@ fn skill_missing_skill_md_is_violation() {
     // Add an empty skill directory (no SKILL.md).
     fs::create_dir_all(root.join(".agent/skills/broken-skill")).unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
         .into_iter()
         .filter(|v| v.spec_section == "§21.3")
@@ -544,7 +544,7 @@ fn skill_missing_front_matter_is_violation() {
     fs::write(dir.join("SKILL.md"), "# plain-skill\n\nno front matter\n").unwrap();
     fs::write(dir.join(".last-updated"), "").unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
         .into_iter()
         .filter(|v| v.spec_section == "§21.3")
@@ -570,7 +570,7 @@ fn skill_front_matter_missing_description_is_violation() {
     .unwrap();
     fs::write(dir.join(".last-updated"), "").unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
         .into_iter()
         .filter(|v| v.spec_section == "§21.3")
@@ -595,7 +595,7 @@ fn skill_missing_last_updated_is_violation() {
     .unwrap();
     // No .last-updated file.
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
         .into_iter()
         .filter(|v| v.spec_section == "§21.4")
@@ -620,7 +620,7 @@ fn skill_name_must_be_kebab_case() {
     .unwrap();
     fs::write(dir.join(".last-updated"), "").unwrap();
 
-    let report = check::run(root).unwrap();
+    let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
         .into_iter()
         .filter(|v| v.spec_section == "§21.5")
@@ -690,7 +690,7 @@ fn has_yaml_key_ignores_indented_lines() {
 // AiFinding + gather_file_contents tests
 // ---------------------------------------------------------------------------
 
-use oss_spec::check::{AiFinding, gather_file_contents};
+use oss_spec::validate::{AiFinding, gather_file_contents};
 
 #[test]
 fn ai_finding_deserializes_from_json() {
@@ -725,7 +725,7 @@ fn ai_finding_array_deserializes() {
 
 #[test]
 fn is_clean_ignores_ai_findings() {
-    let mut report = oss_spec::check::Report::default();
+    let mut report = oss_spec::validate::Report::default();
     report.ai_findings.push(AiFinding {
         file: "README.md".into(),
         spec_section: "§3".into(),

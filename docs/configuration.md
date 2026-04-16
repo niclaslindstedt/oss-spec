@@ -5,7 +5,7 @@ in order of precedence:
 
 1. **CLI flags** — `--name`, `--lang`, `--kind`, `--license`, `--visibility`,
    `--path`.
-2. **AI-interpreted prompt** — when you call `oss-spec "<prompt>"`, the
+2. **AI-interpreted prompt** — when you call `oss-spec init "<prompt>"`, the
    freeform string is passed to `zag` and the resulting manifest fills any
    field a flag did not.
 3. **Environment defaults** — `git config user.name` / `user.email` for

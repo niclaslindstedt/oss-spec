@@ -5,7 +5,7 @@ const steps = [
     subtitle: "Tell oss-spec what to build",
     description:
       "Use a freeform prompt or explicit flags. The AI flow interprets your intent via zag; the --no-ai path uses flags directly. Either way you get a structured manifest.",
-    code: `oss-spec "create a go service for user auth"`,
+    code: `oss-spec init "create a go service for user auth"`,
     color: "text-accent",
   },
   {

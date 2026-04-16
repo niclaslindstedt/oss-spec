@@ -42,7 +42,7 @@ description: "Use when files under man/ may be stale. Discovers commits since th
 | `src/cli.rs` (new or renamed subcommand) | `man/oss-spec.md` synopsis, commands list; create new `man/<cmd>.md` if absent |
 | `src/cli.rs` (new flag on existing command) | The corresponding command section in `man/oss-spec.md` |
 | `src/agent_help.rs::COMMAND_SPECS` | Cross-check examples in `man/oss-spec.md` |
-| `src/check.rs` (new §19 rule) | `man/oss-spec.md` section describing `oss-spec check` |
+| `src/validate.rs` (new §19 rule) | `man/oss-spec.md` section describing `oss-spec validate` |
 | Language enum or overlay added | `man/oss-spec.md` section listing supported languages |
 
 ## Format conventions
@@ -64,7 +64,7 @@ Preserve these when editing:
 - [ ] Verify flag names, shorts, and value placeholders match `cli.rs` exactly
 - [ ] Run `cargo build` so `include_dir!` picks up new files
 - [ ] Run `make test` — manpage parity tests must still pass
-- [ ] Run `oss-spec check .`
+- [ ] Run `oss-spec validate .`
 - [ ] Write the new baseline:
 
       git rev-parse HEAD > .agent/skills/update-manpages/.last-updated

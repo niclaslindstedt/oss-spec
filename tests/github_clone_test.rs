@@ -1,11 +1,11 @@
-//! Hermetic test for `git::clone_repo` + `check::run`: bootstrap a
+//! Hermetic test for `git::clone_repo` + `validate::run`: bootstrap a
 //! compliant repo into a temp dir, `git init`/commit it, then clone it via a
 //! `file://` URL (no network) and validate the clone.
 
 use oss_spec::bootstrap;
-use oss_spec::check;
 use oss_spec::git;
 use oss_spec::manifest::{Kind, Language, License, ProjectManifest};
+use oss_spec::validate;
 use std::process::Command;
 
 fn fixture() -> ProjectManifest {
@@ -64,10 +64,10 @@ fn clone_repo_then_check_passes_on_file_url() {
     let dest = git::clone_repo(&url, None, false, "oss-spec-test").expect("clone_repo");
 
     // 4. The cloned repo must pass `check`.
-    let report = check::run(&dest).expect("check::run");
+    let report = validate::run(&dest).expect("validate::run");
     assert!(
         report.is_clean(),
-        "cloned repo should pass check: {:?}",
+        "cloned repo should pass validate: {:?}",
         report.violations
     );
 

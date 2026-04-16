@@ -10,11 +10,11 @@
 
 ## Why?
 
-- **One command to a real repo.** `oss-spec "create a python cli for finding stock buys"` produces a complete project — LICENSE, README, AGENTS.md (with all the agent symlinks), CONTRIBUTING/COC/SECURITY, CI workflows, release/pages pipelines, docs, examples, website skeleton, language manifest, Makefile, and a starter `.claude/` skill — and creates the GitHub remote.
-- **The spec is the source of truth.** Every file is derived from [`OSS_SPEC.md`](OSS_SPEC.md). `oss-spec check` will tell you exactly which §19 items an existing repo is missing.
-- **AI is a feature, not a dependency.** With `--no-ai` you get a deterministic skeleton; with the default flow `zag` interprets a freeform prompt into a structured manifest. Either way the bootstrap engine is the same.
+- **One command to a real repo.** `oss-spec init "create a python cli for finding stock buys"` produces a complete project — LICENSE, README, AGENTS.md (with all the agent symlinks), CONTRIBUTING/COC/SECURITY, CI workflows, release/pages pipelines, docs, examples, website skeleton, language manifest, Makefile, and a starter `.claude/` skill — and creates the GitHub remote.
+- **The spec is the source of truth.** Every file is derived from [`OSS_SPEC.md`](OSS_SPEC.md). `oss-spec validate` will tell you exactly which §19 items an existing repo is missing.
+- **AI is a feature, not a dependency.** With `--no-ai` you get a deterministic skeleton; with `oss-spec init` `zag` interprets a freeform prompt into a structured manifest. Either way the bootstrap engine is the same.
 - **Agent-friendly out of the box.** The generated repo includes the OSS_SPEC.md §12 CLI discoverability contract: `--help-agent`, `--debug-agent`, `commands`, `docs`, and `man` are all wired up so coding agents can self-serve.
-- **Built on the same conventions it ships.** oss-spec is its own first customer — `oss-spec check .` against this very repo passes.
+- **Built on the same conventions it ships.** oss-spec is its own first customer — `oss-spec validate .` against this very repo passes.
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ cargo install oss-spec
 ## Quick start
 
 ```sh
-oss-spec "create a python cli for finding stock buys"
+oss-spec init "create a python cli for finding stock buys"
 ```
 
 That sends the prompt to `zag`, shows the proposed manifest, and on confirmation writes a complete repo to disk and creates the GitHub remote.
@@ -46,30 +46,29 @@ oss-spec new my-tool --lang rust --kind cli --license MIT --no-ai --yes
 To validate an existing repo against [`OSS_SPEC.md`](OSS_SPEC.md):
 
 ```sh
-oss-spec check --path .
+oss-spec validate --path .
 ```
 
-Or point `check` at any git URL to clone + validate in one step:
+Or point `validate` at any git URL to clone + validate in one step:
 
 ```sh
-oss-spec check --url https://github.com/niclaslindstedt/oss-spec.git
+oss-spec validate --url https://github.com/niclaslindstedt/oss-spec.git
 ```
 
 Add `--create-issues` to open one GitHub issue per violation on the source
-repo (works with both `check` and `fix`):
+repo (works with both `validate` and `fix`):
 
 ```sh
-oss-spec check --url https://github.com/foo/bar.git --create-issues --yes
+oss-spec validate --url https://github.com/foo/bar.git --create-issues --yes
 ```
 
 ## Usage
 
 | Command | What it does |
 |---|---|
-| `oss-spec <PROMPT>` | Default: zag interprets the prompt → manifest → bootstrap. |
+| `oss-spec init [<PROMPT>]` | Bootstrap into the current directory (with optional AI prompt). |
 | `oss-spec new <NAME>` | Explicit bootstrap with flags only. |
-| `oss-spec init` | Bootstrap into the current directory. |
-| `oss-spec check [--path .] [--url URL] [--create-issues]` | Validate a local or remote repo against `OSS_SPEC.md` §19; optionally open one GitHub issue per violation. |
+| `oss-spec validate [--path .] [--url URL] [--create-issues]` | Validate a local or remote repo against `OSS_SPEC.md` §19; optionally open one GitHub issue per violation. |
 | `oss-spec fix [--path .] [--url URL] [--create-issues]` | Fix §19 violations in place, or file one GitHub issue per violation cluster. |
 | `oss-spec fetch [--into DIR]` | Clone the public oss-spec repo so a coding agent can browse the spec, templates, and the dogfood implementation locally. |
 | `oss-spec commands [<NAME>] [--examples]` | Stable, machine-readable command index (§12.4). |

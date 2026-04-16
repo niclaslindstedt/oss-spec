@@ -51,7 +51,7 @@ The `website/` directory contains the marketing site for `oss-spec`. Per §11.2 
 - [ ] Review the diff under `website/src/generated/` and commit the changes
 - [ ] Build the website locally (`make website-dev`) and smoke-test the home page
 - [ ] Confirm the §11.2 staleness CI check would pass
-- [ ] Run `oss-spec check .`
+- [ ] Run `oss-spec validate .`
 - [ ] Write the new baseline:
 
       git rev-parse HEAD > .agent/skills/update-website/.last-updated

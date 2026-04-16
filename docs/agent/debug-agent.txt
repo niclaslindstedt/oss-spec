@@ -35,8 +35,8 @@ INCREASING VERBOSITY
   The debug log file always captures all levels regardless of --debug.
 
 REPRODUCER
-  oss-spec --no-ai --no-git --no-gh --yes new repro --lang rust --kind cli
-  oss-spec check --path repro
+  oss-spec new repro --lang rust --kind cli --no-ai --no-git --no-gh --yes
+  oss-spec validate --path repro
 
 VERSION
   oss-spec 0.1.0

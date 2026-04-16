@@ -46,4 +46,4 @@ the loader and is purely for humans reading the file.
 - Loaders pick the highest version unless explicitly pinned.
 
 If this project performs no LLM calls, leave this directory empty
-(this README is enough to satisfy `oss-spec check`).
+(this README is enough to satisfy `oss-spec validate`).

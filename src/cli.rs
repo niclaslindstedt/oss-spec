@@ -1,20 +1,15 @@
 //! Clap definitions for the `oss-spec` binary.
 //!
-//! The default invocation is the freeform-prompt form:
-//!
-//! ```text
-//! oss-spec "create a python cli for finding stock buys"
-//! ```
-//!
-//! which routes through `ai::interpret_prompt` → manifest → bootstrap. Explicit
-//! subcommands (`new`, `init`, `check`, `commands`, `docs`, `man`) cover the
-//! deterministic / power-user paths and the §12 CLI discoverability contract.
+//! Bootstrap paths are always explicit subcommands: `init` (into CWD, with
+//! optional AI prompt), `new` (into a new directory). Other subcommands
+//! (`validate`, `fix`, `fetch`, `commands`, `docs`, `man`) cover the
+//! validation / power-user paths and the §12 CLI discoverability contract.
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-/// Flags shared by all bootstrap paths (default prompt, `new`, `init`).
+/// Flags shared by all bootstrap paths (`init`, `new`).
 #[derive(Debug, Clone, clap::Args)]
 pub struct BootstrapOpts {
     /// Skip AI calls — produces a deterministic skeleton from defaults/flags only.
@@ -59,15 +54,9 @@ pub struct BootstrapOpts {
     name = "oss-spec",
     version,
     about = "Bootstrap new OSS_SPEC.md-compliant repositories",
-    long_about = "oss-spec materializes new open source repositories that follow the conventions in OSS_SPEC.md (LICENSE, README, AGENTS.md + symlinks, CI workflows, docs, examples, website, CLI agent contract). The default form takes a freeform prompt and uses the zag library to interpret it into a project manifest."
+    long_about = "oss-spec materializes new open source repositories that follow the conventions in OSS_SPEC.md (LICENSE, README, AGENTS.md + symlinks, CI workflows, docs, examples, website, CLI agent contract). Use `oss-spec init` to bootstrap a project — optionally with a freeform prompt that the zag library interprets into a structured manifest."
 )]
 pub struct Cli {
-    /// Freeform prompt — e.g. "create a python cli for finding stock buys".
-    /// When given (and no subcommand), oss-spec interprets it via zag and runs
-    /// the bootstrap flow.
-    #[arg(value_name = "PROMPT")]
-    pub prompt: Option<String>,
-
     /// Print a plain-text dump suitable for prompt injection (§12.1).
     #[arg(long, exclusive = true)]
     pub help_agent: bool,
@@ -79,14 +68,6 @@ pub struct Cli {
     /// Enable debug-level output on stdout and verbose file logging.
     #[arg(long, global = true)]
     pub debug: bool,
-
-    /// Override the project name.
-    #[arg(long)]
-    pub name: Option<String>,
-
-    /// Bootstrap options (for the freeform-prompt flow).
-    #[command(flatten)]
-    pub bootstrap: BootstrapOpts,
 
     #[command(subcommand)]
     pub command: Option<Command>,
@@ -104,8 +85,16 @@ pub enum Command {
         #[command(flatten)]
         opts: BootstrapOpts,
     },
-    /// Bootstrap into the current directory (must be empty or contain only OSS_SPEC.md).
+    /// Bootstrap into the current directory (or `--path`). With a freeform
+    /// prompt, uses the zag library to interpret it into a project manifest.
+    /// Without a prompt, runs the interactive interview.
     Init {
+        /// Freeform prompt — e.g. "create a python cli for finding stock buys".
+        /// When given, oss-spec interprets it via zag to infer language, kind,
+        /// license, description, and README "Why?" bullets.
+        #[arg(value_name = "PROMPT")]
+        prompt: Option<String>,
+        /// Project description (used when no prompt is given).
         #[arg(long, short = 'd')]
         description: Option<String>,
         /// Override the project name (defaults to the directory name).
@@ -120,7 +109,7 @@ pub enum Command {
     ///
     /// By default, also runs an AI quality review of file contents (skip
     /// with `--no-ai`). With `--fix`, automatically fixes all findings.
-    Check {
+    Validate {
         /// Local repo to validate. Defaults to the current directory.
         #[arg(long, default_value = ".", conflicts_with = "url")]
         path: PathBuf,
@@ -236,7 +225,7 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
             println!("{}", dest.display());
             Ok(())
         }
-        Some(Command::Check {
+        Some(Command::Validate {
             path,
             url,
             shallow,
@@ -247,13 +236,13 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
         }) => {
             let (target, cleanup) = match url {
                 Some(u) => (
-                    crate::git::clone_repo(&u, None, shallow, "oss-spec-check")?,
+                    crate::git::clone_repo(&u, None, shallow, "oss-spec-validate")?,
                     true,
                 ),
                 None => (path, false),
             };
-            let check_result = crate::check::run(&target);
-            let mut report = match check_result {
+            let validate_result = crate::validate::run(&target);
+            let mut report = match validate_result {
                 Ok(r) => r,
                 Err(e) => {
                     if cleanup {
@@ -268,7 +257,7 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
             // went wrong (and where the debug log lives) instead of a silent
             // success that masks a broken AI path.
             if !no_ai {
-                let file_contents = crate::check::gather_file_contents(&target);
+                let file_contents = crate::validate::gather_file_contents(&target);
                 if !file_contents.is_empty() {
                     match crate::ai::verify_conformance(&file_contents, &report.violations).await {
                         Ok(findings) => {
@@ -354,30 +343,36 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
             Ok(())
         }
         Some(Command::Init {
+            prompt,
             description,
             name,
             opts,
         }) => {
-            let target = std::env::current_dir().context("cannot read current directory")?;
-            let manifest = crate::interview::run(&opts, name, description, true).await?;
+            let target = match &opts.path {
+                Some(p) => p.clone(),
+                None => std::env::current_dir().context("cannot read current directory")?,
+            };
+            let manifest = if let Some(prompt) = prompt {
+                log::debug!("init prompt flow: prompt={prompt:?}");
+                let mut m = crate::interview::from_prompt(&opts, &prompt, name.as_deref()).await?;
+                // Override name with directory name when not explicitly set.
+                if name.is_none() {
+                    if let Some(dir_name) =
+                        target.file_name().map(|s| s.to_string_lossy().into_owned())
+                    {
+                        m.name = dir_name;
+                    }
+                }
+                m
+            } else {
+                crate::interview::run(&opts, name, description, true).await?
+            };
             crate::bootstrap::write(&manifest, &target)?;
             post_bootstrap(&opts, &manifest, &target).await?;
             Ok(())
         }
         None => {
-            // Default form: positional prompt → AI interpret → bootstrap.
-            let prompt = cli
-                .prompt
-                .clone()
-                .context("no prompt and no subcommand — try `oss-spec --help`")?;
-            log::debug!("default prompt flow: prompt={prompt:?}");
-            let opts = &cli.bootstrap;
-            let manifest =
-                crate::interview::from_prompt(opts, &prompt, cli.name.as_deref()).await?;
-            let target = resolve_target_dir(opts, Some(&manifest.name))?;
-            crate::bootstrap::write(&manifest, &target)?;
-            post_bootstrap(opts, &manifest, &target).await?;
-            Ok(())
+            anyhow::bail!("no subcommand given — try `oss-spec --help`");
         }
     }
 }

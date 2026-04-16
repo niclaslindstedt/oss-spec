@@ -5,7 +5,7 @@
 
 ```sh
 cargo install oss-spec
-oss-spec "create a python cli for finding stock buys"
+oss-spec init "create a python cli for finding stock buys"
 ```
 
 That single command:
@@ -32,7 +32,7 @@ oss-spec new my-tool --lang rust --kind cli --license MIT --no-ai --yes
 ## Validate an existing repo
 
 ```sh
-oss-spec check --path .
+oss-spec validate --path .
 ```
 
 Exits 0 when the repo conforms to the §19 checklist; otherwise prints a

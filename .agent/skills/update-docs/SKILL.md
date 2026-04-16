@@ -54,7 +54,7 @@ The `docs/` directory contains conceptual documentation for oss-spec. Unlike the
 - [ ] Read the current `docs/*.md` files that were flagged
 - [ ] Update each affected doc in place
 - [ ] Verify every shell snippet still reflects current CLI syntax
-- [ ] Run `oss-spec check .` to confirm the repo still conforms
+- [ ] Run `oss-spec validate .` to confirm the repo still conforms
 - [ ] Run `make test` — the self-conformance test must still pass
 - [ ] Write the new baseline:
 
