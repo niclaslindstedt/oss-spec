@@ -11,9 +11,9 @@ in order of precedence:
 3. **Environment defaults** — `git config user.name` / `user.email` for
    author, `gh api user -q .login` for the GitHub owner.
 
-## Bootstrap flags (`init`, `new`)
+## Bootstrap flags (`init`)
 
-These flags are scoped to the `init` and `new` subcommands:
+These flags are scoped to the `init` subcommand:
 
 | Flag | Default | Effect |
 |---|---|---|
@@ -21,6 +21,7 @@ These flags are scoped to the `init` and `new` subcommands:
 | `--no-git` | off | Skip `git init` and the first commit. |
 | `--no-gh` | off | Skip `gh repo create`. |
 | `-y, --yes` | off | Accept defaults for every interactive prompt. |
+| `--name <NAME>` | — | Project name. When set, bootstraps into `<path|cwd>/<NAME>` instead of filling the current directory. |
 
 `--no-ai` also appears on `validate` (skip AI quality review) and `fix` (skip
 AI calls). `--yes` also appears on `fix` (skip the confirmation prompt).

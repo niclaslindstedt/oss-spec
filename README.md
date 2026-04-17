@@ -41,7 +41,7 @@ That sends the prompt to `zag`, shows the proposed manifest, and on confirmation
 For a deterministic, offline run:
 
 ```sh
-oss-spec new my-tool --lang rust --kind cli --license MIT --no-ai --yes
+oss-spec init --name my-tool --lang rust --kind cli --license MIT --no-ai --yes
 ```
 
 To validate an existing repo against [`OSS_SPEC.md`](OSS_SPEC.md):
@@ -73,8 +73,7 @@ oss-spec validate --url https://github.com/foo/bar.git --create-issues --yes
 
 | Command | What it does |
 |---|---|
-| `oss-spec init [<PROMPT>]` | Bootstrap into the current directory (with optional AI prompt). |
-| `oss-spec new <NAME>` | Explicit bootstrap with flags only. |
+| `oss-spec init [<PROMPT>] [--name <NAME>]` | Bootstrap into the current directory, or a new `--name` subdirectory. With a prompt, zag interprets it into a manifest. |
 | `oss-spec validate [--path .] [--url URL] [--no-ai] [--fix] [--create-issues]` | Validate a local or remote repo against `OSS_SPEC.md` §19; includes AI quality review by default. |
 | `oss-spec fix [--path .] [--url URL] [--create-issues] [--yes] [--no-ai]` | Fix §19 violations in place, or file one GitHub issue per violation cluster. |
 | `oss-spec fetch [--into DIR]` | Clone the public oss-spec repo so a coding agent can browse the spec, templates, and the dogfood implementation locally. |
