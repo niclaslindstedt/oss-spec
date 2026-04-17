@@ -89,7 +89,7 @@ export default function GettingStarted() {
           <p className="mb-3 text-center text-sm text-text-secondary">Try it out:</p>
           <pre className="overflow-x-auto text-xs text-text-secondary sm:text-sm">
             <code className="whitespace-pre">
-              <span className="text-accent">$</span> oss-spec new hello-world --lang rust --kind cli --no-ai -y
+              <span className="text-accent">$</span> oss-spec init --name hello-world --lang rust --kind cli --no-ai -y
             </code>
           </pre>
         </div>

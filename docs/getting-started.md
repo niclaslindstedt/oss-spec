@@ -26,7 +26,7 @@ That single command:
 ## Without AI
 
 ```sh
-oss-spec new my-tool --lang rust --kind cli --license MIT --no-ai --yes
+oss-spec init --name my-tool --lang rust --kind cli --license MIT --no-ai --yes
 ```
 
 ## Validate an existing repo

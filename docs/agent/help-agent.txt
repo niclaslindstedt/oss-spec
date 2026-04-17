@@ -1,8 +1,7 @@
 oss-spec — bootstrap new OSS_SPEC.md-compliant repositories.
 
 USAGE
-  oss-spec init [<PROMPT>] [flags]         # bootstrap into current dir (with optional AI prompt)
-  oss-spec new <NAME> [flags]              # explicit bootstrap into new dir
+  oss-spec init [<PROMPT>] [--name <NAME>] [flags]    # bootstrap (current dir, or --name subdir; optional AI prompt)
   oss-spec validate [--path .] [--url <URL>] [--create-issues]    # validate local or remote repo
   oss-spec fix   [--path .] [--url <URL>] [--create-issues]    # fix in place or file §19 issues
   oss-spec fetch [--into <DIR>]            # clone the public oss-spec repo for reference
@@ -17,8 +16,8 @@ GLOBAL FLAGS
   --no-git           Skip `git init` and the first commit
   --no-gh            Skip `gh repo create`
   -y, --yes          Accept all defaults; skip interactive prompts
-  --path <DIR>       Parent directory the new repo is created in
-  --name <NAME>      Override project name
+  --path <DIR>       Target dir (or parent dir when --name is set); defaults to CWD
+  --name <NAME>      Project name; when set, creates <path|cwd>/<NAME>
   --lang <L>         rust|python|node|go|generic
   --kind <K>         lib|cli|service
   --license <L>      MIT|Apache-2.0|MPL-2.0

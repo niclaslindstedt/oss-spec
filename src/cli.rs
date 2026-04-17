@@ -1,15 +1,16 @@
 //! Clap definitions for the `oss-spec` binary.
 //!
-//! Bootstrap paths are always explicit subcommands: `init` (into CWD, with
-//! optional AI prompt), `new` (into a new directory). Other subcommands
-//! (`validate`, `fix`, `fetch`, `commands`, `docs`, `man`) cover the
-//! validation / power-user paths and the §12 CLI discoverability contract.
+//! Bootstrap is a single subcommand: `init`. Without `--name` it fills the
+//! current directory (or `--path`); with `--name NAME` it creates a new
+//! subdirectory and bootstraps there. Other subcommands (`validate`, `fix`,
+//! `fetch`, `commands`, `docs`, `man`) cover the validation / power-user
+//! paths and the §12 CLI discoverability contract.
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-/// Flags shared by all bootstrap paths (`init`, `new`).
+/// Flags shared by the `init` bootstrap path.
 #[derive(Debug, Clone, clap::Args)]
 pub struct BootstrapOpts {
     /// Skip AI calls — produces a deterministic skeleton from defaults/flags only.
@@ -28,7 +29,9 @@ pub struct BootstrapOpts {
     #[arg(long, short = 'y')]
     pub yes: bool,
 
-    /// Override the parent directory the new repo gets created in.
+    /// Target directory for the new repo. With `--name`, treated as the
+    /// parent directory (target = <path>/<name>). Without `--name`, the
+    /// repo is materialized directly into this directory. Defaults to CWD.
     #[arg(long, value_name = "DIR")]
     pub path: Option<PathBuf>,
 
@@ -75,19 +78,10 @@ pub struct Cli {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
-    /// Bootstrap a new project at <name> (or --path/<name>).
-    New {
-        /// Project name (kebab-case).
-        name: String,
-        /// Description; if omitted you will be prompted (or AI will infer).
-        #[arg(long, short = 'd')]
-        description: Option<String>,
-        #[command(flatten)]
-        opts: BootstrapOpts,
-    },
-    /// Bootstrap into the current directory (or `--path`). With a freeform
-    /// prompt, uses the zag library to interpret it into a project manifest.
-    /// Without a prompt, runs the interactive interview.
+    /// Bootstrap a project. Without `--name`, fills the current directory
+    /// (or `--path`); with `--name NAME`, creates `<path|cwd>/<NAME>` and
+    /// bootstraps there. A freeform prompt triggers zag interpretation;
+    /// without one, runs the interactive interview.
     Init {
         /// Freeform prompt — e.g. "create a python cli for finding stock buys".
         /// When given, oss-spec interprets it via zag to infer language, kind,
@@ -97,7 +91,10 @@ pub enum Command {
         /// Project description (used when no prompt is given).
         #[arg(long, short = 'd')]
         description: Option<String>,
-        /// Override the project name (defaults to the directory name).
+        /// Project name. When set, a new subdirectory of this name is
+        /// created under `--path` (or CWD) and bootstrapped. When unset,
+        /// the bootstrap fills the current/`--path` directory and defaults
+        /// the project name to that directory's name.
         #[arg(long)]
         name: Option<String>,
         #[command(flatten)]
@@ -330,32 +327,17 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
             }
             result
         }
-        Some(Command::New {
-            name,
-            description,
-            opts,
-        }) => {
-            let target = resolve_target_dir(&opts, Some(&name))?;
-            let manifest =
-                crate::interview::run(&opts, Some(name.clone()), description, false).await?;
-            crate::bootstrap::write(&manifest, &target)?;
-            post_bootstrap(&opts, &manifest, &target).await?;
-            Ok(())
-        }
         Some(Command::Init {
             prompt,
             description,
             name,
             opts,
         }) => {
-            let target = match &opts.path {
-                Some(p) => p.clone(),
-                None => std::env::current_dir().context("cannot read current directory")?,
-            };
+            let target = resolve_target_dir(&opts, name.as_deref())?;
             let manifest = if let Some(prompt) = prompt {
                 log::debug!("init prompt flow: prompt={prompt:?}");
                 let mut m = crate::interview::from_prompt(&opts, &prompt, name.as_deref()).await?;
-                // Override name with directory name when not explicitly set.
+                // Without an explicit --name, default to the target dir's name.
                 if name.is_none() {
                     if let Some(dir_name) =
                         target.file_name().map(|s| s.to_string_lossy().into_owned())

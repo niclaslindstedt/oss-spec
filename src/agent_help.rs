@@ -16,11 +16,7 @@ pub const DEBUG_AGENT: &str = include_str!("../docs/agent/debug-agent.txt");
 const COMMANDS_TABLE: &[(&str, &str)] = &[
     (
         "init",
-        "oss-spec init [<prompt>] [--lang ..] [--kind ..]  # bootstrap into current dir (with optional AI prompt)",
-    ),
-    (
-        "new",
-        "oss-spec new <name> [--lang ..] [--kind ..]    # explicit bootstrap into new dir",
+        "oss-spec init [<prompt>] [--name <name>] [--lang ..] [--kind ..]  # bootstrap (current dir or --name subdir; optional AI prompt)",
     ),
     (
         "validate",
@@ -53,33 +49,22 @@ const COMMAND_SPECS: &[(&str, &str)] = &[
         "init",
         "oss-spec init [<PROMPT>] [-d <DESCRIPTION>] [--name <NAME>]\n\
          \n\
-         Bootstrap into the current working directory (or --path). With a\n\
-         freeform prompt, the string is sent to the zag library, which returns\n\
-         a structured manifest (language, kind, license, description, why\n\
-         bullets). Without a prompt, runs the interactive interview.\n\
+         Bootstrap a project. Without --name, fills the current working\n\
+         directory (or --path) and defaults the project name to that\n\
+         directory's name. With --name NAME, creates <path|cwd>/<NAME> and\n\
+         bootstraps there.\n\
          \n\
-         The project name defaults to the directory name; override with\n\
-         --name. Existing files are overwritten.\n\
+         With a freeform prompt, the string is sent to the zag library, which\n\
+         returns a structured manifest (language, kind, license, description,\n\
+         why bullets). Without a prompt, runs the interactive interview.\n\
+         \n\
+         Existing files are overwritten.\n\
          \n\
          Flags: --lang rust|python|node|go|generic\n\
                 --kind lib|cli|service\n\
                 --license MIT|Apache-2.0|MPL-2.0\n\
                 --visibility public|private\n\
                 --no-ai --no-git --no-gh --yes --path <dir> --name <name>\n",
-    ),
-    (
-        "new",
-        "oss-spec new <NAME> [-d <DESCRIPTION>]\n\
-         \n\
-         Explicit bootstrap. NAME becomes both the directory name and the\n\
-         project name. Skips AI prompt interpretation; still uses AI to draft\n\
-         README 'Why?' bullets unless --no-ai is set.\n\
-         \n\
-         Flags: --lang rust|python|node|go|generic\n\
-                --kind lib|cli|service\n\
-                --license MIT|Apache-2.0|MPL-2.0\n\
-                --visibility public|private\n\
-                --no-ai --no-git --no-gh --yes --path <dir>\n",
     ),
     (
         "validate",
@@ -161,10 +146,6 @@ const EXAMPLES: &[(&str, &str)] = &[
     (
         "init",
         "oss-spec init \"create a python cli for finding stock buys\"",
-    ),
-    (
-        "new",
-        "oss-spec new my-tool --lang rust --kind cli --license MIT --no-ai --yes",
     ),
     (
         "validate",

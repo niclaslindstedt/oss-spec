@@ -6,7 +6,6 @@
 
 ```
 oss-spec init [<PROMPT>] [-d <DESCRIPTION>] [--name <NAME>] [flags]
-oss-spec new <NAME> [-d <DESCRIPTION>] [flags]
 oss-spec validate [--path .] [--url <URL>] [--no-ai] [--fix] [--create-issues]
 oss-spec fix   [--path .] [--url <URL>] [--create-issues] [--max-turns N] [--yes] [--no-ai]
 oss-spec fetch [--into <DIR>] [--url <URL>] [--shallow]
@@ -29,8 +28,7 @@ prompt that the `zag` library interprets into a structured manifest.
 
 | Command | Description |
 |---|---|
-| `init` | Bootstrap into the current directory (with optional AI prompt). |
-| `new` | Explicit bootstrap with flags only. |
+| `init` | Bootstrap a project — current dir, or `--name NAME` for a new subdir. Optional AI prompt. |
 | `validate` | Validate a local or remote repo against OSS_SPEC.md §19. |
 | `fix` | Fix §19 violations in place, or file one GitHub issue per violation. |
 | `fetch` | Clone the public oss-spec repo for local reference. |
@@ -46,36 +44,22 @@ prompt that the `zag` library interprets into a structured manifest.
 | `--help-agent` | bool | false | Print plain-text agent help dump (§12.1). |
 | `--debug-agent` | bool | false | Print plain-text troubleshooting dump (§12.2). |
 
-## Bootstrap flags (`init`, `new`)
-
-These flags are shared by the `init` and `new` subcommands via `BootstrapOpts`:
-
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `--no-ai` | bool | false | Skip zag/AI calls. Deterministic skeleton only. |
-| `--no-git` | bool | false | Skip `git init` and the first commit. |
-| `--no-gh` | bool | false | Skip `gh repo create`. |
-| `-y, --yes` | bool | false | Accept defaults; non-interactive. |
-| `--path <DIR>` | path | cwd | Parent directory for the new repo. |
-| `--lang <L>` | enum | rust | rust\|python\|node\|go\|generic |
-| `--kind <K>` | enum | cli | lib\|cli\|service |
-| `--license <L>` | enum | MIT | MIT\|Apache-2.0\|MPL-2.0 |
-| `--visibility <V>` | enum | public | public\|private |
-
-Additionally, `init` accepts:
+## `init` flags
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `<PROMPT>` | positional | — | Freeform prompt interpreted by zag into a manifest. |
 | `-d, --description` | string | — | Project description (used when no prompt is given). |
-| `--name <NAME>` | string | dir name | Override the project name. |
-
-And `new` accepts:
-
-| Flag | Type | Default | Description |
-|---|---|---|---|
-| `<NAME>` | positional | — | Project name (kebab-case). Required. |
-| `-d, --description` | string | — | Description; if omitted you will be prompted (or AI will infer). |
+| `--name <NAME>` | string | dir name | Project name (kebab-case). When set, creates `<path|cwd>/<NAME>`; otherwise the target is the path/cwd directly. |
+| `--no-ai` | bool | false | Skip zag/AI calls. Deterministic skeleton only. |
+| `--no-git` | bool | false | Skip `git init` and the first commit. |
+| `--no-gh` | bool | false | Skip `gh repo create`. |
+| `-y, --yes` | bool | false | Accept defaults; non-interactive. |
+| `--path <DIR>` | path | cwd | Target dir (or parent dir when `--name` is set). |
+| `--lang <L>` | enum | rust | rust\|python\|node\|go\|generic |
+| `--kind <K>` | enum | cli | lib\|cli\|service |
+| `--license <L>` | enum | MIT | MIT\|Apache-2.0\|MPL-2.0 |
+| `--visibility <V>` | enum | public | public\|private |
 
 ## `validate` flags
 
@@ -121,7 +105,7 @@ And `new` accepts:
 
 ```sh
 oss-spec init "create a python cli for finding stock buys"
-oss-spec new demo --lang rust --kind cli --license MIT --no-ai --yes
+oss-spec init --name demo --lang rust --kind cli --license MIT --no-ai --yes
 cd demo && oss-spec validate
 oss-spec validate --url https://github.com/niclaslindstedt/oss-spec.git
 oss-spec validate --url https://github.com/foo/bar.git --create-issues --yes

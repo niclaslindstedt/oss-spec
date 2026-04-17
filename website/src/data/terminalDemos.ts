@@ -191,7 +191,7 @@ export const terminalDemos: TerminalTab[] = [
           { text: '  oss-spec init "create a python cli for stock analysis"', style: "diffStat" },
           { text: "  ", style: "dim" },
           { text: "  ## Deterministic mode", style: "assistant" },
-          { text: "  oss-spec new my-tool --lang rust --kind cli --no-ai -y", style: "diffStat" },
+          { text: "  oss-spec init --name my-tool --lang rust --kind cli --no-ai -y", style: "diffStat" },
         ],
       },
       { type: "pause", duration: 2500 },
