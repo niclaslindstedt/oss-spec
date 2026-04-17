@@ -115,6 +115,7 @@ Per §21 of `OSS_SPEC.md`, this repo ships agent skills for keeping drift-prone 
 | `update-docs`     | Whenever user-visible behavior described in `docs/` changes | `docs/*.md` |
 | `update-readme`   | Whenever a CLI flag, subcommand, §19 rule, supported language, or the spec version changes | `README.md` |
 | `update-website`  | Whenever a source-derived section of the website (hero, version, CLI table) drifts from README / docs / spec | `website/` |
+| `sync-oss-spec`   | Whenever `oss-spec validate .` reports violations, or after a spec bump — brings repo contents back into conformance with `OSS_SPEC.md` | repo-wide §19 conformance |
 | `commit`          | After any feature or fix, to run quality gates, commit, push, and open/update the PR | — |
 
 The `maintenance` skill reads a **Registry** table (its single source of truth) that lists every `update-*` skill and the order they must run in. When you add a new `update-*` skill, add a matching row to `maintenance/SKILL.md` — `oss-spec validate .` treats a missing row as a drift bug.
