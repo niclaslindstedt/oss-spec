@@ -19,12 +19,8 @@ const COMMANDS_TABLE: &[(&str, &str)] = &[
         "oss-spec <prompt>                             # interpret + bootstrap via zag",
     ),
     (
-        "new",
-        "oss-spec new <name> [--lang ..] [--kind ..]    # explicit bootstrap",
-    ),
-    (
         "init",
-        "oss-spec init                                  # bootstrap into current dir",
+        "oss-spec init [<name>] [--lang ..] [--kind ..]  # explicit bootstrap (cwd if no name)",
     ),
     (
         "check",
@@ -66,26 +62,23 @@ const COMMAND_SPECS: &[(&str, &str)] = &[
                        --name --lang --kind --license --visibility\n",
     ),
     (
-        "new",
-        "oss-spec new <NAME> [-d <DESCRIPTION>]\n\
+        "init",
+        "oss-spec init [<NAME>] [-d <DESCRIPTION>]\n\
          \n\
-         Explicit bootstrap. NAME becomes both the directory name and the\n\
-         project name. Skips AI prompt interpretation; still uses AI to draft\n\
-         README 'Why?' bullets unless --no-ai is set.\n\
+         Explicit bootstrap. With NAME, creates a new directory at\n\
+         `<--path>/<NAME>` (defaults to `cwd/<NAME>`). Without NAME, bootstraps\n\
+         into the current working directory and infers the project name from\n\
+         its basename; existing files are overwritten — use this to convert an\n\
+         in-progress repo into an OSS_SPEC.md-compliant one.\n\
+         \n\
+         Skips AI prompt interpretation; still uses AI to draft README 'Why?'\n\
+         bullets unless --no-ai is set.\n\
          \n\
          Flags: --lang rust|python|node|go|generic\n\
                 --kind lib|cli|service\n\
                 --license MIT|Apache-2.0|MPL-2.0\n\
                 --visibility public|private\n\
                 --no-ai --no-git --no-gh --yes --path <dir>\n",
-    ),
-    (
-        "init",
-        "oss-spec init [-d <DESCRIPTION>]\n\
-         \n\
-         Bootstrap into the current working directory. Existing files are\n\
-         overwritten. Use this to convert an in-progress repo into an\n\
-         OSS_SPEC.md-compliant one.\n",
     ),
     (
         "check",
@@ -154,10 +147,9 @@ const EXAMPLES: &[(&str, &str)] = &[
         "oss-spec \"create a python cli for finding stock buys\"",
     ),
     (
-        "new",
-        "oss-spec new my-tool --lang rust --kind cli --license MIT --no-ai --yes",
+        "init",
+        "oss-spec init my-tool --lang rust --kind cli --license MIT --no-ai --yes",
     ),
-    ("init", "cd existing-repo && oss-spec init --no-ai --yes"),
     ("check", "oss-spec check --path ."),
     ("fix", "oss-spec fix --path . --yes"),
     ("fetch", "oss-spec fetch --into /tmp/oss-spec-ref"),

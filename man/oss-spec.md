@@ -6,8 +6,7 @@
 
 ```
 oss-spec <PROMPT>
-oss-spec new <NAME> [-d <DESCRIPTION>] [flags]
-oss-spec init [-d <DESCRIPTION>] [flags]
+oss-spec init [<NAME>] [-d <DESCRIPTION>] [flags]
 oss-spec check [--path .]
 oss-spec fetch [--into <DIR>] [--url <URL>] [--shallow]
 oss-spec commands [<NAME>] [--examples]
@@ -31,8 +30,7 @@ the project to disk.
 | Command | Description |
 |---|---|
 | (default) | Interpret a prompt via zag and bootstrap. |
-| `new` | Explicit bootstrap with flags only. |
-| `init` | Bootstrap into the current directory. |
+| `init` | Explicit bootstrap. With `NAME` creates `<--path>/<NAME>`; without, uses the current directory. |
 | `check` | Validate an existing repo against OSS_SPEC.md §19. |
 | `fetch` | Clone the public oss-spec repo for local reference. |
 | `commands` | Stable, machine-readable command index. |
@@ -77,7 +75,7 @@ the project to disk.
 
 ```sh
 oss-spec "create a python cli for finding stock buys"
-oss-spec new demo --lang rust --kind cli --license MIT --no-ai --yes
+oss-spec init demo --lang rust --kind cli --license MIT --no-ai --yes
 cd demo && oss-spec check
 oss-spec commands --examples
 ```

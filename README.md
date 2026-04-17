@@ -40,7 +40,7 @@ That sends the prompt to `zag`, shows the proposed manifest, and on confirmation
 For a deterministic, offline run:
 
 ```sh
-oss-spec new my-tool --lang rust --kind cli --license MIT --no-ai --yes
+oss-spec init my-tool --lang rust --kind cli --license MIT --no-ai --yes
 ```
 
 To validate an existing repo against [`OSS_SPEC.md`](OSS_SPEC.md):
@@ -54,8 +54,7 @@ oss-spec check --path .
 | Command | What it does |
 |---|---|
 | `oss-spec <PROMPT>` | Default: zag interprets the prompt → manifest → bootstrap. |
-| `oss-spec new <NAME>` | Explicit bootstrap with flags only. |
-| `oss-spec init` | Bootstrap into the current directory. |
+| `oss-spec init [<NAME>]` | Explicit bootstrap. With `NAME` creates `<--path>/<NAME>`; without, uses the current directory. |
 | `oss-spec check [--path .]` | Validate a repo against `OSS_SPEC.md` §19. |
 | `oss-spec fetch [--into DIR]` | Clone the public oss-spec repo so a coding agent can browse the spec, templates, and the dogfood implementation locally. |
 | `oss-spec commands [<NAME>] [--examples]` | Stable, machine-readable command index (§12.4). |

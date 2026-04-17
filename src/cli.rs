@@ -7,7 +7,7 @@
 //! ```
 //!
 //! which routes through `ai::interpret_prompt` → manifest → bootstrap. Explicit
-//! subcommands (`new`, `init`, `check`, `commands`, `docs`, `man`) cover the
+//! subcommands (`init`, `check`, `commands`, `docs`, `man`) cover the
 //! deterministic / power-user paths and the §12 CLI discoverability contract.
 
 use anyhow::{Context, Result};
@@ -86,16 +86,14 @@ pub struct Cli {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Command {
-    /// Bootstrap a new project at <name> (or --path/<name>).
-    New {
-        /// Project name (kebab-case).
-        name: String,
-        /// Description; if omitted you will be prompted (or AI will infer).
-        #[arg(long, short = 'd')]
-        description: Option<String>,
-    },
-    /// Bootstrap into the current directory (must be empty or contain only OSS_SPEC.md).
+    /// Bootstrap a project. With NAME: creates `<--path>/<NAME>`.
+    /// Without NAME: bootstraps into the current directory.
     Init {
+        /// Optional project name (kebab-case). When given, a new directory
+        /// `<--path>/<NAME>` is created; otherwise the current working
+        /// directory is used and the name is inferred from its basename.
+        name: Option<String>,
+        /// Description; if omitted you will be prompted (or AI will infer).
         #[arg(long, short = 'd')]
         description: Option<String>,
     },
@@ -193,17 +191,15 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
             create_issues,
             max_turns,
         }) => crate::fix::run(&path, create_issues, max_turns, cli.yes).await,
-        Some(Command::New { name, description }) => {
-            let target = resolve_target_dir(&cli, Some(&name))?;
-            let manifest =
-                crate::interview::run(&cli, Some(name.clone()), description, false).await?;
-            crate::bootstrap::write(&manifest, &target)?;
-            post_bootstrap(&cli, &manifest, &target).await?;
-            Ok(())
-        }
-        Some(Command::Init { description }) => {
-            let target = std::env::current_dir().context("cannot read current directory")?;
-            let manifest = crate::interview::run(&cli, cli.name.clone(), description, true).await?;
+        Some(Command::Init { name, description }) => {
+            let (target, init_mode) = match &name {
+                Some(n) => (resolve_target_dir(&cli, Some(n))?, false),
+                None => (
+                    std::env::current_dir().context("cannot read current directory")?,
+                    true,
+                ),
+            };
+            let manifest = crate::interview::run(&cli, name, description, init_mode).await?;
             crate::bootstrap::write(&manifest, &target)?;
             post_bootstrap(&cli, &manifest, &target).await?;
             Ok(())

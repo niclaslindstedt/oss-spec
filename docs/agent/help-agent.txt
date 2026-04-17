@@ -1,9 +1,8 @@
 oss-spec — bootstrap new OSS_SPEC.md-compliant repositories.
 
 USAGE
-  oss-spec <PROMPT>                       # interpret + bootstrap via zag
-  oss-spec new <NAME> [flags]              # explicit bootstrap
-  oss-spec init [flags]                    # bootstrap into current dir
+  oss-spec <PROMPT>                        # interpret + bootstrap via zag
+  oss-spec init [<NAME>] [flags]           # explicit bootstrap (cwd if no name)
   oss-spec check [--path .]                # validate against OSS_SPEC.md
   oss-spec fetch [--into <DIR>]            # clone the public oss-spec repo for reference
   oss-spec commands [<NAME>] [--examples]  # list commands (machine-readable)

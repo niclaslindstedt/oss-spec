@@ -10,7 +10,9 @@ use crate::cli::Cli;
 use crate::manifest::{Kind, Language, License, ProjectManifest};
 
 /// Build a manifest by asking the user (and optionally calling zag) for missing
-/// fields. `init_mode` is true when called from `oss-spec init`.
+/// fields. `init_mode` is true when `oss-spec init` is run without a name
+/// argument (bootstrapping into the current directory), in which case the name
+/// falls back to the cwd's basename.
 pub async fn run(
     cli: &Cli,
     name: Option<String>,

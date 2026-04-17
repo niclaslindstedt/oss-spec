@@ -6,7 +6,7 @@ A minimal end-to-end demo of using `oss-spec` to create a new Rust CLI project.
 
 ```sh
 cargo install oss-spec
-oss-spec new stocks-cli \
+oss-spec init stocks-cli \
     --lang rust \
     --kind cli \
     --license MIT \
