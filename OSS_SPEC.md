@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.0.1
+version: 2.0.2
 ---
 
 # Open Source Project Bootstrap Specification
@@ -1434,6 +1434,18 @@ such as `update-bindings` (SDK bindings mirroring a core API),
 `update-examples` (examples exercising the current CLI), or project-
 specific skills like `update-spec` (for spec repositories). Skill names
 must be kebab-case and should start with a verb.
+
+Any project that claims conformance to this spec should additionally
+ship a **`sync-oss-spec`** skill whose job is to run the project's
+conformance validator (for a repository bootstrapped by `oss-spec`,
+that is `oss-spec validate .`), walk the resulting violations, and fix
+each one until the repo is back in sync with `OSS_SPEC.md`. Unlike
+`update-spec` — which reacts to a change in the spec by propagating
+the new mandate into code — `sync-oss-spec` reacts to a change in the
+repo by bringing it back under the spec's existing mandates. Running
+`sync-oss-spec` as the final step of a drift sweep catches residual
+violations that the per-artifact skills (`update-readme`, `update-docs`,
+etc.) did not touch.
 
 The skills in §21.5 are the floor, not the ceiling. A healthy project
 adds a skill for every recurring "I forgot to update X when I changed
