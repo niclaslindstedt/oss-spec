@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.0.2
+version: 2.1.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -340,7 +340,8 @@ Every push to a branch and every pull request must run:
 
 1. Checkout with full history (required for changelog generation).
 2. Toolchain setup (pinned minimum version — see §10.3 for the
-   per-language floor versions).
+   per-language floor versions, and §10.5 for pinning the **exact**
+   local-developer version that CI resolves against).
 3. Dependency cache restore.
 4. `make build`
 5. `make test`
@@ -659,6 +660,47 @@ in-flight deploys are never cancelled.
 The `pages` workflow is independent of the release pipeline: a
 release does not wait for Pages, and a Pages deploy does not wait for
 a release. Each delivers its own artifact to its own audience.
+
+### 10.5 Local/CI environment parity
+
+Every project must pin its language toolchain in a **repository-root
+pin file** that both the local developer's toolchain manager and the
+CI workflow read. CI's toolchain step must resolve to that same file
+(or to a literal that matches it exactly). A lint, test, or build
+that succeeds locally must not fail on CI solely because the two
+environments booted different toolchain versions.
+
+Why this matters:
+
+- Linters and compilers gain, remove, and reword diagnostics between
+  minor versions; an unpinned local toolchain produces noise that
+  only shows up on CI (the canonical failure mode: `cargo clippy`
+  passes on the contributor's Rust 1.90 install, then fails on CI's
+  pinned 1.88.0 because a new lint fired).
+- A single pin file prevents the version string from being duplicated
+  in CI YAML, where it silently drifts.
+- Contributors running `rustup show` / `pyenv install` / `nvm use` /
+  `go build` in a fresh clone pick up the correct version without
+  reading the CI config.
+
+Per-language pin file (`must`):
+
+| Language | Pin file | Example contents | CI reads it via |
+|---|---|---|---|
+| Rust | `rust-toolchain.toml` | `[toolchain]`<br>`channel = "1.88.0"`<br>`components = ["clippy", "rustfmt"]`<br>`profile = "minimal"` | `dtolnay/rust-toolchain@<channel>` matching the pin, or `rustup show` (auto-reads the file) |
+| Python | `.python-version` | `3.12` | `actions/setup-python@v5` with `python-version-file: .python-version` |
+| Node | `.nvmrc` (+ `"engines": { "node": ">=24" }` in `package.json`) | `24` | `actions/setup-node@v4` with `node-version-file: .nvmrc` |
+| Go | `go.mod` with a `toolchain` directive | `go 1.22`<br>`toolchain go1.22.6` | `actions/setup-go@v5` with `go-version-file: go.mod` |
+| Generic / polyglot | `.tool-versions` (asdf / mise) or a devcontainer | `rust 1.88.0`<br>`python 3.12.5` | Matching `asdf install` / devcontainer setup step |
+
+Floating specifiers (`stable`, `latest`, `lts`, `lts/*`, `*`) are
+**not permitted** in the pin file, same as in CI (§10.3).
+
+Enforcement: `oss-spec validate` detects the project's languages from
+their root manifest (`Cargo.toml`, `pyproject.toml`, `package.json`,
+`go.mod`) and requires the corresponding pin file for each one. It
+also cross-checks the pin-file version against the version referenced
+by `ci.yml` and reports a violation if they disagree.
 
 ## 11. Documentation and website
 

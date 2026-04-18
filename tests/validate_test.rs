@@ -1,6 +1,8 @@
 use oss_spec::bootstrap::{symlink_dir, symlink_file};
 use oss_spec::validate::{
-    self, check_toolchain_versions, extract_front_matter, has_yaml_key, is_kebab_case, version_ge,
+    self, check_local_toolchain_pin, check_toolchain_versions, extract_front_matter,
+    find_rust_ci_version, find_setup_version, has_yaml_key, is_kebab_case, parse_go_toolchain,
+    parse_rust_channel, version_ge, versions_same_major_minor,
 };
 use std::fs;
 use std::path::Path;
@@ -141,6 +143,228 @@ fn rust_short_version_is_accepted() {
     // `@1.88` (no patch) should be treated as `1.88.0` and accepted.
     let yml = "      - uses: dtolnay/rust-toolchain@1.88\n";
     assert!(check_toolchain_versions("ci.yml", yml).is_empty());
+}
+
+// --- §10.5 Local/CI environment parity checks ---
+
+fn rust_ci_yml(version: &str) -> String {
+    format!("      - uses: dtolnay/rust-toolchain@{version}\n")
+}
+
+#[test]
+fn parse_rust_channel_reads_toolchain_table() {
+    let toml = "[toolchain]\nchannel = \"1.88.0\"\n";
+    assert_eq!(parse_rust_channel(toml).as_deref(), Some("1.88.0"));
+}
+
+#[test]
+fn parse_rust_channel_ignores_other_sections() {
+    let toml = "[profile.dev]\nchannel = \"ignored\"\n";
+    assert!(parse_rust_channel(toml).is_none());
+}
+
+#[test]
+fn parse_go_toolchain_reads_directive() {
+    let go_mod = "module x\n\ngo 1.22\n\ntoolchain go1.22.6\n";
+    assert_eq!(parse_go_toolchain(go_mod).as_deref(), Some("1.22.6"));
+}
+
+#[test]
+fn parse_go_toolchain_requires_toolchain_directive() {
+    let go_mod = "module x\n\ngo 1.22\n";
+    assert!(parse_go_toolchain(go_mod).is_none());
+}
+
+#[test]
+fn versions_same_major_minor_matches() {
+    assert!(versions_same_major_minor("3.12.3", "3.12"));
+    assert!(versions_same_major_minor("3.12", "3.12.9"));
+    assert!(!versions_same_major_minor("3.12", "3.13"));
+    assert!(!versions_same_major_minor("24", "22"));
+}
+
+#[test]
+fn find_rust_ci_version_extracts_spec() {
+    let yml = "      - uses: dtolnay/rust-toolchain@1.88.0\n";
+    assert_eq!(find_rust_ci_version(yml).as_deref(), Some("1.88.0"));
+}
+
+#[test]
+fn find_setup_version_extracts_python_version() {
+    let yml = "\
+      - uses: actions/setup-python@v5
+        with:
+          python-version: \"3.12\"
+";
+    assert_eq!(
+        find_setup_version(yml, "actions/setup-python", "python-version").as_deref(),
+        Some("3.12")
+    );
+}
+
+#[test]
+fn rust_toolchain_file_required_when_cargo_toml_present() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("Cargo.toml"), "[package]\nname = \"x\"\n").unwrap();
+    let ci = rust_ci_yml("1.88.0");
+    let v = check_local_toolchain_pin(root, Some(&ci));
+    assert_eq!(v.len(), 1);
+    assert_eq!(v[0].spec_section, "§10.5");
+    assert!(v[0].message.contains("rust-toolchain.toml"));
+}
+
+#[test]
+fn rust_toolchain_floating_channel_flagged() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("Cargo.toml"), "[package]\nname = \"x\"\n").unwrap();
+    fs::write(
+        root.join("rust-toolchain.toml"),
+        "[toolchain]\nchannel = \"stable\"\n",
+    )
+    .unwrap();
+    let ci = rust_ci_yml("1.88.0");
+    let v = check_local_toolchain_pin(root, Some(&ci));
+    assert_eq!(v.len(), 1);
+    assert_eq!(v[0].spec_section, "§10.5");
+    assert!(v[0].message.contains("floating specifier"));
+}
+
+#[test]
+fn rust_toolchain_channel_must_match_ci() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("Cargo.toml"), "[package]\nname = \"x\"\n").unwrap();
+    fs::write(
+        root.join("rust-toolchain.toml"),
+        "[toolchain]\nchannel = \"1.89.0\"\n",
+    )
+    .unwrap();
+    let ci = rust_ci_yml("1.88.0");
+    let v = check_local_toolchain_pin(root, Some(&ci));
+    assert_eq!(v.len(), 1);
+    assert!(v[0].message.contains("does not match"));
+    assert!(v[0].message.contains("1.89.0"));
+    assert!(v[0].message.contains("1.88.0"));
+}
+
+#[test]
+fn rust_toolchain_matching_channel_is_clean() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("Cargo.toml"), "[package]\nname = \"x\"\n").unwrap();
+    fs::write(
+        root.join("rust-toolchain.toml"),
+        "[toolchain]\nchannel = \"1.88.0\"\n",
+    )
+    .unwrap();
+    let ci = rust_ci_yml("1.88.0");
+    assert!(check_local_toolchain_pin(root, Some(&ci)).is_empty());
+}
+
+#[test]
+fn python_version_file_required_when_pyproject_present() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("pyproject.toml"), "[project]\nname = \"x\"\n").unwrap();
+    let v = check_local_toolchain_pin(root, None);
+    assert_eq!(v.len(), 1);
+    assert_eq!(v[0].spec_section, "§10.5");
+    assert!(v[0].message.contains(".python-version"));
+}
+
+#[test]
+fn python_version_file_must_match_ci() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("pyproject.toml"), "[project]\nname = \"x\"\n").unwrap();
+    fs::write(root.join(".python-version"), "3.13\n").unwrap();
+    let ci = "\
+      - uses: actions/setup-python@v5
+        with:
+          python-version: \"3.12\"
+";
+    let v = check_local_toolchain_pin(root, Some(ci));
+    assert_eq!(v.len(), 1);
+    assert!(v[0].message.contains("does not match"));
+}
+
+#[test]
+fn node_nvmrc_required_when_package_json_present() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("package.json"), "{\"name\":\"x\"}\n").unwrap();
+    let v = check_local_toolchain_pin(root, None);
+    assert_eq!(v.len(), 1);
+    assert_eq!(v[0].spec_section, "§10.5");
+    assert!(v[0].message.contains(".nvmrc"));
+}
+
+#[test]
+fn node_nvmrc_must_match_ci_major() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("package.json"), "{\"name\":\"x\"}\n").unwrap();
+    fs::write(root.join(".nvmrc"), "22\n").unwrap();
+    let ci = "\
+      - uses: actions/setup-node@v4
+        with:
+          node-version: \"24\"
+";
+    let v = check_local_toolchain_pin(root, Some(ci));
+    assert_eq!(v.len(), 1);
+    assert!(v[0].message.contains(".nvmrc '22'"));
+}
+
+#[test]
+fn node_nvmrc_strips_v_prefix() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("package.json"), "{\"name\":\"x\"}\n").unwrap();
+    fs::write(root.join(".nvmrc"), "v24\n").unwrap();
+    let ci = "\
+      - uses: actions/setup-node@v4
+        with:
+          node-version: \"24\"
+";
+    assert!(check_local_toolchain_pin(root, Some(ci)).is_empty());
+}
+
+#[test]
+fn go_mod_must_have_toolchain_directive() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("go.mod"), "module x\n\ngo 1.22\n").unwrap();
+    let v = check_local_toolchain_pin(root, None);
+    assert_eq!(v.len(), 1);
+    assert_eq!(v[0].spec_section, "§10.5");
+    assert!(v[0].message.contains("toolchain"));
+}
+
+#[test]
+fn go_mod_with_toolchain_directive_is_clean() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(
+        root.join("go.mod"),
+        "module x\n\ngo 1.22\n\ntoolchain go1.22.6\n",
+    )
+    .unwrap();
+    let ci = "\
+      - uses: actions/setup-go@v5
+        with:
+          go-version: \"1.22\"
+";
+    assert!(check_local_toolchain_pin(root, Some(ci)).is_empty());
+}
+
+#[test]
+fn generic_project_skips_pin_check() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    // No language manifest files at all.
+    assert!(check_local_toolchain_pin(root, None).is_empty());
 }
 
 // --- §20 test organization checks ---
