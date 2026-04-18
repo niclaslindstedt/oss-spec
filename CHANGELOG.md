@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is **auto-generated from conventional commits at release time** —
 do not edit manually.
 
+## [0.3.0] - 2026-04-18
+
+### Added
+
+- Add standalone sync-oss-spec skill to generated projects (#36)
+- Align prompts with spec and enforce §19.4 output module (#33)
+- Add §10.5 local/CI toolchain parity and validator rule (#34)
+- Add sync-oss-spec conformance skill (#27)
+
+### Documentation
+
+- Drift sweep — sync manpages, docs, readme, website, agents (#26)
+
 ## [0.2.0] - 2026-04-16
 
 ### Added
