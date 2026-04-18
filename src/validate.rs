@@ -153,8 +153,8 @@ pub fn run(path: &Path) -> Result<Report> {
     }
 
     // §13.5 prompts/ structure: every subdirectory must contain at least
-    // one versioned <major>_<minor>.md file. An empty prompts/ is allowed
-    // (project sends no LLM prompts), but a half-built one is not.
+    // one versioned <major>_<minor>_<patch>.md file. An empty prompts/ is
+    // allowed (project sends no LLM prompts), but a half-built one is not.
     let prompts_root = path.join("prompts");
     if prompts_root.is_dir() {
         for entry in std::fs::read_dir(&prompts_root)
@@ -181,7 +181,9 @@ pub fn run(path: &Path) -> Result<Report> {
                 let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("?");
                 report.violations.push(Violation {
                     spec_section: "§13.5",
-                    message: format!("prompts/{name}/ has no versioned <major>_<minor>.md file"),
+                    message: format!(
+                        "prompts/{name}/ has no versioned <major>_<minor>_<patch>.md file"
+                    ),
                 });
             }
         }
@@ -233,6 +235,11 @@ pub fn run(path: &Path) -> Result<Report> {
             });
         }
     }
+
+    // §19.4 Central output module: all user-facing output must route
+    // through a single module, not raw prints. Only applicable when the
+    // repo has a recognisable source tree.
+    check_output_module(&path, &mut report);
 
     // §20 Test organization: tests must live in separate files, not inline.
     // Check that no source file contains inline test blocks.
@@ -375,11 +382,11 @@ fn list_dir(p: &Path) -> Vec<PathBuf> {
         .unwrap_or_default()
 }
 
-/// Parse a `prompts/<name>/<stem>.md` stem like `1_0` or `2_13` into
-/// `(major, minor)`. Returns `None` for anything that isn't a version.
-fn parse_version(stem: &str) -> Option<(u32, u32)> {
-    let (maj, min) = stem.split_once('_')?;
-    Some((maj.parse().ok()?, min.parse().ok()?))
+/// Parse a `prompts/<name>/<stem>.md` stem like `1_0_0` or `2_13_7` into
+/// `(major, minor, patch)`. Returns `None` for anything that does not
+/// match the `X_Y_Z` semver pattern.
+fn parse_version(stem: &str) -> Option<(u32, u32, u32)> {
+    crate::prompts::parse_version(stem)
 }
 
 /// Spec-defined minimum toolchain versions (§10.3). Mirrors the table in
@@ -834,6 +841,51 @@ pub fn find_setup_version(ci_yml: &str, setup_action: &str, key: &str) -> Option
         }
     }
     None
+}
+
+/// §19.4 Central output module. Every project with source code must
+/// route user-facing output through a single module (e.g. `src/output.rs`
+/// in Rust, `lib/output.ts` in Node). The check is skipped for repos
+/// without a recognisable source tree — a pure docs or template-only
+/// repository has nothing to route.
+pub fn check_output_module(path: &Path, report: &mut Report) {
+    let has_src = path.join("src").is_dir() || path.join("lib").is_dir();
+    if !has_src {
+        return;
+    }
+    // Single-file modules under common source roots.
+    let file_candidates: &[&str] = &[
+        "src/output.rs",
+        "src/output.ts",
+        "src/output.js",
+        "src/output.mjs",
+        "src/output.py",
+        "src/output.go",
+        "src/output.rb",
+        "src/output.java",
+        "src/output.kt",
+        "src/output.swift",
+        "src/output.cs",
+        "lib/output.ts",
+        "lib/output.js",
+        "lib/output.mjs",
+        "lib/output.py",
+    ];
+    if file_candidates.iter().any(|c| path.join(c).is_file()) {
+        return;
+    }
+    // Directory-style modules (e.g. `src/output/mod.rs`,
+    // `src/output/__init__.py`, `internal/output/output.go`).
+    let dir_candidates: &[&str] = &["src/output", "lib/output", "internal/output"];
+    if dir_candidates.iter().any(|d| path.join(d).is_dir()) {
+        return;
+    }
+    report.violations.push(Violation {
+        spec_section: "§19.4",
+        message: "missing central output module (expected e.g. src/output.rs \
+                  with semantic helpers status/warn/info/header/error; see §19.4)"
+            .into(),
+    });
 }
 
 /// §21 Agent skills. Every repo must ship the canonical `.agent/skills/`

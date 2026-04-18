@@ -46,7 +46,7 @@ _Describe the module layout and dependency direction in 1–3 paragraphs._
 | Tests       | `tests/...` |
 | Docs update | `docs/...` |
 | Examples    | `examples/...` |
-| LLM prompt  | `prompts/<name>/<major>_<minor>.md` (see `prompts/README.md`) |
+| LLM prompt  | `prompts/<name>/<major>_<minor>_<patch>.md` (see `prompts/README.md`) |
 
 ## Test conventions
 
@@ -72,8 +72,9 @@ Per §21 of `OSS_SPEC.md`, this repo ships agent skills for keeping drift-prone 
 
 | Skill | When to run |
 |---|---|
-| `maintenance`   | When several artifacts have likely drifted at once — umbrella skill that runs every `update-*` skill in the correct order. |
-| `update-docs`   | After any change to the public API, configuration keys, or error messages. |
-| `update-readme` | After any change that alters user-visible behavior, commands, or install instructions. |
+| `maintenance`    | When several artifacts have likely drifted at once — umbrella skill that runs every `update-*` skill in the correct order. |
+| `update-docs`    | After any change to the public API, configuration keys, or error messages. |
+| `update-readme`  | After any change that alters user-visible behavior, commands, or install instructions. |
+| `update-prompts` | After any change to an LLM prompt's source of truth (embedded docs, rendering-context keys, JSON-schema enums, validation rules). |
 
 Each skill has a `SKILL.md` (the playbook) and a `.last-updated` file (the baseline commit hash). Run a skill by loading its `SKILL.md` and following the discovery process and update checklist. The skill rewrites `.last-updated` at the end of a successful run, and improves itself in place when it discovers new mapping entries. The `maintenance` skill owns a **Registry** table listing every `update-*` skill — add a row whenever you create a new sync skill.

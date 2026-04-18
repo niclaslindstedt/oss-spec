@@ -83,7 +83,8 @@ When you change… | Update…
 A CLI flag or subcommand | `man/oss-spec.md`, `docs/agent/help-agent.txt`, `agent_help::COMMANDS_TABLE`, `agent_help::COMMAND_SPECS`, `README.md` Usage table
 A template file | `templates/_common/` (or overlay) — and re-run `oss-spec validate` against a generated demo
 A §19 rule | `src/validate.rs`, `OSS_SPEC.md`, this `## Documentation sync points` table
-A toolchain version bump (Rust / Python / Node / Go) | the repo-root pin file (`rust-toolchain.toml`, `.python-version`, `.nvmrc`, or `go.mod`'s `toolchain` directive), its `templates/<lang>/` counterpart, `templates/_common/.github/workflows/ci.yml.tmpl`, and `MIN_TOOLCHAIN_VERSIONS` in `src/validate.rs` (§10.5 local/CI parity)
+A toolchain version bump (Rust / Python / Node / Go) | the repo-root pin file (`rust-toolchain.toml`, `.python-version`, `.nvmrc`, or `go.mod`'s `toolchain` directive), its `templates/<lang>/` counterpart, `templates/_common/.github/workflows/ci.yml.tmpl`, and `MIN_TOOLCHAIN_VERSIONS` in `src/validate.rs` (§10.5 local/CI parity, §10.3 minimums)
+An LLM prompt's source of truth (spec text, validator rule, manifest enum, rendering-context key) | A new file under `prompts/<name>/<major>_<minor>_<patch>.md` (never edit an existing versioned file — bump semver and create a new one per §13.5). Run the `update-prompts` skill or let the `maintenance` sweep pick it up.
 The list of supported languages | `manifest::Language`, `templates/<lang>/`, `Makefile.tmpl`, `ci.yml.tmpl`, `dependabot.yml.tmpl`
 `OSS_SPEC.md` | Bump the `version` field in its YAML front matter (semver — `feat!`/breaking bumps major, `feat` or new mandate bumps minor, pure clarifications bump patch). Also update `README.md`, `docs/`, `templates/_common/AGENTS.md.tmpl`, and this file as needed. The spec is mirrored into generated projects via the symlink `templates/_common/OSS_SPEC.md -> ../../OSS_SPEC.md`, so there is only one source of truth.
 
@@ -115,6 +116,7 @@ Per §21 of `OSS_SPEC.md`, this repo ships agent skills for keeping drift-prone 
 | `update-manpages` | Whenever `src/cli.rs` clap definitions change | `man/oss-spec.md` |
 | `update-docs`     | Whenever user-visible behavior described in `docs/` changes | `docs/*.md` |
 | `update-readme`   | Whenever a CLI flag, subcommand, §19 rule, supported language, or the spec version changes | `README.md` |
+| `update-prompts`  | Whenever `OSS_SPEC.md`, `src/validate.rs`, `src/ai.rs`, `src/fix.rs`, or `src/manifest.rs` changes in a way that could leave a prompt template stale | `prompts/**/*.md` |
 | `update-website`  | Whenever a source-derived section of the website (hero, version, CLI table) drifts from README / docs / spec | `website/` |
 | `sync-oss-spec`   | Whenever `oss-spec validate .` reports violations, or after a spec bump — brings repo contents back into conformance with `OSS_SPEC.md` | repo-wide §19 conformance |
 | `commit`          | After any feature or fix, to run quality gates, commit, push, and open/update the PR | — |

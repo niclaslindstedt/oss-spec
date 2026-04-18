@@ -205,8 +205,8 @@ pub async fn draft_readme_why(description: &str, name: &str) -> Result<Vec<Strin
     Ok(wire.bullets)
 }
 
-/// Drive a zag agent loop in `repo` to remove every §19 violation
-/// and address AI quality findings.
+/// Drive a zag agent loop in `repo` to remove every structural violation
+/// and address AI quality findings surfaced by `verify_conformance`.
 pub async fn fix_conformance(
     repo: &Path,
     report: &crate::validate::Report,
@@ -219,7 +219,11 @@ pub async fn fix_conformance(
     };
     let p = crate::prompts::load(
         "fix-conformance",
-        context! { violations => violations_text },
+        context! {
+            spec => crate::embedded::OSS_SPEC,
+            spec_version => crate::embedded::oss_spec_version(),
+            violations => violations_text,
+        },
     )?;
     run_zag_agent(&p.system, &p.user, repo, max_turns).await
 }
@@ -233,7 +237,10 @@ pub async fn file_conformance_issues(
 ) -> Result<()> {
     let p = crate::prompts::load(
         "file-conformance-issues",
-        context! { violations => format_violations(report) },
+        context! {
+            spec_version => crate::embedded::oss_spec_version(),
+            violations => format_violations(report),
+        },
     )?;
     run_zag_agent(&p.system, &p.user, repo, max_turns).await
 }
@@ -337,6 +344,7 @@ pub async fn verify_conformance(
         "verify-conformance",
         context! {
             spec => crate::embedded::OSS_SPEC,
+            spec_version => crate::embedded::oss_spec_version(),
             violations => violations_text,
             file_contents => contents_block,
         },

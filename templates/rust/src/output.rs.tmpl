@@ -1,0 +1,32 @@
+//! Central output module for {{ name }} (§19.4).
+//!
+//! All user-facing messages route through the semantic helpers below so that
+//! formatting and routing can change in one place. Raw `println!`/`eprintln!`
+//! must not appear outside this module.
+
+use std::io::Write as _;
+
+/// Success message.
+pub fn status(msg: &str) {
+    let _ = writeln!(std::io::stderr(), "✓  {msg}");
+}
+
+/// Warning message.
+pub fn warn(msg: &str) {
+    let _ = writeln!(std::io::stderr(), "!  {msg}");
+}
+
+/// Informational message.
+pub fn info(msg: &str) {
+    let _ = writeln!(std::io::stderr(), "{msg}");
+}
+
+/// Bold section header.
+pub fn header(msg: &str) {
+    let _ = writeln!(std::io::stderr(), "== {msg} ==");
+}
+
+/// Error message.
+pub fn error(msg: &str) {
+    let _ = writeln!(std::io::stderr(), "✗  {msg}");
+}

@@ -979,6 +979,136 @@ fn gather_file_contents_includes_existing_files() {
     assert!(!names.contains(&"CONTRIBUTING.md"));
 }
 
+// ---------------------------------------------------------------------------
+// §19.4 central output module checks
+// ---------------------------------------------------------------------------
+
+/// Collect all §19.4 violations from a report.
+fn v194(report: &validate::Report) -> Vec<&validate::Violation> {
+    report
+        .violations
+        .iter()
+        .filter(|v| v.spec_section == "§19.4")
+        .collect()
+}
+
+#[test]
+fn output_module_rust_is_ok() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/output.rs"), "pub fn info(_: &str) {}\n").unwrap();
+
+    let report = validate::run(root).unwrap();
+    assert!(
+        v194(&report).is_empty(),
+        "src/output.rs should satisfy §19.4: {:?}",
+        v194(&report)
+    );
+}
+
+#[test]
+fn output_module_node_is_ok() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    fs::create_dir_all(root.join("lib")).unwrap();
+    fs::write(
+        root.join("lib/output.ts"),
+        "export const info = () => {};\n",
+    )
+    .unwrap();
+
+    let report = validate::run(root).unwrap();
+    assert!(
+        v194(&report).is_empty(),
+        "lib/output.ts should satisfy §19.4: {:?}",
+        v194(&report)
+    );
+}
+
+#[test]
+fn output_module_directory_is_ok() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    fs::create_dir_all(root.join("src/output")).unwrap();
+    fs::write(root.join("src/output/mod.rs"), "pub fn info(_: &str) {}\n").unwrap();
+
+    let report = validate::run(root).unwrap();
+    assert!(
+        v194(&report).is_empty(),
+        "src/output/ directory should satisfy §19.4: {:?}",
+        v194(&report)
+    );
+}
+
+#[test]
+fn missing_output_module_with_src_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    // Create a src/ tree without an output module.
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn add() {}\n").unwrap();
+
+    let report = validate::run(root).unwrap();
+    let v = v194(&report);
+    assert_eq!(v.len(), 1, "expected one §19.4 violation, got {v:?}");
+    assert!(v[0].message.contains("output module"));
+}
+
+#[test]
+fn missing_output_module_without_source_tree_is_skipped() {
+    // A docs-only or template-only repo has no source tree, so §19.4
+    // does not apply.
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+
+    let report = validate::run(root).unwrap();
+    assert!(
+        v194(&report).is_empty(),
+        "§19.4 must not fire without src/ or lib/: {:?}",
+        v194(&report)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// embedded::oss_spec_version
+// ---------------------------------------------------------------------------
+
+#[test]
+fn embedded_oss_spec_version_is_parseable() {
+    let v = oss_spec::embedded::oss_spec_version();
+    assert_ne!(v, "unknown", "spec version front matter failed to parse");
+    // Expect dotted semver — at least one dot.
+    assert!(
+        v.contains('.'),
+        "spec version '{v}' does not look like semver"
+    );
+    // Each segment must parse as a number.
+    for seg in v.split('.') {
+        assert!(
+            seg.chars().all(|c| c.is_ascii_digit()),
+            "non-numeric segment '{seg}' in spec version '{v}'"
+        );
+    }
+}
+
+#[test]
+fn embedded_oss_spec_version_matches_front_matter() {
+    // Regression: on Windows, Git may check out .md files with CRLF line
+    // endings (via core.autocrlf). The parser must accept both.
+    let v = oss_spec::embedded::oss_spec_version();
+    assert!(
+        oss_spec::embedded::OSS_SPEC.contains(&format!("version: {v}")),
+        "oss_spec_version() returned '{v}' which does not appear in the \
+         embedded spec front matter"
+    );
+}
+
 #[test]
 fn gather_file_contents_truncates_long_files() {
     let tmp = tempfile::tempdir().unwrap();

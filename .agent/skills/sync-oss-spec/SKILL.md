@@ -53,7 +53,7 @@ This skill is complementary to `update-spec`. `update-spec` propagates a spec ed
 | §10.3 floating or under-pinned toolchain | Edit the workflow to pin at or above the spec minimums in `MIN_TOOLCHAIN_VERSIONS` (`validate.rs`) |
 | §11.1 missing `docs/` content | Create the topic file, then run `update-docs` |
 | §11.2 website drift | Run `make website` and inspect `website/src/generated/`; follow up with `update-website` |
-| §13.5 `prompts/<name>/` has no versioned file | Add `prompts/<name>/1_0.md` with the required `## System` / `## User` sections |
+| §13.5 `prompts/<name>/` has no versioned file | Add `prompts/<name>/1_0_0.md` with the required YAML front matter (`name`, `description`, `version: 1.0.0`) and `## System` / `## User` sections |
 | §15 missing issue / PR templates | Create the templates under `.github/ISSUE_TEMPLATE/` or `.github/PULL_REQUEST_TEMPLATE.md` |
 | §19 raw print statement outside `src/output.rs` | Route the call through `output::status` / `output::info` / `output::warn` / `output::error` |
 | §20 inline `#[cfg(test)] mod { … }` block in `src/` | Move the tests to `tests/<module>_test.rs` and replace with `#[cfg(test)] mod <name>_test;` or delete the gate |
