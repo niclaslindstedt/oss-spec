@@ -1,6 +1,7 @@
 use oss_spec::bootstrap::{symlink_dir, symlink_file};
 use oss_spec::validate::{
-    self, check_toolchain_versions, extract_front_matter, has_yaml_key, is_kebab_case, version_ge,
+    self, check_local_ci_parity, check_toolchain_versions, detect_ci_toolchains,
+    extract_front_matter, has_yaml_key, is_kebab_case, toolchain_eq, version_ge,
 };
 use std::fs;
 use std::path::Path;
@@ -141,6 +142,240 @@ fn rust_short_version_is_accepted() {
     // `@1.88` (no patch) should be treated as `1.88.0` and accepted.
     let yml = "      - uses: dtolnay/rust-toolchain@1.88\n";
     assert!(check_toolchain_versions("ci.yml", yml).is_empty());
+}
+
+// --- §10.5 Local/CI environment parity ---
+
+fn write_ci_workflow(root: &Path, body: &str) {
+    let dir = root.join(".github/workflows");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("ci.yml"), body).unwrap();
+}
+
+const RUST_CI: &str = "      - uses: dtolnay/rust-toolchain@1.88.0\n";
+const PYTHON_CI: &str =
+    "      - uses: actions/setup-python@v5\n        with:\n          python-version: \"3.12\"\n";
+const NODE_CI: &str =
+    "      - uses: actions/setup-node@v4\n        with:\n          node-version: \"24\"\n";
+const GO_CI: &str =
+    "      - uses: actions/setup-go@v5\n        with:\n          go-version: \"1.22\"\n";
+
+#[test]
+fn detect_ci_toolchains_finds_all_four_languages() {
+    let yml = format!("{RUST_CI}{PYTHON_CI}{NODE_CI}{GO_CI}");
+    let got = detect_ci_toolchains(&yml);
+    assert!(got.contains(&("Rust", "1.88.0".to_string())));
+    assert!(got.contains(&("Python", "3.12".to_string())));
+    assert!(got.contains(&("Node", "24".to_string())));
+    assert!(got.contains(&("Go", "1.22".to_string())));
+}
+
+#[test]
+fn rust_toolchain_toml_matching_ci_is_ok() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, RUST_CI);
+    fs::write(
+        root.join("rust-toolchain.toml"),
+        "[toolchain]\nchannel = \"1.88.0\"\n",
+    )
+    .unwrap();
+    assert!(check_local_ci_parity(root).is_empty());
+}
+
+#[test]
+fn rust_toolchain_toml_mismatch_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, RUST_CI);
+    fs::write(
+        root.join("rust-toolchain.toml"),
+        "[toolchain]\nchannel = \"1.87.0\"\n",
+    )
+    .unwrap();
+    let v = check_local_ci_parity(root);
+    assert_eq!(v.len(), 1);
+    assert_eq!(v[0].spec_section, "§10.5");
+    assert!(v[0].message.contains("rust-toolchain.toml"));
+    assert!(v[0].message.contains("1.87.0"));
+    assert!(v[0].message.contains("1.88.0"));
+}
+
+#[test]
+fn rust_toolchain_toml_missing_when_ci_pins_rust_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, RUST_CI);
+    let v = check_local_ci_parity(root);
+    assert_eq!(v.len(), 1);
+    assert_eq!(v[0].spec_section, "§10.5");
+    assert!(
+        v[0].message
+            .contains("missing local toolchain pin for Rust")
+    );
+    assert!(v[0].message.contains("rust-toolchain.toml"));
+}
+
+#[test]
+fn rust_toolchain_bare_file_accepted() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, RUST_CI);
+    // Legacy single-line file, no `.toml` extension.
+    fs::write(root.join("rust-toolchain"), "1.88.0\n").unwrap();
+    assert!(check_local_ci_parity(root).is_empty());
+}
+
+#[test]
+fn rust_nightly_channel_string_equality() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, "      - uses: dtolnay/rust-toolchain@nightly\n");
+    fs::write(
+        root.join("rust-toolchain.toml"),
+        "[toolchain]\nchannel = \"nightly\"\n",
+    )
+    .unwrap();
+    assert!(check_local_ci_parity(root).is_empty());
+}
+
+#[test]
+fn python_version_matching_ci_is_ok() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, PYTHON_CI);
+    fs::write(root.join(".python-version"), "3.12\n").unwrap();
+    assert!(check_local_ci_parity(root).is_empty());
+}
+
+#[test]
+fn python_version_missing_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, PYTHON_CI);
+    let v = check_local_ci_parity(root);
+    assert_eq!(v.len(), 1);
+    assert!(v[0].message.contains("Python"));
+    assert!(v[0].message.contains(".python-version"));
+}
+
+#[test]
+fn python_local_more_specific_is_ok() {
+    // Local 3.12.4 must match CI 3.12 — local is allowed to be more specific.
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, PYTHON_CI);
+    fs::write(root.join(".python-version"), "3.12.4\n").unwrap();
+    assert!(check_local_ci_parity(root).is_empty());
+}
+
+#[test]
+fn python_different_minor_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, PYTHON_CI);
+    fs::write(root.join(".python-version"), "3.11\n").unwrap();
+    let v = check_local_ci_parity(root);
+    assert_eq!(v.len(), 1);
+    assert!(v[0].message.contains("Python"));
+}
+
+#[test]
+fn node_nvmrc_matching_is_ok() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, NODE_CI);
+    fs::write(root.join(".nvmrc"), "24\n").unwrap();
+    assert!(check_local_ci_parity(root).is_empty());
+}
+
+#[test]
+fn node_node_version_alt_file_accepted() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, NODE_CI);
+    fs::write(root.join(".node-version"), "24\n").unwrap();
+    assert!(check_local_ci_parity(root).is_empty());
+}
+
+#[test]
+fn node_nvmrc_and_node_version_disagree_is_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, NODE_CI);
+    fs::write(root.join(".nvmrc"), "24\n").unwrap();
+    fs::write(root.join(".node-version"), "22\n").unwrap();
+    let v = check_local_ci_parity(root);
+    // One "pins disagree" violation + one "does not match CI" violation for
+    // the .node-version file. We only require at least one §10.5 violation.
+    assert!(!v.is_empty());
+    assert!(v.iter().all(|x| x.spec_section == "§10.5"));
+    assert!(v.iter().any(|x| x.message.contains("disagree")));
+}
+
+#[test]
+fn node_lts_alias_requires_string_equality() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    // CI pinned to a numeric "24"; local uses an alias that can't be verified.
+    write_ci_workflow(root, NODE_CI);
+    fs::write(root.join(".nvmrc"), "lts/iron\n").unwrap();
+    let v = check_local_ci_parity(root);
+    assert_eq!(v.len(), 1);
+    assert!(v[0].message.contains("Node"));
+}
+
+#[test]
+fn go_version_file_matching_is_ok() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, GO_CI);
+    fs::write(root.join(".go-version"), "1.22\n").unwrap();
+    assert!(check_local_ci_parity(root).is_empty());
+}
+
+#[test]
+fn go_mod_directive_accepted_as_pin() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, GO_CI);
+    fs::write(root.join("go.mod"), "module example.com/x\n\ngo 1.22\n").unwrap();
+    assert!(check_local_ci_parity(root).is_empty());
+}
+
+#[test]
+fn go_mod_1_22_0_matches_ci_1_22() {
+    // Patch-tolerant: local `1.22.0` should match CI `1.22`.
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(root, GO_CI);
+    fs::write(root.join("go.mod"), "module example.com/x\n\ngo 1.22.0\n").unwrap();
+    assert!(check_local_ci_parity(root).is_empty());
+}
+
+#[test]
+fn generic_repo_with_no_ci_toolchain_has_no_parity_violations() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    write_ci_workflow(
+        root,
+        "name: CI\njobs:\n  noop:\n    runs-on: ubuntu-latest\n    steps:\n      - run: make test\n",
+    );
+    assert!(check_local_ci_parity(root).is_empty());
+}
+
+#[test]
+fn toolchain_eq_numeric_patch_tolerance() {
+    assert!(toolchain_eq("Go", "1.22", "1.22.0"));
+    assert!(toolchain_eq("Rust", "1.88.0", "1.88"));
+    assert!(!toolchain_eq("Go", "1.22", "1.23"));
+}
+
+#[test]
+fn toolchain_eq_non_numeric_requires_exact_match() {
+    assert!(toolchain_eq("Rust", "nightly", "nightly"));
+    assert!(!toolchain_eq("Rust", "nightly", "stable"));
+    assert!(!toolchain_eq("Node", "24", "lts/iron"));
 }
 
 // --- §20 test organization checks ---

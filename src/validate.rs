@@ -211,6 +211,13 @@ pub fn run(path: &Path) -> Result<Report> {
         }
     }
 
+    // §10.5 Local/CI environment parity. For each language the CI
+    // workflows pin, a matching root-level pin file must exist and its
+    // version must agree with CI.
+    for v in check_local_ci_parity(&path) {
+        report.violations.push(v);
+    }
+
     // PR + issue templates (§15).
     for f in [
         ".github/PULL_REQUEST_TEMPLATE.md",
@@ -433,12 +440,11 @@ fn find_value_after(lines: &[&str], anchor_idx: usize, key: &str, window: usize)
     None
 }
 
-/// Scan a workflow file for language toolchain setup blocks and return a
-/// violation for every one that uses a floating specifier or pins below
-/// the spec minimum. Absent toolchains do **not** produce a violation —
-/// a Rust-only project has no `actions/setup-node` block, and that is
-/// fine.
-pub fn check_toolchain_versions(file: &str, content: &str) -> Vec<Violation> {
+/// Scan a workflow YAML for language toolchain setup blocks and return
+/// `(language, pinned-version)` for every one found. No judgment about
+/// floors or floating specifiers — that lives in [`check_toolchain_versions`].
+/// Used by both §10.3 (version minimums) and §10.5 (local/CI parity).
+pub fn detect_ci_toolchains(content: &str) -> Vec<(&'static str, String)> {
     let mut out = Vec::new();
     let lines: Vec<&str> = content.lines().collect();
 
@@ -450,9 +456,7 @@ pub fn check_toolchain_versions(file: &str, content: &str) -> Vec<Violation> {
                 .chars()
                 .take_while(|c| !c.is_whitespace() && *c != '#')
                 .collect();
-            if let Some(v) = evaluate("Rust", &spec, file) {
-                out.push(v);
-            }
+            out.push(("Rust", spec));
             continue;
         }
 
@@ -467,15 +471,28 @@ pub fn check_toolchain_versions(file: &str, content: &str) -> Vec<Violation> {
         for (needle, lang, key) in setup {
             if trimmed.contains(needle) {
                 if let Some(spec) = find_value_after(&lines, i, key, 6) {
-                    if let Some(v) = evaluate(lang, &spec, file) {
-                        out.push(v);
-                    }
+                    out.push((lang, spec));
                 }
                 break;
             }
         }
     }
 
+    out
+}
+
+/// Scan a workflow file for language toolchain setup blocks and return a
+/// violation for every one that uses a floating specifier or pins below
+/// the spec minimum. Absent toolchains do **not** produce a violation —
+/// a Rust-only project has no `actions/setup-node` block, and that is
+/// fine.
+pub fn check_toolchain_versions(file: &str, content: &str) -> Vec<Violation> {
+    let mut out = Vec::new();
+    for (lang, spec) in detect_ci_toolchains(content) {
+        if let Some(v) = evaluate(lang, &spec, file) {
+            out.push(v);
+        }
+    }
     out
 }
 
@@ -506,6 +523,243 @@ fn evaluate(lang: &str, spec: &str, file: &str) -> Option<Violation> {
             ),
         }),
     }
+}
+
+/// §10.5 Local/CI environment parity. For each language the CI workflows
+/// pin, the repo must commit a matching root-level pin file whose version
+/// agrees with CI. Returns one violation per drift.
+///
+/// CI is the source of truth; local files follow. A repo whose CI pins
+/// no language toolchain (pure-docs / `Generic`) is a no-op.
+pub fn check_local_ci_parity(path: &Path) -> Vec<Violation> {
+    let mut out = Vec::new();
+
+    // Collect CI-pinned (lang, version) from both workflows, deduped.
+    let mut ci: Vec<(&'static str, String)> = Vec::new();
+    for w in &["ci.yml", "release.yml"] {
+        let p = path.join(".github/workflows").join(w);
+        if let Ok(content) = std::fs::read_to_string(&p) {
+            for (lang, spec) in detect_ci_toolchains(&content) {
+                if !ci.iter().any(|(l, s)| *l == lang && s == &spec) {
+                    ci.push((lang, spec));
+                }
+            }
+        }
+    }
+    if ci.is_empty() {
+        return out;
+    }
+
+    // Keep the first CI pin per language; if CI workflows disagree, that
+    // is a §10.3 concern (handled by `check_toolchain_versions`), not §10.5.
+    let mut seen_langs: Vec<&'static str> = Vec::new();
+    for (lang, spec) in ci {
+        if seen_langs.contains(&lang) {
+            continue;
+        }
+        seen_langs.push(lang);
+        check_parity_for_lang(path, lang, &spec, &mut out);
+    }
+
+    out
+}
+
+fn check_parity_for_lang(path: &Path, lang: &str, ci_version: &str, out: &mut Vec<Violation>) {
+    let pins = read_local_pins(path, lang);
+
+    if pins.is_empty() {
+        out.push(Violation {
+            spec_section: "§10.5",
+            message: format!(
+                "missing local toolchain pin for {lang} (CI pins {ci_version}); \
+                 commit {} at the repo root — see §10.5",
+                expected_pin_filename(lang)
+            ),
+        });
+        return;
+    }
+
+    // If multiple pin files exist for the same language, they must agree
+    // with each other before we compare against CI.
+    if pins.len() > 1 {
+        let first = &pins[0].1;
+        for (file, ver) in pins.iter().skip(1) {
+            if !toolchain_eq(lang, first, ver) {
+                out.push(Violation {
+                    spec_section: "§10.5",
+                    message: format!(
+                        "local toolchain pins disagree: {}={} vs {}={}",
+                        pins[0].0, first, file, ver
+                    ),
+                });
+            }
+        }
+    }
+
+    for (file, ver) in &pins {
+        if !toolchain_eq(lang, ci_version, ver) {
+            out.push(Violation {
+                spec_section: "§10.5",
+                message: format!(
+                    "{file} pins {lang} {ver} but CI pins {ci_version}; \
+                     local and CI must match (§10.5)"
+                ),
+            });
+        }
+    }
+}
+
+/// Human-readable list of accepted pin filenames for a language, used in
+/// violation messages.
+fn expected_pin_filename(lang: &str) -> &'static str {
+    match lang {
+        "Rust" => "rust-toolchain.toml (or rust-toolchain)",
+        "Python" => ".python-version",
+        "Node" => ".nvmrc (or .node-version)",
+        "Go" => ".go-version (or a `go` directive in go.mod)",
+        _ => "a root-level toolchain pin file",
+    }
+}
+
+/// Read every local pin file that applies to `lang`. Returns
+/// `(filename, parsed-version)` pairs; empty if none are present.
+fn read_local_pins(path: &Path, lang: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    match lang {
+        "Rust" => {
+            if let Some(v) = read_rust_toolchain(&path.join("rust-toolchain.toml")) {
+                out.push(("rust-toolchain.toml".to_string(), v));
+            }
+            if let Some(v) = read_rust_toolchain(&path.join("rust-toolchain")) {
+                out.push(("rust-toolchain".to_string(), v));
+            }
+        }
+        "Python" => {
+            if let Some(v) = read_first_value(&path.join(".python-version")) {
+                out.push((".python-version".to_string(), v));
+            }
+        }
+        "Node" => {
+            if let Some(v) = read_first_value(&path.join(".nvmrc")) {
+                out.push((".nvmrc".to_string(), v));
+            }
+            if let Some(v) = read_first_value(&path.join(".node-version")) {
+                out.push((".node-version".to_string(), v));
+            }
+        }
+        "Go" => {
+            if let Some(v) = read_first_value(&path.join(".go-version")) {
+                out.push((".go-version".to_string(), v));
+            } else if let Some(v) = read_go_mod_directive(&path.join("go.mod")) {
+                out.push(("go.mod".to_string(), v));
+            }
+        }
+        _ => {}
+    }
+    out
+}
+
+/// Parse a `rust-toolchain.toml` (or legacy `rust-toolchain`) and return the
+/// channel. Accepts:
+///   - `[toolchain]` table with `channel = "..."`
+///   - bare `channel = "..."` at the top of the file
+///   - legacy single-line `rust-toolchain` file containing just the channel
+fn read_rust_toolchain(p: &Path) -> Option<String> {
+    let content = std::fs::read_to_string(p).ok()?;
+    for line in content.lines() {
+        let t = line.trim();
+        if t.is_empty() || t.starts_with('#') || t.starts_with('[') {
+            continue;
+        }
+        if let Some(rest) = t.strip_prefix("channel") {
+            let rest = rest.trim_start();
+            if let Some(rest) = rest.strip_prefix('=') {
+                return Some(rest.trim().trim_matches('"').trim_matches('\'').to_string());
+            }
+        }
+        // Legacy bare file: first non-comment, non-empty, non-TOML line is
+        // the channel itself.
+        return Some(t.trim_matches('"').trim_matches('\'').to_string());
+    }
+    None
+}
+
+/// First non-blank, non-comment line, with surrounding whitespace and
+/// quotes trimmed. Suitable for `.python-version`, `.nvmrc`,
+/// `.node-version`, `.go-version`.
+fn read_first_value(p: &Path) -> Option<String> {
+    let content = std::fs::read_to_string(p).ok()?;
+    for line in content.lines() {
+        let t = line.trim();
+        if t.is_empty() || t.starts_with('#') {
+            continue;
+        }
+        return Some(t.trim_matches('"').trim_matches('\'').to_string());
+    }
+    None
+}
+
+/// Extract the `go <version>` directive from a `go.mod` file.
+fn read_go_mod_directive(p: &Path) -> Option<String> {
+    let content = std::fs::read_to_string(p).ok()?;
+    for line in content.lines() {
+        let t = line.trim();
+        if let Some(rest) = t.strip_prefix("go ") {
+            return Some(rest.trim().to_string());
+        }
+    }
+    None
+}
+
+/// Compare a CI toolchain spec against a local pin spec. The rule is
+/// permissive about harmless shapes (trailing `.0`, local Python patch
+/// level, local Rust channel written as a quoted full version) and
+/// strict about everything else. Non-numeric channels must match
+/// byte-for-byte.
+pub fn toolchain_eq(lang: &str, ci: &str, local: &str) -> bool {
+    let ci = ci.trim_matches('"').trim_matches('\'').trim();
+    let local = local.trim_matches('"').trim_matches('\'').trim();
+
+    let ci_numeric = is_numeric_version(ci);
+    let local_numeric = is_numeric_version(local);
+    if !ci_numeric || !local_numeric {
+        return ci == local;
+    }
+
+    // Python: local may be more specific than CI (3.12.4 vs 3.12) but the
+    // major.minor prefix must match.
+    if lang == "Python" {
+        let ci_mm = major_minor(ci);
+        let local_mm = major_minor(local);
+        return ci_mm == local_mm;
+    }
+
+    // Everything else: strip a trailing `.0` on either side so `1.22` and
+    // `1.22.0` compare equal, then require string equality.
+    strip_trailing_zero(ci) == strip_trailing_zero(local)
+}
+
+fn is_numeric_version(s: &str) -> bool {
+    !s.is_empty()
+        && s.split('.')
+            .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+}
+
+fn major_minor(s: &str) -> String {
+    let parts: Vec<&str> = s.split('.').collect();
+    match parts.as_slice() {
+        [a, b, ..] => format!("{a}.{b}"),
+        [a] => (*a).to_string(),
+        _ => String::new(),
+    }
+}
+
+fn strip_trailing_zero(s: &str) -> String {
+    let mut parts: Vec<&str> = s.split('.').collect();
+    while parts.len() > 1 && *parts.last().unwrap() == "0" {
+        parts.pop();
+    }
+    parts.join(".")
 }
 
 /// §21 Agent skills. Every repo must ship the canonical `.agent/skills/`
