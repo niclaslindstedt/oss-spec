@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.0.2
+version: 2.1.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -594,14 +594,9 @@ Design constraints:
   (§3) and `CONTRIBUTING.md` "Prerequisites" (§4) so that
   contributors discover them before a CI failure does.
 
-  **Local/CI parity.** The toolchain version pinned in CI **should**
-  match the version developers use locally (e.g. via
-  `rust-toolchain.toml`, `.python-version`, `.node-version`, or
-  `.go-version`). When local and CI environments diverge, code that
-  passes on a developer's machine may break in CI — or vice versa —
-  leading to wasted cycles and eroded trust in the pipeline.
-  Projects should treat their CI configuration as the canonical
-  environment definition and keep local tooling in sync.
+  **Local/CI parity.** The toolchain version pinned in CI must match
+  the version developers use locally — see §10.5 for the required
+  root-level pin files and the per-language examples.
 
 - **Least-privilege workflow permissions.** Every job that publishes
   a release artifact **must** declare an explicit job-level
@@ -659,6 +654,42 @@ in-flight deploys are never cancelled.
 The `pages` workflow is independent of the release pipeline: a
 release does not wait for Pages, and a Pages deploy does not wait for
 a release. Each delivers its own artifact to its own audience.
+
+### 10.5 Local/CI environment parity
+
+CI pins the toolchain (§10.3). Local developer environments must pin
+the same version. When they diverge, `cargo clippy` passes on a
+contributor's laptop running Rust 1.85 and fails on CI running Rust
+1.88 because the newer toolchain ships new lints; the same trap exists
+for every ecosystem (a Python 3.11 test suite that breaks on 3.12, an
+ES2024 syntax that a local Node 22 tolerates and CI Node 24 rejects, a
+`go vet` rule that changes between minor Go releases). Every such
+round-trip through CI costs an hour and erodes trust in the pipeline.
+
+Projects **must** commit a per-language toolchain-pin file at the
+repository root whose version matches the CI `setup-*` specifier. CI
+is the source of truth; local files follow. The pin file is
+picked up automatically by the language's standard version manager the
+moment a contributor `cd`s into the repo, so the right toolchain is
+active before the first command runs.
+
+| Language | Root file                                             | Example body                            | Auto-activated by           |
+|----------|-------------------------------------------------------|-----------------------------------------|-----------------------------|
+| Rust     | `rust-toolchain.toml` (or legacy `rust-toolchain`)    | `[toolchain]`<br>`channel = "1.88.0"`   | `rustup`                    |
+| Python   | `.python-version`                                     | `3.12`                                  | `pyenv`, `uv`, `asdf`, `mise` |
+| Node     | `.nvmrc` and/or `.node-version`                       | `24`                                    | `nvm` (`.nvmrc`), `fnm` / `volta` / `asdf` (`.node-version`) |
+| Go       | `.go-version` (or the `go` directive in `go.mod`)     | `1.22`                                  | `goenv`, `asdf`, `mise`     |
+
+`oss-spec validate` reads the CI workflows, reads the matching root
+pin file, and reports a §10.5 violation when the file is missing or
+its version disagrees with CI. The match is tolerant of harmless
+shapes: a local `1.22.0` matches a CI `1.22`, a local `3.12.4` matches
+a CI `3.12` (patch-level specificity is allowed), and non-numeric
+channels (`nightly`, `lts/iron`) must match byte-for-byte.
+
+Projects whose CI has no language toolchain block (pure-docs
+repositories, `Language::Generic` projects) have nothing to sync and
+are exempt.
 
 ## 11. Documentation and website
 
@@ -1519,6 +1550,9 @@ checked before the first public tag.
 [ ] Default branch protected with status checks         (§10.2)
 [ ] Makefile with build/test/lint/fmt/website targets   (§9)
 [ ] CI workflow: build, test, lint, fmt-check           (§10.1)
+[ ] Local toolchain pinned matching CI
+    (rust-toolchain.toml / .python-version /
+    .nvmrc / .node-version / .go-version)               (§10.5)
 [ ] version-bump workflow (workflow_dispatch, pushes
     `v*` tag via RELEASE_TOKEN)                         (§10.3)
 [ ] release workflow triggered by `push: tags: ['v*']`,
