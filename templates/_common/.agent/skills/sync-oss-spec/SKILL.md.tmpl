@@ -1,0 +1,191 @@
+---
+name: sync-oss-spec
+description: "Use when {{ name }} may have drifted from OSS_SPEC.md. Fetches the latest spec from GitHub, walks its mandates, and fixes each violation so the repository keeps conforming. Runs standalone — it does not shell out to any external validator binary."
+---
+
+# Syncing {{ name }} with OSS_SPEC.md
+
+**Governing spec sections:** the entire `OSS_SPEC.md` (this skill is the propagation channel for every structural mandate), plus §21.5 (which recommends every project claiming conformance to the spec ship a `sync-oss-spec` skill).
+
+`OSS_SPEC.md` is the specification this repository claims to conform to. This skill brings the repository back into conformance whenever the spec moves or the repo drifts. It is fully standalone: it fetches the canonical spec from GitHub, walks the mandates by hand, and fixes each gap it finds on disk. **Do not depend on any external validator binary** — generated projects that do not ship the `oss-spec` CLI must still be able to run this skill end-to-end.
+
+## Tracking mechanism
+
+`.agent/skills/sync-oss-spec/.last-updated` contains the git commit hash of the last successful run. Empty means "never run" — use the repo's initial commit (`git rev-list --max-parents=0 HEAD`) as the baseline.
+
+## Fetch the canonical spec
+
+The upstream source of truth is the `main` branch of `niclaslindstedt/oss-spec`. Pull it into a scratch file at the start of every run:
+
+```sh
+SPEC_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/OSS_SPEC.md"
+SPEC_TMP="$(mktemp -t oss-spec.XXXXXX.md)"
+curl -fsSL "$SPEC_URL" -o "$SPEC_TMP"
+```
+
+If `curl` is unavailable, fall back to `wget -qO "$SPEC_TMP" "$SPEC_URL"`. Never proceed with a stale local copy — a failed fetch is a hard stop, not a silent skip.
+
+Record the upstream spec version so every downstream decision is made against a known target:
+
+```sh
+SPEC_VERSION=$(awk '/^version:/ {print $2; exit}' "$SPEC_TMP")
+echo "upstream OSS_SPEC.md version: $SPEC_VERSION"
+```
+
+Compare the fetched copy against the local one (if any) and overwrite on drift:
+
+```sh
+if [ -f OSS_SPEC.md ]; then
+  diff -u OSS_SPEC.md "$SPEC_TMP" || cp "$SPEC_TMP" OSS_SPEC.md
+else
+  cp "$SPEC_TMP" OSS_SPEC.md
+fi
+```
+
+## Discovery process
+
+1. Read the baseline and list every commit that may have introduced drift since then:
+
+   ```sh
+   BASELINE=$(cat .agent/skills/sync-oss-spec/.last-updated)
+   git log --oneline "$BASELINE"..HEAD
+   git diff --name-only "$BASELINE"..HEAD
+   ```
+
+2. Walk the **structural mandates** in the freshly-fetched spec (`$SPEC_TMP`) and assert each on disk. The checks below mirror every §19 conformance rule in the spec. Run each one and record failures — any output means a violation.
+
+   ```sh
+   # §2/§3/§4/§5/§6/§7/§8.4/§9/§19 — required root files
+   for f in LICENSE README.md CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md \
+            AGENTS.md CHANGELOG.md Makefile .gitignore .editorconfig; do
+     [ -e "$f" ] || echo "MISSING: $f"
+   done
+
+   # §7.1 — AGENTS.md symlinks
+   for link in CLAUDE.md .cursorrules .windsurfrules GEMINI.md \
+               .github/copilot-instructions.md; do
+     [ -L "$link" ] || echo "NOT-A-SYMLINK: $link (must point to AGENTS.md)"
+   done
+
+   # §10/§11/§13.5/§15 — required directories
+   for d in .github/workflows .github/ISSUE_TEMPLATE docs prompts scripts; do
+     [ -d "$d" ] || echo "MISSING-DIR: $d"
+   done
+
+   # §10.1/§10.3/§10.4 — required workflows
+   for w in ci.yml version-bump.yml release.yml pages.yml; do
+     [ -f ".github/workflows/$w" ] || echo "MISSING-WORKFLOW: $w"
+   done
+
+   # §10.3 — no floating toolchain specifiers in CI workflows
+   grep -nE '(rust-toolchain@|(python|node|go)-version:)[^\n]*\b(stable|latest|lts|\*)\b' \
+        .github/workflows/ci.yml .github/workflows/release.yml 2>/dev/null
+
+   # §10.5 — local pin file matches CI. Presence-only check; cross-check
+   # values by eye against ci.yml.
+   [ -f Cargo.toml ]       && { [ -f rust-toolchain.toml ] || echo "MISSING: rust-toolchain.toml"; }
+   [ -f pyproject.toml ] || [ -f setup.py ] && { [ -f .python-version ] || echo "MISSING: .python-version"; }
+   [ -f package.json ]     && { [ -f .nvmrc ] || echo "MISSING: .nvmrc"; }
+   [ -f go.mod ]           && { grep -q '^toolchain ' go.mod || echo "MISSING: go.mod toolchain directive"; }
+
+   # §13.5 — every prompts/<name>/ must have a versioned <major>_<minor>_<patch>.md
+   for d in prompts/*/; do
+     [ -d "$d" ] || continue
+     ls "$d" | grep -qE '^[0-9]+_[0-9]+_[0-9]+\.md$' \
+       || echo "UNVERSIONED-PROMPT: $d"
+   done
+
+   # §15 — issue + PR templates
+   for f in .github/PULL_REQUEST_TEMPLATE.md \
+            .github/ISSUE_TEMPLATE/bug_report.md \
+            .github/ISSUE_TEMPLATE/feature_request.md \
+            .github/ISSUE_TEMPLATE/config.yml \
+            .github/dependabot.yml; do
+     [ -f "$f" ] || echo "MISSING: $f"
+   done
+
+   # §19.4 — central output module (only if the repo has src/ or lib/)
+   if [ -d src ] || [ -d lib ]; then
+     ls src/output.* lib/output.* src/output/ lib/output/ internal/output/ 2>/dev/null \
+       | head -1 | grep -q . || echo "MISSING: central output module (§19.4)"
+   fi
+
+   # §20.2 — every tests/*.<ext> stem must end with _test(s) or Test(s)
+   if [ -d tests ]; then
+     find tests -maxdepth 1 -type f \
+       | grep -vE '(_test(s)?|Test(s)?)\.[^/]+$' \
+       | sed 's/^/BAD-TEST-NAME: /'
+   fi
+
+   # §21 — agent skills tree
+   [ -d .agent/skills ] || echo "MISSING-DIR: .agent/skills"
+   [ "$(readlink .claude/skills)" = "../.agent/skills" ] \
+     || echo "BAD-SYMLINK: .claude/skills -> ../.agent/skills"
+   for d in .agent/skills/*/; do
+     [ -f "$d/SKILL.md" ]      || echo "MISSING: $d/SKILL.md"
+     [ -f "$d/.last-updated" ] || echo "MISSING: $d/.last-updated"
+   done
+   ```
+
+3. For each failure, re-read the relevant section of `$SPEC_TMP` so the fix matches the spec's intent rather than silencing the symptom:
+
+   ```sh
+   # Jump to a section, e.g. §21, in the fetched spec.
+   awk '/^## 21\. /,/^## 22\. /' "$SPEC_TMP"
+   ```
+
+## Mapping table
+
+| Violation spec section | Where to fix it |
+|---|---|
+| §2 missing `LICENSE` | Create `LICENSE` with the SPDX-identified license text and the correct copyright holder |
+| §3 missing `README.md` sections | Edit `README.md`; hand off to `update-readme` if extensive rewording is needed |
+| §4/§5/§6 missing `CONTRIBUTING.md` / `CODE_OF_CONDUCT.md` / `SECURITY.md` | Create the file with the minimum content mandated by the corresponding spec section |
+| §7.1 tool-specific guidance file is not a symlink | Replace the regular file with `ln -s AGENTS.md <path>` (or `ln -s ../AGENTS.md .github/copilot-instructions.md`) |
+| §8.4 missing `CHANGELOG.md` | Create an empty Keep-a-Changelog-formatted file; do **not** hand-author entries |
+| §9 Makefile target missing | Add the missing target to `Makefile` and verify it runs end-to-end |
+| §10.1/§10.3/§10.4 missing workflow | Create `.github/workflows/<file>.yml` |
+| §10.3 floating or under-pinned toolchain | Edit the workflow to pin at or above the minimums declared in the fetched `OSS_SPEC.md` §10.3 table |
+| §10.5 missing pin file / pin ↔ CI mismatch | Add the language's repo-root pin (`rust-toolchain.toml`, `.python-version`, `.nvmrc`, or `go.mod` `toolchain` directive) and align it with `ci.yml` |
+| §11.1 missing `docs/` content | Create the topic file, then hand off to `update-docs` |
+| §11.2 website drift | Regenerate website sources, hand off to `update-website` |
+| §13.5 `prompts/<name>/` has no versioned file | Add `prompts/<name>/1_0_0.md` with the required YAML front matter (`name`, `description`, `version: 1.0.0`) and `## System` / `## User` sections |
+| §15 missing issue / PR templates | Create the templates under `.github/ISSUE_TEMPLATE/` or `.github/PULL_REQUEST_TEMPLATE.md` |
+| §19.4 missing central output module | Add `src/output.<ext>` (or `lib/output.<ext>`) with semantic helpers (`status`, `info`, `warn`, `error`, `header`) and route existing prints through it |
+| §20.2 test file stem does not end with `_test(s)` / `Test(s)` | Rename the file so the stem matches the regex `_?[Tt]ests?$` |
+| §21.2 `.claude/skills` is not a symlink | Replace it with `ln -s ../.agent/skills .claude/skills` |
+| §21.3 SKILL.md missing front matter fields | Add `name:` / `description:` to the front matter |
+| §21.4 missing `.last-updated` | `git rev-parse HEAD > .agent/skills/<skill>/.last-updated` |
+| §21.5 missing required `update-*` skill | Create `.agent/skills/<skill>/SKILL.md` (+ `.last-updated`); register it in `maintenance/SKILL.md` |
+| §21.6 `maintenance` skill registry row missing | Add the row in `maintenance/SKILL.md`, alphabetical, with a run-order slot |
+
+## Update checklist
+
+- [ ] Fetch `$SPEC_URL` into `$SPEC_TMP`; abort on failure
+- [ ] Compare `$SPEC_TMP` with local `OSS_SPEC.md`; overwrite the local copy on drift
+- [ ] Read the baseline from `.last-updated` and diff the working tree
+- [ ] Walk every structural check in "Discovery process" step 2 and collect failures
+- [ ] For each failure, read the matching section of `$SPEC_TMP` and apply the fix
+- [ ] Re-run every shell check from step 2 — it must produce no output
+- [ ] Run `make fmt`, `make lint`, `make test`
+- [ ] Write the new baseline:
+
+      git rev-parse HEAD > .agent/skills/sync-oss-spec/.last-updated
+
+## Verification
+
+1. Every shell check in "Discovery process" step 2 prints nothing.
+2. `diff OSS_SPEC.md "$SPEC_TMP"` is empty.
+3. `make test` passes.
+4. Every failure seen before this run has a matching edit in the diff — no violation was silenced by loosening a check.
+5. `.last-updated` was rewritten with the current `HEAD`.
+
+## Skill self-improvement
+
+After a run, extend this file:
+
+1. **Grow the mapping table** whenever a new §X.Y section starts producing violations that the table does not yet cover.
+2. **Extend the step-2 shell checks** whenever a new mandate lands upstream — the checks must stay a faithful, binary-free mirror of the spec's structural rules.
+3. **Record fix recipes** (exact commands or edit patterns) for violations that required more than a one-line change.
+4. **Flag recurring drift** — if the same violation keeps coming back, either a CI check or a different skill's mapping table is missing a row. Fix the upstream cause, not just the symptom.
+5. **Commit the skill edit** alongside the repo fixes so the knowledge compounds.

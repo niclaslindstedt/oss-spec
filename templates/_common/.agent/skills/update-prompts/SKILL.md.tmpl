@@ -5,6 +5,8 @@ description: "Use when LLM prompts under prompts/ may be stale. Discovers change
 
 # Updating the LLM prompts
 
+**Governing spec sections:** §13.5 (LLM prompts — versioned `prompts/<name>/<major>_<minor>_<patch>.md` files with required YAML front matter), §21.5 (this skill is mandated because `prompts/` is a drift-prone artifact whenever a project ships LLM-driven behaviour).
+
 Every LLM-driven step in {{ name }} is defined by a versioned prompt under `prompts/<name>/<major>_<minor>_<patch>.md` with a required YAML front matter block (`name`, `description`, `version`) — see §13.5 of `OSS_SPEC.md`. Prompt files are **immutable once committed**: every change lands as a new file at a new semver (patch for wording, minor for additive changes, major for breaking rewrites). Prompts drift whenever the code that renders them, the sources of truth they embed, or the section numbering they reference changes.
 
 ## Tracking mechanism
