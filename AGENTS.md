@@ -83,6 +83,7 @@ When you change… | Update…
 A CLI flag or subcommand | `man/oss-spec.md`, `docs/agent/help-agent.txt`, `agent_help::COMMANDS_TABLE`, `agent_help::COMMAND_SPECS`, `README.md` Usage table
 A template file | `templates/_common/` (or overlay) — and re-run `oss-spec validate` against a generated demo
 A §19 rule | `src/validate.rs`, `OSS_SPEC.md`, this `## Documentation sync points` table
+A toolchain version bump (Rust / Python / Node / Go) | the repo-root pin file (`rust-toolchain.toml`, `.python-version`, `.nvmrc`, or `go.mod`'s `toolchain` directive), its `templates/<lang>/` counterpart, `templates/_common/.github/workflows/ci.yml.tmpl`, and `MIN_TOOLCHAIN_VERSIONS` in `src/validate.rs` (§10.5 local/CI parity)
 The list of supported languages | `manifest::Language`, `templates/<lang>/`, `Makefile.tmpl`, `ci.yml.tmpl`, `dependabot.yml.tmpl`
 `OSS_SPEC.md` | Bump the `version` field in its YAML front matter (semver — `feat!`/breaking bumps major, `feat` or new mandate bumps minor, pure clarifications bump patch). Also update `README.md`, `docs/`, `templates/_common/AGENTS.md.tmpl`, and this file as needed. The spec is mirrored into generated projects via the symlink `templates/_common/OSS_SPEC.md -> ../../OSS_SPEC.md`, so there is only one source of truth.
 
