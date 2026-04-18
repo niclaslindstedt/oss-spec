@@ -23,6 +23,7 @@ The registry is the single source of truth for which sync skills exist in this r
 |---|---|---|
 | `update-docs`     | `docs/*.md` vs. source of truth            | 1 |
 | `update-readme`   | `README.md` vs. current public surface     | 2 |
+| `update-prompts`  | `prompts/**` vs. code and embedded sources | 3 |
 
 Run order matters: upstream fixes must land before downstream skills read them. A skill that depends on README text (for example, an `update-website` skill if you add one) must run *after* `update-readme`.
 

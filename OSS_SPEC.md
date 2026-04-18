@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.1.0
+version: 2.2.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -1092,24 +1092,46 @@ version inside it:
 ```
 prompts/
 ├── interpret-prompt/
-│   ├── 1_0.md
-│   └── 1_1.md
+│   ├── 1_0_0.md
+│   └── 1_1_0.md
 ├── fix-conformance/
-│   └── 1_0.md
+│   ├── 1_0_0.md
+│   └── 1_1_0.md
 └── …
 ```
 
-**File name.** `<major>_<minor>.md`. The version number is bumped on
-every meaningful change to the prompt: `1_0` → `1_1` for an in-place
-edit, `1_x` → `2_0` for a breaking rewrite. Old versions are kept on
-disk so behavior changes can be diffed and bisected. Loaders must
-always pick the highest version of a prompt unless explicitly pinned.
+**File name.** `<major>_<minor>_<patch>.md`, matching [semver]
+(https://semver.org/). Bump **patch** for wording fixes that do not
+change the contract (typos, clarifications). Bump **minor** for
+non-breaking additions (new placeholders, expanded scope, new
+guidance bullets). Bump **major** for breaking rewrites (removed
+placeholders, changed JSON schema, fundamentally new task). Loaders
+must always pick the highest version of a prompt unless explicitly
+pinned.
 
-**File content.** Each prompt file is plain Markdown with two required
-section headings, in this order:
+**Never edit an existing versioned file.** Once a `<major>_<minor>_
+<patch>.md` file is committed, its contents are immutable — every
+change, no matter how small, lands as a new file at a new version.
+This keeps every prompt a point-in-time artifact that can be diffed,
+bisected, and blamed. The only time you may edit an existing file is
+to correct a bug *before* it has ever been shipped or referenced from
+a tagged release.
+
+**Required YAML front matter.** Every prompt file must begin with a
+YAML front-matter block declaring the prompt's `name`, `description`,
+and `version`. The `version` value must match the filename stem
+(e.g. `1_0_0.md` → `version: 1.0.0`). Loaders must strip the front
+matter before passing the prompt to the model — it is metadata, not
+instruction content.
 
 ```markdown
-# <prompt-name> — v<major>.<minor>
+---
+name: <prompt-name>
+description: "<one-sentence description of what this prompt does>"
+version: <major>.<minor>.<patch>
+---
+
+# <prompt-name>
 
 ## System
 
@@ -1124,9 +1146,9 @@ loader renders with runtime values…
 The `## System` section is sent verbatim as the system prompt. The
 `## User` section is rendered with whatever templating engine the
 project already uses (this repo uses minijinja) and sent as the user
-message. Anything outside those two sections (the `# Title` line,
-notes, examples) is ignored by the loader and is purely for humans
-reading the file.
+message. The YAML front matter, the `# Title` heading, and any other
+prose outside the two required sections are ignored by the loader and
+exist purely for humans reading the file.
 
 **Why.** Inline prompts are invisible to reviewers, impossible to diff
 across versions without reading source, and indistinguishable from
@@ -1577,8 +1599,10 @@ checked before the first public tag.
 [ ] pages workflow deploys website on every main push   (§10.4, §11.2)
 [ ] Website staleness CI check                          (§11.2)
 [ ] examples/ (if applicable) exercised by CI           (§13)
-[ ] prompts/<name>/<major>_<minor>.md for every LLM
-    prompt the project sends (if applicable)            (§13.5)
+[ ] prompts/<name>/<major>_<minor>_<patch>.md for every
+    LLM prompt the project sends (if applicable)        (§13.5)
+[ ] Every prompt has YAML front matter with name,
+    description, and version fields matching the stem  (§13.5)
 [ ] Dependabot / Renovate configured                    (§14)
 [ ] Secret scanning enabled                             (§14)
 [ ] CI actions pinned by SHA                            (§14)

@@ -25,8 +25,9 @@ The registry is the single source of truth for which sync skills exist in this r
 | `update-manpages` | `man/oss-spec.md` vs. `src/cli.rs` clap definitions                | 2 |
 | `update-docs`     | `docs/*.md` vs. source of truth                                    | 3 |
 | `update-readme`   | `README.md` vs. CLI, spec, and supported languages                 | 4 |
-| `update-website`  | `website/` vs. `README.md`, `docs/`, and `OSS_SPEC.md`             | 5 |
-| `sync-oss-spec`   | Repo contents vs. `OSS_SPEC.md` (runs `oss-spec validate .`)       | 6 — run last, it verifies that every upstream fix landed correctly |
+| `update-prompts`  | `prompts/**` vs. `OSS_SPEC.md`, validator, manifest enums, ai glue | 5 |
+| `update-website`  | `website/` vs. `README.md`, `docs/`, and `OSS_SPEC.md`             | 6 |
+| `sync-oss-spec`   | Repo contents vs. `OSS_SPEC.md` (runs `oss-spec validate .`)       | 7 — run last, it verifies that every upstream fix landed correctly |
 
 Run order matters: upstream fixes must land before downstream skills read them. A skill that depends on README text (for example, `update-website`) must run *after* `update-readme`.
 

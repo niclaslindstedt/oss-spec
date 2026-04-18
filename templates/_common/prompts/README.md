@@ -11,18 +11,25 @@ file rather than as an inline string in source code.
 ```
 prompts/
 └── <prompt-name>/
-    ├── 1_0.md
-    ├── 1_1.md   # in-place edit, bumps minor
-    └── 2_0.md   # breaking rewrite, bumps major
+    ├── 1_0_0.md
+    ├── 1_0_1.md   # wording fix, bumps patch
+    ├── 1_1_0.md   # new placeholder / expanded scope, bumps minor
+    └── 2_0_0.md   # breaking rewrite, bumps major
 ```
 
 ## File format
 
-Each `<major>_<minor>.md` file is plain Markdown with two required
-section headings:
+Each `<major>_<minor>_<patch>.md` file starts with YAML front matter and
+contains two required section headings:
 
 ```markdown
-# <prompt-name> — v<major>.<minor>
+---
+name: <prompt-name>
+description: "<one-sentence description>"
+version: <major>.<minor>.<patch>
+---
+
+# <prompt-name>
 
 ## System
 
@@ -34,16 +41,25 @@ section headings:
 loader renders with runtime values…
 ```
 
-Anything outside the `## System` and `## User` sections is ignored by
-the loader and is purely for humans reading the file.
+The loader strips the YAML front matter before passing the prompt to
+the model — it is metadata, not instruction content. Anything outside
+the `## System` and `## User` sections is also ignored.
 
 ## Versioning rule
 
-- **Minor bump** (`1_0` → `1_1`): in-place edit. Old version stays on
-  disk so behavior changes can be diffed and bisected.
-- **Major bump** (`1_x` → `2_0`): breaking rewrite that callers must be
-  updated for.
-- Loaders pick the highest version unless explicitly pinned.
+Filenames use [semver](https://semver.org/):
+
+- **Patch bump** (`1_0_0` → `1_0_1`): wording fix / typo / clarification.
+- **Minor bump** (`1_0_0` → `1_1_0`): new placeholder, expanded scope,
+  additional guidance.
+- **Major bump** (`1_0_0` → `2_0_0`): breaking rewrite — removed
+  placeholder, changed JSON schema, fundamentally new task.
+
+**Prompts are immutable once committed.** Never edit an existing
+`<major>_<minor>_<patch>.md` file — every change lands as a new file at
+a new version. Keep every prior version on disk so behavior changes can
+be diffed and bisected. Loaders pick the highest version unless
+explicitly pinned.
 
 If this project performs no LLM calls, leave this directory empty
 (this README is enough to satisfy `oss-spec validate`).

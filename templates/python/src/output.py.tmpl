@@ -1,0 +1,28 @@
+"""Central output module for {{ name }} (§19.4).
+
+All user-facing messages route through the semantic helpers below so that
+formatting and routing can change in one place. Raw ``print`` calls must
+not appear outside this module.
+"""
+
+import sys
+
+
+def status(msg: str) -> None:
+    print(f"\u2713  {msg}", file=sys.stderr)
+
+
+def warn(msg: str) -> None:
+    print(f"!  {msg}", file=sys.stderr)
+
+
+def info(msg: str) -> None:
+    print(msg, file=sys.stderr)
+
+
+def header(msg: str) -> None:
+    print(f"== {msg} ==", file=sys.stderr)
+
+
+def error(msg: str) -> None:
+    print(f"\u2717  {msg}", file=sys.stderr)

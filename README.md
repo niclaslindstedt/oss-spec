@@ -6,7 +6,7 @@
 [![release](https://github.com/niclaslindstedt/oss-spec/actions/workflows/release.yml/badge.svg)](https://github.com/niclaslindstedt/oss-spec/actions/workflows/release.yml)
 [![pages](https://github.com/niclaslindstedt/oss-spec/actions/workflows/pages.yml/badge.svg)](https://github.com/niclaslindstedt/oss-spec/actions/workflows/pages.yml)
 [![crates](https://img.shields.io/crates/v/oss-spec.svg)](https://crates.io/crates/oss-spec)
-[![spec](https://img.shields.io/badge/OSS__SPEC-v2.0.2-blueviolet)](OSS_SPEC.md)
+[![spec](https://img.shields.io/badge/OSS__SPEC-v2.2.0-blueviolet)](OSS_SPEC.md)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Why?
