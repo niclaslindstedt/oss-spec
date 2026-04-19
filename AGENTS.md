@@ -44,7 +44,7 @@ src/
 ├── embedded.rs    # include_dir!("templates")
 ├── bootstrap.rs   # walks embedded tree → writes target dir
 ├── git.rs         # git init / gh repo create wrappers
-├── validate.rs    # §19 conformance validator
+├── validate/      # §19 conformance validator (structural, content, toolchain, agent_skills)
 ├── fix.rs         # zag-driven auto-fix agent
 ├── agent_help.rs  # §12 CLI discoverability contract
 └── output.rs      # central logging + styled output (§19 logging)
@@ -61,7 +61,7 @@ Dependency direction is top-down: `main` → `lib` → `cli` → (`interview`, `
 |---|---|
 | New CLI flag / subcommand | `src/cli.rs` (clap) + `src/agent_help.rs` (commands table, COMMAND_SPECS, EXAMPLES) + `man/oss-spec.md` |
 | New template file | `templates/_common/`, `templates/<lang>/`, or `templates/cli/` |
-| New §19 conformance rule | `src/validate.rs` |
+| New §19 conformance rule | `src/validate/` (structural checks in `structural.rs`, content checks in `content.rs`, toolchain in `toolchain.rs`, agent skills in `agent_skills.rs`) |
 | New auto-fix behavior | `src/fix.rs` (zag agent orchestration) |
 | New AI-driven step | `src/ai.rs` (thin wrapper) + caller in `interview.rs` |
 | New language overlay | `templates/<lang>/`, plus `Language` enum variant in `manifest.rs` |
@@ -76,15 +76,21 @@ Dependency direction is top-down: `main` → `lib` → `cli` → (`interview`, `
 - Use `tempfile::tempdir()` for any test that writes files.
 - Snapshot tests use `insta`. The self-conformance test runs `validate::run(".")` against this repo and must always pass.
 
+## Source file size (§20.5)
+
+- Non-test source files must stay under **1000 physical lines**. When a file crosses the limit, the fix is almost always to split by concern — see `src/validate/` for the canonical example (the validator was split into `mod`, `structural`, `content`, `agent_skills`, and `toolchain` for exactly this reason).
+- A file may opt out with an `oss-spec:allow-large-file: <reason>` marker in any comment within its first 20 lines. The reason must be non-empty and genuinely justify the size — reviewers will push back on markers that just paper over a skippable refactor. Valid motivations: generated code, cohesive state machines, third-party snapshots, inherent rule-catalogue density.
+- When `oss-spec fix` runs into a §20.5 violation, it only attempts the easy refactor (extracting an inline `#[cfg(test)]` block, which often resolves both §20 and §20.5 at once). Genuinely large source files are left for a human to split or annotate manually.
+
 ## Documentation sync points
 
 When you change… | Update…
 --- | ---
 A CLI flag or subcommand | `man/oss-spec.md`, `docs/agent/help-agent.txt`, `agent_help::COMMANDS_TABLE`, `agent_help::COMMAND_SPECS`, `README.md` Usage table
 A template file | `templates/_common/` (or overlay) — and re-run `oss-spec validate` against a generated demo
-A §19 rule | `src/validate.rs`, `OSS_SPEC.md`, this `## Documentation sync points` table
-A toolchain version bump (Rust / Python / Node / Go) | the repo-root pin file (`rust-toolchain.toml`, `.python-version`, `.nvmrc`, or `go.mod`'s `toolchain` directive), its `templates/<lang>/` counterpart, `templates/_common/.github/workflows/ci.yml.tmpl`, and `MIN_TOOLCHAIN_VERSIONS` in `src/validate.rs` (§10.5 local/CI parity, §10.3 minimums)
-An LLM prompt's source of truth (spec text, validator rule, manifest enum, rendering-context key) | A new file under `prompts/<name>/<major>_<minor>_<patch>.md` (never edit an existing versioned file — bump semver and create a new one per §13.5). Run the `update-prompts` skill or let the `maintenance` sweep pick it up.
+A §19 rule | `src/validate/` (appropriate submodule), `OSS_SPEC.md`, this `## Documentation sync points` table
+A toolchain version bump (Rust / Python / Node / Go) | the repo-root pin file (`rust-toolchain.toml`, `.python-version`, `.nvmrc`, or `go.mod`'s `toolchain` directive), its `templates/<lang>/` counterpart, `templates/_common/.github/workflows/ci.yml.tmpl`, and `MIN_TOOLCHAIN_VERSIONS` in `src/validate/toolchain.rs` (§10.5 local/CI parity, §10.3 minimums)
+An LLM prompt's source of truth (spec text, validator rule, manifest enum, rendering-context key) | A new file under `prompts/<name>/<major>_<minor>_<patch>.md` (never edit an existing versioned file — bump semver and create a new one per §13.5). Touch `src/prompts.rs` afterwards (e.g. `touch src/prompts.rs`) so the `include_dir!` proc-macro picks up the new embedded file on the next build. Run the `update-prompts` skill or let the `maintenance` sweep pick it up.
 The list of supported languages | `manifest::Language`, `templates/<lang>/`, `Makefile.tmpl`, `ci.yml.tmpl`, `dependabot.yml.tmpl`
 `OSS_SPEC.md` | Bump the `version` field in its YAML front matter (semver — `feat!`/breaking bumps major, `feat` or new mandate bumps minor, pure clarifications bump patch). Also update `README.md`, `docs/`, `templates/_common/AGENTS.md.tmpl`, and this file as needed. The spec is mirrored into generated projects via the symlink `templates/_common/OSS_SPEC.md -> ../../OSS_SPEC.md`, so there is only one source of truth.
 

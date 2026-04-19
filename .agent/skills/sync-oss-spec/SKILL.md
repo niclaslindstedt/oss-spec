@@ -21,10 +21,10 @@ This skill is complementary to `update-spec`. `update-spec` propagates a spec ed
    BASELINE=$(cat .agent/skills/sync-oss-spec/.last-updated)
    ```
 
-2. Check whether `OSS_SPEC.md` or `src/validate.rs` changed since the baseline — those are the two inputs that can invalidate previously-passing conformance:
+2. Check whether `OSS_SPEC.md` or `src/validate/` changed since the baseline — those are the two inputs that can invalidate previously-passing conformance:
 
    ```sh
-   git log --oneline "$BASELINE"..HEAD -- OSS_SPEC.md src/validate.rs
+   git log --oneline "$BASELINE"..HEAD -- OSS_SPEC.md src/validate/
    git diff --name-only "$BASELINE"..HEAD
    ```
 
@@ -50,7 +50,7 @@ This skill is complementary to `update-spec`. `update-spec` propagates a spec ed
 | §8.4 missing `CHANGELOG.md` | Create an empty Keep-a-Changelog-formatted file; do **not** hand-author entries |
 | §9 Makefile target missing | Add the missing target to `Makefile` and verify it runs end-to-end |
 | §10.1/§10.3/§10.4 missing workflow | Create `.github/workflows/<file>.yml`; cross-reference `templates/_common/.github/workflows/` for the canonical template |
-| §10.3 floating or under-pinned toolchain | Edit the workflow to pin at or above the spec minimums in `MIN_TOOLCHAIN_VERSIONS` (`validate.rs`) |
+| §10.3 floating or under-pinned toolchain | Edit the workflow to pin at or above the spec minimums in `MIN_TOOLCHAIN_VERSIONS` (`src/validate/toolchain.rs`) |
 | §11.1 missing `docs/` content | Create the topic file, then run `update-docs` |
 | §11.2 website drift | Run `make website` and inspect `website/src/generated/`; follow up with `update-website` |
 | §13.5 `prompts/<name>/` has no versioned file | Add `prompts/<name>/1_0_0.md` with the required YAML front matter (`name`, `description`, `version: 1.0.0`) and `## System` / `## User` sections |
@@ -58,6 +58,7 @@ This skill is complementary to `update-spec`. `update-spec` propagates a spec ed
 | §19 raw print statement outside `src/output.rs` | Route the call through `output::status` / `output::info` / `output::warn` / `output::error` |
 | §20 inline `#[cfg(test)] mod { … }` block in `src/` | Move the tests to `tests/<module>_test.rs` and replace with `#[cfg(test)] mod <name>_test;` or delete the gate |
 | §20.2 test file stem does not end with `_test(s)` / `Test(s)` | Rename the file so the stem matches the regex `_?[Tt]ests?$` |
+| §20.5 source file exceeds 1000 lines | **Preferred:** split the file by concern into sibling modules / helpers (see `src/validate/` for the canonical example — one submodule per coherent group of checks). **Common easy case:** if the file also has a §20 inline-test violation, extracting the test block to `tests/<stem>_test.<ext>` usually resolves both at once. **Escape hatch:** if the size is genuinely justified (generated code, cohesive state machine, third-party snapshot), add `oss-spec:allow-large-file: <reason>` in any comment within the file's first 20 lines — the reason must be non-empty. |
 | §21.2 `.claude/skills` is not a symlink | Replace it with `ln -s ../.agent/skills .claude/skills` |
 | §21.3 SKILL.md missing front matter fields | Add `name:` / `description:` to the front matter |
 | §21.4 missing `.last-updated` | Touch the file and record the current `HEAD`: `git rev-parse HEAD > .agent/skills/<skill>/.last-updated` |
@@ -66,7 +67,7 @@ This skill is complementary to `update-spec`. `update-spec` propagates a spec ed
 
 ## Update checklist
 
-- [ ] Read the baseline from `.last-updated` and diff `OSS_SPEC.md` / `src/validate.rs`
+- [ ] Read the baseline from `.last-updated` and diff `OSS_SPEC.md` / `src/validate/`
 - [ ] Run `cargo run -q -- validate --no-ai` and record every structural violation
 - [ ] Run `cargo run -q -- validate .` and record every AI finding worth acting on
 - [ ] Walk the mapping table and fix each violation at its source

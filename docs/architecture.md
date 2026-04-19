@@ -14,7 +14,12 @@ src/
 ├── embedded.rs    # include_dir!("templates")
 ├── bootstrap.rs   # walks embedded tree → writes target dir
 ├── git.rs         # git init / gh repo create wrappers
-├── validate.rs    # §19 conformance validator
+├── validate/      # §19 conformance validator
+│   ├── mod.rs         # Report/Violation types and orchestrator
+│   ├── structural.rs  # required files/dirs/symlinks/workflows
+│   ├── content.rs     # §19.4 output module, §20 inline tests, §20.5 file size
+│   ├── agent_skills.rs# §21 .agent/skills/ tree and per-skill checks
+│   └── toolchain.rs   # §10.3/§10.5 pin-file and CI parity
 ├── fix.rs         # zag-driven auto-fix agent
 ├── agent_help.rs  # §12 CLI discoverability contract
 └── output.rs      # central logging + styled output (§19 logging)

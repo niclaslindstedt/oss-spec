@@ -153,6 +153,7 @@ fi
 | §15 missing issue / PR templates | Create the templates under `.github/ISSUE_TEMPLATE/` or `.github/PULL_REQUEST_TEMPLATE.md` |
 | §19.4 missing central output module | Add `src/output.<ext>` (or `lib/output.<ext>`) with semantic helpers (`status`, `info`, `warn`, `error`, `header`) and route existing prints through it |
 | §20.2 test file stem does not end with `_test(s)` / `Test(s)` | Rename the file so the stem matches the regex `_?[Tt]ests?$` |
+| §20.5 source file exceeds 1000 lines | **Preferred:** split the file by concern into sibling modules / helpers. **Common easy case:** if the file also has a §20 inline-test violation, extracting the test block to `tests/<stem>_test.<ext>` usually resolves both at once. **Escape hatch:** add `oss-spec:allow-large-file: <reason>` in a comment within the first 20 lines — the reason must be non-empty and genuinely justify the size (generated code, cohesive state machine, third-party snapshot, inherent rule-catalogue density). |
 | §21.2 `.claude/skills` is not a symlink | Replace it with `ln -s ../.agent/skills .claude/skills` |
 | §21.3 SKILL.md missing front matter fields | Add `name:` / `description:` to the front matter |
 | §21.4 missing `.last-updated` | `git rev-parse HEAD > .agent/skills/<skill>/.last-updated` |

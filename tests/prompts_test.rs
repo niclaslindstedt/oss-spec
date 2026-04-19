@@ -35,8 +35,9 @@ fn rejects_non_semver_stems() {
 
 #[test]
 fn picks_highest_version() {
-    // fix-conformance ships `1_0_0.md` and `1_1_0.md`; the loader must
-    // pick the newer one.
+    // fix-conformance ships multiple versioned templates; the loader must
+    // pick the highest. Every version since 1.1.0 contains the "Quality
+    // findings" block, and 1.2.0 adds §20.5 guidance.
     let p = prompts::load(
         "fix-conformance",
         minijinja::context! {
@@ -46,10 +47,13 @@ fn picks_highest_version() {
         },
     )
     .unwrap();
-    // v1.1.0 introduced quality-findings handling.
     assert!(
         p.system.contains("Quality findings"),
-        "highest-version picker should have selected 1_1_0 with quality findings block"
+        "highest-version picker should retain the Quality findings block"
+    );
+    assert!(
+        p.system.contains("§20.5"),
+        "highest-version picker should have selected the 1.2.0 template with §20.5 guidance"
     );
 }
 
