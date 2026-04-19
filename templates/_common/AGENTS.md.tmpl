@@ -54,6 +54,11 @@ _Describe the module layout and dependency direction in 1–3 paragraphs._
 - Test files are named with a `_test` or `_tests` suffix (e.g. `check_test.rs`, `utils_test.py`). The stem must match the pattern `_?[Tt]ests?$` per §20 of `OSS_SPEC.md`.
 - Tests live in `tests/`. Use `tempfile` or equivalent for any test that writes to the filesystem.
 
+## Source file size
+
+- Non-test source files must stay under **1000 physical lines** (§20.5 of `OSS_SPEC.md`). When a file grows past the limit, prefer splitting by concern (extracting submodules, helpers, or sibling files) over relaxing the cap.
+- A file may opt out by placing `oss-spec:allow-large-file: <reason>` in any comment within its first 20 lines. The reason must be non-empty and motivate why the file genuinely cannot be split (generated code, cohesive state machine, third-party snapshot, inherently dense rule catalogue).
+
 ## Documentation sync points
 
 When you change… | Update…

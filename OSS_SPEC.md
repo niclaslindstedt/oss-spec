@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.2.0
+version: 2.3.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -1296,7 +1296,14 @@ outside the output module except for machine-readable output required by
 a contract (e.g. §12 agent discoverability surfaces, which require plain
 text on stdout with no ANSI escapes).
 
-## 20. Test organization
+## 20. Source and test organization
+
+This section covers how source code is organized — both the separation
+of tests from production source and the size of source files
+themselves. The two rules reinforce each other: keeping tests in
+dedicated files makes it easier to keep source files small, and the
+size cap in §20.5 makes it harder for inline tests to accumulate
+unnoticed.
 
 Tests must live in **dedicated test files**, separate from the source
 files they exercise. Inline test blocks embedded in production source
@@ -1372,6 +1379,84 @@ that tells agents and contributors:
 - How to run tests (`make test` at minimum, plus any subset commands).
 - Any test-specific dependencies or setup (e.g. `tempfile` crate,
   Docker containers, fixture files).
+
+### 20.5 Source file size limits
+
+No non-test source file may exceed **1000 physical lines** (raw
+newline-delimited lines, as reported by `wc -l`). Test files — those
+whose stem matches the §20.2 regex `_?[Tt]ests?$` — are exempt; their
+size is governed by whatever the test subject requires.
+
+The limit is a **size smell**, not a precise complexity metric.
+Physical lines are deliberately chosen over SLOC or cyclomatic
+complexity so the rule is trivial to measure, predictable for
+contributors, and immune to language-specific comment conventions. A
+file over 1000 lines is almost always doing too much: aggregating
+unrelated responsibilities, hiding inline tests, or waiting to be
+split by concern.
+
+**Why this rule.** Three motivations converge here:
+
+1. **Readability.** Files that fit in a single screenful of a human
+   reviewer's attention — or a single AI agent's working context —
+   get reviewed carefully. Files that exceed it get skimmed.
+2. **Decomposition pressure.** A hard line cap pushes authors to
+   extract submodules, helpers, and sibling files before a large
+   concern calcifies into an unsplittable monolith.
+3. **Teeth for §20.** The easiest way to blow the 1000-line limit is
+   to keep tests inline. §20.5 and §20 reinforce each other:
+   extracting inline test blocks to their own file is usually
+   sufficient to bring a large source file back under the cap.
+
+#### 20.5.1 Exception mechanism
+
+A file may declare itself exempt by carrying an **allow-large-file
+marker** in any comment within its **first 20 lines**:
+
+```
+oss-spec:allow-large-file: <reason>
+```
+
+The marker's comment syntax follows the host language (`//` for
+C-family, `#` for Python/Ruby/shell, `--` for SQL/Haskell, etc.) —
+only the literal `oss-spec:allow-large-file:` token and the reason
+are checked. The reason **must be non-empty**: a marker with no
+motivation does not exempt the file. Validators must reject
+`oss-spec:allow-large-file:` followed only by whitespace.
+
+Exceptions are expected to be **rare and per-file**, not a project-
+wide dial. Legitimate reasons include:
+
+- **Generated code** — a file produced by a build step (protobuf,
+  OpenAPI bindings, parser tables) that is not meant to be edited by
+  hand.
+- **Cohesive state machines** — a single enum or match tree whose
+  arms cannot be meaningfully split without obscuring the design.
+- **Third-party snapshots** — vendored code checked in verbatim.
+- **Inherent density** — a configuration schema, rule catalogue, or
+  lookup table that only grows linearly with real-world coverage.
+
+Reviewers should treat an added or edited marker the same as any
+other code change: ask whether the reason is honest, whether the
+file has since become splittable, and whether the alternative (a
+mechanical split) is genuinely worse than leaving the file oversized.
+
+#### 20.5.2 Auto-fix scope
+
+When `oss-spec fix` (or an equivalent automated refactor) encounters
+a §20.5 violation, it must only attempt an **easy** refactor:
+extracting inline test blocks (a §20 violation that commonly
+co-occurs with §20.5) into a separate file under `tests/`. In
+practice, doing so resolves both findings at once on files whose
+bulk came from tests.
+
+Automated refactors of **genuinely large source files** — splitting
+modules, extracting helpers, decomposing responsibilities — are out
+of scope. They require design judgment the tooling cannot
+responsibly make. When the auto-fixer sees a §20.5 violation on a
+file without a companion §20 violation, it must leave the file
+alone and surface the finding for a human to either split manually
+or annotate with an `oss-spec:allow-large-file:` marker.
 
 ## 21. Agent skills — maintenance playbooks for drift-prone artifacts
 

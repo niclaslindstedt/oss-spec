@@ -1121,3 +1121,136 @@ fn gather_file_contents_truncates_long_files() {
     let line_count = content.lines().count();
     assert_eq!(line_count, 200);
 }
+
+// ---------------------------------------------------------------------------
+// §20.5 Source file size limit
+// ---------------------------------------------------------------------------
+
+fn v205(report: &validate::Report) -> Vec<&validate::Violation> {
+    report
+        .violations
+        .iter()
+        .filter(|v| v.spec_section == "§20.5")
+        .collect()
+}
+
+fn write_source_with_lines(path: &Path, line_count: usize) {
+    let body: String = (0..line_count).map(|i| format!("// line {i}\n")).collect();
+    fs::write(path, body).unwrap();
+}
+
+#[test]
+fn source_file_over_1000_lines_flags_violation() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    fs::create_dir_all(root.join("src")).unwrap();
+    write_source_with_lines(&root.join("src/huge.rs"), 1050);
+
+    let report = validate::run(root).unwrap();
+    let v = v205(&report);
+    assert_eq!(v.len(), 1, "expected one §20.5 violation, got {v:?}");
+    assert!(v[0].message.contains("src/huge.rs"));
+    assert!(v[0].message.contains("1050"));
+    assert!(v[0].message.contains("1000-line limit"));
+}
+
+#[test]
+fn test_file_over_1000_lines_is_ignored() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    // tests/ directory exists in the scaffolded repo; create a fat test
+    // file whose stem matches §20.2. It must not trip §20.5.
+    fs::create_dir_all(root.join("tests")).unwrap();
+    write_source_with_lines(&root.join("tests/huge_test.rs"), 1050);
+
+    let report = validate::run(root).unwrap();
+    assert!(
+        v205(&report).is_empty(),
+        "§20.5 must not fire on test files: {:?}",
+        v205(&report)
+    );
+}
+
+#[test]
+fn allow_large_file_marker_exempts() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    fs::create_dir_all(root.join("src")).unwrap();
+    let mut body = String::from("// oss-spec:allow-large-file: generated bindings\n");
+    for i in 1..1050 {
+        body.push_str(&format!("// line {i}\n"));
+    }
+    fs::write(root.join("src/huge.rs"), body).unwrap();
+
+    let report = validate::run(root).unwrap();
+    assert!(
+        v205(&report).is_empty(),
+        "marker with reason must exempt: {:?}",
+        v205(&report)
+    );
+}
+
+#[test]
+fn allow_large_file_marker_without_reason_does_not_exempt() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    fs::create_dir_all(root.join("src")).unwrap();
+    let mut body = String::from("// oss-spec:allow-large-file:    \n");
+    for i in 1..1050 {
+        body.push_str(&format!("// line {i}\n"));
+    }
+    fs::write(root.join("src/huge.rs"), body).unwrap();
+
+    let report = validate::run(root).unwrap();
+    assert_eq!(
+        v205(&report).len(),
+        1,
+        "empty-reason marker must not exempt: {:?}",
+        v205(&report)
+    );
+}
+
+#[test]
+fn file_exactly_1000_lines_is_clean() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    fs::create_dir_all(root.join("src")).unwrap();
+    write_source_with_lines(&root.join("src/boundary.rs"), 1000);
+
+    let report = validate::run(root).unwrap();
+    assert!(
+        v205(&report).is_empty(),
+        "exactly 1000 lines must be clean: {:?}",
+        v205(&report)
+    );
+}
+
+#[test]
+fn allow_large_file_marker_outside_first_20_lines_does_not_exempt() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    scaffold_minimal_repo(root);
+    fs::create_dir_all(root.join("src")).unwrap();
+    let mut body = String::new();
+    for i in 0..25 {
+        body.push_str(&format!("// line {i}\n"));
+    }
+    body.push_str("// oss-spec:allow-large-file: hidden too deep\n");
+    for i in 26..1050 {
+        body.push_str(&format!("// line {i}\n"));
+    }
+    fs::write(root.join("src/huge.rs"), body).unwrap();
+
+    let report = validate::run(root).unwrap();
+    assert_eq!(
+        v205(&report).len(),
+        1,
+        "marker beyond line 20 must not exempt: {:?}",
+        v205(&report)
+    );
+}

@@ -44,9 +44,10 @@ description: "Use when OSS_SPEC.md has been edited. Bumps the spec version field
 | New required root file | `src/validate.rs` (`required_files`), `templates/_common/<file>`, `README.md`, tests |
 | New required directory | `src/validate.rs` (`required_dirs`), `templates/_common/<dir>/`, tests |
 | New required symlink | `src/validate.rs` (`symlinks`), `src/bootstrap.rs::create_agents_symlinks` (if rooted at AGENTS.md), tests |
-| New §19 content rule | `src/validate.rs` (new validator fn), `tests/validate_test.rs`, `src/fix.rs` if auto-fixable |
-| New required workflow | `src/validate.rs` (`required_workflows`), `templates/_common/.github/workflows/<file>.tmpl`, tests |
-| New required agent skill | `src/validate.rs::check_agent_skills`, `templates/_common/.agent/skills/<name>/`, tests |
+| New §19 content rule | `src/validate/content.rs` (or appropriate submodule), `tests/validate_test.rs`, `src/fix.rs` if auto-fixable |
+| New §20.5-style size/shape rule with opt-in exception marker | `src/validate/content.rs` (walker + marker regex), `tests/validate_test.rs`, `prompts/fix-conformance/<next>.md` (scope of auto-fix), `templates/_common/AGENTS.md.tmpl` (contributor guidance) |
+| New required workflow | `src/validate/structural.rs` (`required_workflows`), `templates/_common/.github/workflows/<file>.tmpl`, tests |
+| New required agent skill | `src/validate/agent_skills.rs::check`, `templates/_common/.agent/skills/<name>/`, tests |
 | Spec-wide guidance touching AGENTS.md | `templates/_common/AGENTS.md.tmpl`, this repo's `AGENTS.md` |
 | README-visible change | `README.md` (run `update-readme` afterwards) |
 | Docs-visible change | `docs/` (run `update-docs` afterwards) |
