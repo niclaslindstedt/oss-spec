@@ -26,3 +26,6 @@ docs/_build/
 # Rust
 /target
 **/*.rs.bk
+
+# Claude Code worktrees (per-developer scratch)
+.claude/worktrees/
