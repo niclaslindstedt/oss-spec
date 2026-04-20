@@ -33,7 +33,7 @@ zag = "0.12"
 indicatif = "0.17"
 log = "0.4"
 fern = "0.7"
-dirs = "5"
+dirs = "6"
 chrono = "0.4"
 
 [dev-dependencies]
