@@ -1,4 +1,4 @@
-.PHONY: build test lint fmt fmt-check shellcheck release clean docs website website-dev install bench
+.PHONY: build test lint fmt fmt-check shellcheck actionlint release clean docs website website-dev install bench
 
 
 build:
@@ -18,6 +18,9 @@ fmt-check:
 
 shellcheck:
 	shellcheck scripts/*.sh
+
+actionlint:
+	actionlint -color
 
 release:
 	cargo build --release

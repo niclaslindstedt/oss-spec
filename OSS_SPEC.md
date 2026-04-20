@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.3.0
+version: 2.4.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -1207,6 +1207,30 @@ equivalent) with hooks for:
 - Forbidden edits (e.g., `CHANGELOG.md` outside release commits).
 
 Pre-commit hooks must be installable with a single documented command.
+
+### 16.1 Shell scripts and workflow YAML
+
+Linting is not just about the primary language. Shell scripts and
+GitHub Actions workflow files are production infrastructure and must
+be linted with the same zero-warning rigor as the rest of the
+codebase:
+
+- **Shell scripts** (`*.sh`, `*.bash`) must be linted with
+  [`shellcheck`](https://www.shellcheck.net/). A project with any
+  shell scripts must expose a `make shellcheck` target that runs
+  `shellcheck` against them.
+- **GitHub Actions workflow files** (`.github/workflows/*.yml`) must
+  be linted with [`actionlint`](https://github.com/rhysd/actionlint).
+  A project with any workflow files must expose a `make actionlint`
+  target.
+
+Both tools must run in CI (typically in a dedicated `shell-lint` job
+on `ubuntu-latest`, where `shellcheck` is preinstalled and
+`actionlint` can be fetched via its official installer script). CI
+must fail on any `shellcheck` or `actionlint` finding. These targets
+should also be wired into the pre-commit hook alongside `make lint`
+so shell and workflow issues are caught locally before they hit
+review.
 
 ## 17. Governance
 
