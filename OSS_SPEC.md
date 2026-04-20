@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.4.0
+version: 2.5.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -507,6 +507,13 @@ The release workflow performs the following steps in order:
    force-pushing a git ref is permitted, and it is permitted only for
    the exact tag that `version-bump` just created. Branches must
    never be force-pushed.
+
+   The commit-and-retag step must authenticate with the default
+   `GITHUB_TOKEN`, not `RELEASE_TOKEN`. `GITHUB_TOKEN` deliberately
+   suppresses downstream workflow triggers, so the force-push does
+   not re-fire the release workflow on itself. Using `RELEASE_TOKEN`
+   here would start a second release run that attempts to re-publish
+   an already-published version and fails noisily.
 7. **Build release artifacts in a matrix** covering every target
    platform the project ships — operating systems, architectures,
    language toolchains, container variants. Matrix jobs run in
@@ -538,14 +545,13 @@ Design constraints:
   scoping tag creation to the release bot identity.
 - **Idempotent version-bump step.** If the computed version already
   matches every manifest, step 5 is a no-op.
-- **RELEASE_TOKEN secret.** Both workflows need a token with write
-  access to `main` and to tags. `version-bump` needs it so its tag
-  push actually triggers the `release` workflow (the default
-  `GITHUB_TOKEN` deliberately suppresses downstream workflow
-  triggers, so a tag pushed with it would not fire the release pipeline);
-  `release` needs it for the commit-to-`main` and force-push-tag
-  steps. A dedicated `RELEASE_TOKEN` PAT or GitHub App token is the
-  canonical choice.
+- **RELEASE_TOKEN secret.** `version-bump` needs a PAT or GitHub App
+  token with write access to tags, because `GITHUB_TOKEN`
+  deliberately suppresses downstream workflow triggers and a tag
+  pushed with it would not fire `release`. `release` itself uses the
+  default `GITHUB_TOKEN` for its commit-to-`main` and retag steps —
+  that same trigger suppression is what prevents the retag from
+  starting a duplicate release run.
 - **Branch protection.** `main` must be protected, and the release
   bot (or `github-actions[bot]`) must have a narrowly scoped
   exception to push the `chore(release): ...` commit. Disable branch
@@ -1698,7 +1704,9 @@ checked before the first public tag.
     generating changelog, updating versions,
     force-pushing the rewritten tag, matrix-building
     and publishing                                      (§10.3)
-[ ] RELEASE_TOKEN secret with main-branch bypass        (§10.3)
+[ ] RELEASE_TOKEN secret used by version-bump only;
+    release workflow uses the default GITHUB_TOKEN for
+    its commit-to-main and retag steps                  (§10.3)
 [ ] Trusted publishing (OIDC) configured for every
     target registry; no long-lived publish tokens       (§10.3)
 [ ] Publish jobs declare explicit least-privilege
