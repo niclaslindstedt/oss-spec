@@ -45,7 +45,7 @@ jobs:
         run: |
           bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
           echo "${PWD}" >> "$GITHUB_PATH"
-      - name: actionlint
-        run: actionlint -color
+      - name: make actionlint
+        run: make actionlint
       - name: make shellcheck
         run: make shellcheck

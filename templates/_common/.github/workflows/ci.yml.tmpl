@@ -50,3 +50,20 @@ jobs:
       - run: make lint
       - run: make fmt-check
 {% endif %}
+
+  # Lint workflow YAML with actionlint and shell scripts with
+  # shellcheck (OSS_SPEC §16.1). shellcheck is preinstalled on
+  # ubuntu-latest; actionlint is fetched via its official installer.
+  shell-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          echo "${PWD}" >> "$GITHUB_PATH"
+      - name: make actionlint
+        run: make actionlint
+      - name: make shellcheck
+        run: make shellcheck
+
