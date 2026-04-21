@@ -38,11 +38,12 @@ src/
 ├── lib.rs         # public re-exports
 ├── cli.rs         # clap derive + dispatch
 ├── interview.rs   # interactive Q&A → ProjectManifest
-├── ai.rs          # thin zag wrappers (interpret_prompt, draft_readme_why)
+├── ai.rs          # thin zag wrappers (interpret_prompt, tailor_init, fix_conformance, verify_conformance)
 ├── manifest.rs    # ProjectManifest, Language, Kind, License enums
 ├── render.rs      # minijinja env + render_str
 ├── embedded.rs    # include_dir!("templates")
 ├── bootstrap.rs   # walks embedded tree → writes target dir
+├── tailor.rs      # interactive post-bootstrap tailoring agent (§23)
 ├── git.rs         # git init / gh repo create wrappers
 ├── validate/      # §19 conformance validator (structural, content, toolchain, agent_skills)
 ├── fix.rs         # zag-driven auto-fix agent

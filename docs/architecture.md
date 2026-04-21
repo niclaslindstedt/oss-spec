@@ -8,11 +8,12 @@ src/
 ├── lib.rs         # public re-exports + run()
 ├── cli.rs         # clap derive + dispatch
 ├── interview.rs   # interactive Q&A → ProjectManifest
-├── ai.rs          # thin zag wrappers (interpret_prompt, draft_readme_why)
+├── ai.rs          # thin zag wrappers (interpret_prompt, tailor_init, fix_conformance, verify_conformance)
 ├── manifest.rs    # ProjectManifest, Language, Kind, License enums
 ├── render.rs      # minijinja env + render_str
 ├── embedded.rs    # include_dir!("templates")
 ├── bootstrap.rs   # walks embedded tree → writes target dir
+├── tailor.rs      # interactive post-bootstrap tailoring agent (§23)
 ├── git.rs         # git init / gh repo create wrappers
 ├── validate/      # §19 conformance validator
 │   ├── mod.rs         # Report/Violation types and orchestrator
@@ -37,7 +38,12 @@ src/
    the language overlay (`templates/<lang>`) and the optional CLI overlay
    (`templates/cli`), renders each `*.tmpl` through minijinja, copies
    non-template files verbatim, and creates the AGENTS.md symlinks.
-6. `git::init_and_commit` lands the first commit; `git::gh_create`
+6. `tailor::run` (unless `--no-tailor` or `--no-ai`) launches an
+   interactive `zag` agent that proposes edits to the scaffolding layer
+   (README, AGENTS.md, docs, skills, workflows). Each tool call is
+   surfaced to the user for approval — application source under `src/`
+   and `tests/` is off-limits.
+7. `git::init_and_commit` lands the first commit; `git::gh_create`
    (with confirmation) publishes to GitHub.
 
 ## Why embed everything?

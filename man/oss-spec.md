@@ -52,6 +52,7 @@ prompt that the `zag` library interprets into a structured manifest.
 | `-d, --description` | string | — | Project description (used when no prompt is given). |
 | `--name <NAME>` | string | dir name | Project name (kebab-case). When set, creates `<path|cwd>/<NAME>`; otherwise the target is the path/cwd directly. |
 | `--no-ai` | bool | false | Skip zag/AI calls. Deterministic skeleton only. |
+| `--no-tailor` | bool | false | Skip the interactive post-bootstrap tailoring agent (§23). Prompt interpretation still runs unless `--no-ai` is also set. |
 | `--no-git` | bool | false | Skip `git init` and the first commit. |
 | `--no-gh` | bool | false | Skip `gh repo create`. |
 | `-y, --yes` | bool | false | Accept defaults; non-interactive. |

@@ -2,11 +2,11 @@
 //!
 //! Two patterns live here:
 //!
-//! * **One-shot JSON** (`interpret_prompt`, `draft_readme_why`) — used by the
-//!   bootstrap flow. Sends a single prompt with a JSON schema and parses the
-//!   response.
-//! * **Agent loop** (`fix_conformance`, `file_conformance_issues`) — used by
-//!   `oss-spec fix`. Hands zag a working root + a turn budget and lets it
+//! * **One-shot JSON** (`interpret_prompt`) — used by the bootstrap flow to
+//!   turn a freeform prompt into a structured manifest.
+//! * **Agent loop** (`tailor_init`, `fix_conformance`, `file_conformance_issues`)
+//!   — interactive for `tailor_init` (user approves each tool call), auto-approved
+//!   for the fix family. Hands zag a working root + a turn budget and lets it
 //!   drive Edit/Write/Bash tools until done.
 //!
 //! All prompt text lives under `prompts/<name>/<version>.md` and is loaded
@@ -169,40 +169,64 @@ pub async fn interpret_prompt(prompt: &str) -> Result<ProjectManifest> {
     Ok(m)
 }
 
-/// Generate 3–5 README "Why?" bullet points for a project.
-pub async fn draft_readme_why(description: &str, name: &str) -> Result<Vec<String>> {
-    log::debug!("draft_readme_why: generating bullets for {name}");
-    let schema = json!({
-        "type": "object",
-        "required": ["bullets"],
-        "properties": {
-            "bullets": {
-                "type": "array",
-                "items": { "type": "string" },
-                "minItems": 3,
-                "maxItems": 5
+/// Drive an **interactive** zag agent loop in `target` to tailor the
+/// just-bootstrapped project's scaffolding (README, AGENTS.md, docs,
+/// skills, workflows) to the user's description. Each tool call is
+/// surfaced to the user for approval (`auto_approve(false)`). Scope
+/// is plumbing-only — see `prompts/tailor-init/1_0_0.md` for the
+/// allow/denylist the agent is asked to respect.
+pub async fn tailor_init(manifest: &ProjectManifest, target: &Path) -> Result<()> {
+    let tree = snapshot_tree(target, 4);
+    let p = crate::prompts::load(
+        "tailor-init",
+        context! {
+            name => manifest.name,
+            description => manifest.description,
+            language => manifest.language.as_str(),
+            kind => manifest.kind.as_str(),
+            license => manifest.license.spdx(),
+            github_owner => manifest.github_owner,
+            why_bullets => manifest.why_bullets,
+            target_tree => tree,
+        },
+    )?;
+    run_zag_agent(&p.system, &p.user, target, 15, false).await
+}
+
+/// Render a shallow file tree of `root` for embedding in the
+/// tailor-init prompt. Keeps depth bounded and skips common noise
+/// (hidden dirs beyond the first level, `target/`, `node_modules/`).
+fn snapshot_tree(root: &Path, max_depth: usize) -> String {
+    fn walk(dir: &Path, prefix: &str, depth: usize, max_depth: usize, out: &mut String) {
+        if depth > max_depth {
+            return;
+        }
+        let mut entries: Vec<_> = match std::fs::read_dir(dir) {
+            Ok(rd) => rd.filter_map(|e| e.ok()).collect(),
+            Err(_) => return,
+        };
+        entries.sort_by_key(|e| e.file_name());
+        for entry in entries {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if name == "target" || name == "node_modules" || name == ".git" {
+                continue;
+            }
+            let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            out.push_str(prefix);
+            out.push_str(&name);
+            if is_dir {
+                out.push('/');
+            }
+            out.push('\n');
+            if is_dir {
+                let next_prefix = format!("{prefix}  ");
+                walk(&entry.path(), &next_prefix, depth + 1, max_depth, out);
             }
         }
-    });
-    let p = crate::prompts::load(
-        "draft-readme-why",
-        context! { name => name, description => description },
-    )?;
-    log::debug!(
-        "draft_readme_why: system prompt length={}, user prompt length={}",
-        p.system.len(),
-        p.user.len()
-    );
-    let raw = run_zag_json(&p.system, &p.user, schema).await?;
-    log::debug!("draft_readme_why: zag response: {raw}");
-
-    #[derive(Deserialize)]
-    struct Wire {
-        bullets: Vec<String>,
     }
-    let wire: Wire = serde_json::from_str(&raw)
-        .with_context(|| format!("zag returned non-conforming JSON: {raw}"))?;
-    Ok(wire.bullets)
+    let mut out = String::new();
+    walk(root, "", 0, max_depth, &mut out);
+    out
 }
 
 /// Drive a zag agent loop in `repo` to remove every structural violation
@@ -225,7 +249,7 @@ pub async fn fix_conformance(
             violations => violations_text,
         },
     )?;
-    run_zag_agent(&p.system, &p.user, repo, max_turns).await
+    run_zag_agent(&p.system, &p.user, repo, max_turns, true).await
 }
 
 /// Drive a zag agent loop in `repo` to file one GitHub issue per
@@ -242,7 +266,7 @@ pub async fn file_conformance_issues(
             violations => format_violations(report),
         },
     )?;
-    run_zag_agent(&p.system, &p.user, repo, max_turns).await
+    run_zag_agent(&p.system, &p.user, repo, max_turns, true).await
 }
 
 fn format_violations(report: &crate::validate::Report) -> String {
@@ -370,7 +394,7 @@ pub async fn verify_conformance(
     Ok(wire.findings)
 }
 
-/// One-shot JSON request — used by `interpret_prompt` and `draft_readme_why`.
+/// One-shot JSON request — used by `interpret_prompt` and `verify_conformance`.
 async fn run_zag_json(system: &str, prompt: &str, schema: serde_json::Value) -> Result<String> {
     use zag::builder::AgentBuilder;
 
@@ -416,19 +440,27 @@ async fn run_zag_json(system: &str, prompt: &str, schema: serde_json::Value) -> 
 }
 
 /// Agentic loop with a working root and a turn budget — used by the
-/// `fix` subcommand. Runs interactively so the user can observe (and
-/// participate in) the agent's activity.
-async fn run_zag_agent(system: &str, user_prompt: &str, root: &Path, max_turns: u32) -> Result<()> {
+/// `fix` and `tailor` flows. When `auto_approve` is false, zag's
+/// `run` mode surfaces each tool call to the user for approval
+/// (that's how `tailor_init` stays interactive); when true, the
+/// loop proceeds unattended (`fix` / `file_conformance_issues`).
+async fn run_zag_agent(
+    system: &str,
+    user_prompt: &str,
+    root: &Path,
+    max_turns: u32,
+    auto_approve: bool,
+) -> Result<()> {
     use zag::builder::AgentBuilder;
 
     log::debug!(
-        "starting zag agent loop in {} (max_turns={})",
+        "starting zag agent loop in {} (max_turns={}, auto_approve={auto_approve})",
         root.display(),
         max_turns
     );
     let root_str = root.to_string_lossy();
     crate::output::info(&format!(
-        "Starting agent loop in {} (max {} turns)...",
+        "Starting agent loop in {} (max {} turns, auto-approve={auto_approve})...",
         root.display(),
         max_turns
     ));
@@ -440,7 +472,7 @@ async fn run_zag_agent(system: &str, user_prompt: &str, root: &Path, max_turns: 
     AgentBuilder::new()
         .system_prompt(system)
         .root(&root_str)
-        .auto_approve(true)
+        .auto_approve(auto_approve)
         .max_turns(max_turns)
         .verbose(true)
         .on_progress(Box::new(OutputProgress::new(false)))

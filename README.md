@@ -6,14 +6,14 @@
 [![release](https://github.com/niclaslindstedt/oss-spec/actions/workflows/release.yml/badge.svg)](https://github.com/niclaslindstedt/oss-spec/actions/workflows/release.yml)
 [![pages](https://github.com/niclaslindstedt/oss-spec/actions/workflows/pages.yml/badge.svg)](https://github.com/niclaslindstedt/oss-spec/actions/workflows/pages.yml)
 [![crates](https://img.shields.io/crates/v/oss-spec.svg)](https://crates.io/crates/oss-spec)
-[![spec](https://img.shields.io/badge/OSS__SPEC-v2.3.0-blueviolet)](OSS_SPEC.md)
+[![spec](https://img.shields.io/badge/OSS__SPEC-v2.5.0-blueviolet)](OSS_SPEC.md)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Why?
 
 - **One command to a real repo.** `oss-spec init "create a python cli for finding stock buys"` produces a complete project — LICENSE, README, AGENTS.md (with all the agent symlinks), CONTRIBUTING/COC/SECURITY, CI workflows, release/pages pipelines, docs, examples, website skeleton, language manifest, Makefile, and a starter `.claude/` skill — and creates the GitHub remote.
 - **The spec is the source of truth.** Every file is derived from [`OSS_SPEC.md`](OSS_SPEC.md). `oss-spec validate` will tell you exactly which §19 items an existing repo is missing.
-- **AI is a feature, not a dependency.** With `--no-ai` you get a deterministic skeleton; with `oss-spec init` `zag` interprets a freeform prompt into a structured manifest. Either way the bootstrap engine is the same.
+- **AI is a feature, not a dependency.** With `--no-ai` you get a deterministic skeleton; with `oss-spec init` `zag` interprets a freeform prompt into a structured manifest, then an interactive tailoring agent (§23) offers to customize the scaffolding (README, AGENTS.md, docs, skills, workflows) to the project — application source is off-limits. Skip the tailoring pass alone with `--no-tailor`.
 - **Agent-friendly out of the box.** The generated repo includes the OSS_SPEC.md §12 CLI discoverability contract: `--help-agent`, `--debug-agent`, `commands`, `docs`, and `man` are all wired up so coding agents can self-serve.
 - **Built on the same conventions it ships.** oss-spec is its own first customer — `oss-spec validate .` against this very repo passes.
 
@@ -73,7 +73,7 @@ oss-spec validate --url https://github.com/foo/bar.git --create-issues --yes
 
 | Command | What it does |
 |---|---|
-| `oss-spec init [<PROMPT>] [--name <NAME>]` | Bootstrap into the current directory, or a new `--name` subdirectory. With a prompt, zag interprets it into a manifest. |
+| `oss-spec init [<PROMPT>] [--name <NAME>] [--no-tailor]` | Bootstrap into the current directory, or a new `--name` subdirectory. With a prompt, zag interprets it into a manifest; then an interactive tailoring agent (§23) offers to customize the scaffolding. Skip with `--no-tailor` or `--no-ai`. |
 | `oss-spec validate [--path .] [--url URL] [--no-ai] [--fix] [--create-issues]` | Validate a local or remote repo against `OSS_SPEC.md` §19; includes AI quality review by default. |
 | `oss-spec fix [--path .] [--url URL] [--create-issues] [--yes] [--no-ai]` | Fix §19 violations in place, or file one GitHub issue per violation cluster. |
 | `oss-spec fetch [--into DIR]` | Clone the public oss-spec repo so a coding agent can browse the spec, templates, and the dogfood implementation locally. |

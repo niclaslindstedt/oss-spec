@@ -15,6 +15,7 @@ pub mod manifest;
 pub mod output;
 pub mod prompts;
 pub mod render;
+pub mod tailor;
 pub mod validate;
 
 use anyhow::Result;

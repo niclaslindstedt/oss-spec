@@ -60,11 +60,16 @@ const COMMAND_SPECS: &[(&str, &str)] = &[
          \n\
          Existing files are overwritten.\n\
          \n\
+         After bootstrap, an interactive `zag` agent offers to tailor the\n\
+         scaffolding (README, AGENTS.md, docs, skills, workflows) to the\n\
+         project description. Application source is off-limits. Skip with\n\
+         --no-tailor (or --no-ai to skip all AI).\n\
+         \n\
          Flags: --lang rust|python|node|go|generic\n\
                 --kind lib|cli|service\n\
                 --license MIT|Apache-2.0|MPL-2.0\n\
                 --visibility public|private\n\
-                --no-ai --no-git --no-gh --yes --path <dir> --name <name>\n",
+                --no-ai --no-tailor --no-git --no-gh --yes --path <dir> --name <name>\n",
     ),
     (
         "validate",
