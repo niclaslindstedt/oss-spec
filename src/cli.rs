@@ -17,6 +17,12 @@ pub struct BootstrapOpts {
     #[arg(long)]
     pub no_ai: bool,
 
+    /// Skip the interactive post-bootstrap tailoring agent (§23). Other
+    /// AI steps (prompt interpretation) still run unless `--no-ai` is
+    /// also set.
+    #[arg(long)]
+    pub no_tailor: bool,
+
     /// Skip `git init` and the first commit.
     #[arg(long)]
     pub no_git: bool,
@@ -350,6 +356,9 @@ pub async fn dispatch(cli: Cli) -> Result<()> {
                 crate::interview::run(&opts, name, description, true).await?
             };
             crate::bootstrap::write(&manifest, &target)?;
+            if !opts.no_ai && !opts.no_tailor {
+                crate::tailor::run(&manifest, &target, opts.yes).await?;
+            }
             post_bootstrap(&opts, &manifest, &target).await?;
             Ok(())
         }

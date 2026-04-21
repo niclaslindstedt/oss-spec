@@ -51,19 +51,6 @@ pub async fn run(
     m.kind = ask_kind(m.kind)?;
     m.license = ask_license(m.license)?;
 
-    if !opts.no_ai
-        && Confirm::new()
-            .with_prompt("Generate README 'Why?' bullets with AI?")
-            .default(true)
-            .interact()
-            .unwrap_or(false)
-    {
-        match ai::draft_readme_why(&m.description, &m.name).await {
-            Ok(bullets) => m.why_bullets = bullets,
-            Err(e) => crate::output::warn(&format!("ai disabled: {e}")),
-        }
-    }
-
     Ok(m)
 }
 

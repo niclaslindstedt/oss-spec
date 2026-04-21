@@ -9,8 +9,9 @@ Every LLM-driven step in this CLI is defined by a versioned prompt under `prompt
 
 - `OSS_SPEC.md` changes — `verify-conformance` embeds the full spec and `fix-conformance` references section numbers, so any spec edit may invalidate them.
 - `src/validate.rs` grows a new structural rule — the fix agent needs new guidance to handle the new violation shape.
-- `src/ai.rs` or `src/fix.rs` change the rendering context — new Jinja placeholders may appear or disappear.
+- `src/ai.rs`, `src/fix.rs`, or `src/tailor.rs` change the rendering context — new Jinja placeholders may appear or disappear.
 - `src/manifest.rs` gains or removes a `Language` / `Kind` / `License` enum variant — the `interpret-prompt` JSON schema must track it.
+- The §23 tailoring allow/denylist changes — `prompts/tailor-init/*.md` must reiterate the current scope.
 
 This skill exists so that drift between prompt text and the rest of the codebase is caught by the same `maintenance` sweep that keeps `README.md`, `docs/`, `man/`, and `website/` in sync.
 
@@ -36,7 +37,7 @@ This skill exists so that drift between prompt text and the rest of the codebase
 
    ```sh
    git diff --name-only "$BASELINE"..HEAD -- \
-       OSS_SPEC.md src/ai.rs src/fix.rs src/validate.rs src/manifest.rs prompts/
+       OSS_SPEC.md src/ai.rs src/fix.rs src/tailor.rs src/validate.rs src/manifest.rs prompts/
    ```
 
 4. For each path that appears in the diff, walk the mapping table below and decide which prompts are now stale.
@@ -51,7 +52,8 @@ This skill exists so that drift between prompt text and the rest of the codebase
 | New check in `src/validate.rs` (new `Violation` producer) | `prompts/fix-conformance/*.md` | Add handling guidance; if the check is AI-only, make sure it is mentioned as a quality finding category. |
 | New placeholder added in `src/ai.rs` `context! { ... }` | the matching prompt's `## User` section | Reference the new placeholder; re-render to confirm no leftover `{{ unused }}` tokens. |
 | New `Language` / `Kind` / `License` variant in `src/manifest.rs` | `prompts/interpret-prompt/*.md` | Update the JSON schema `enum` list embedded in the prompt. |
-| New versioned prompt added under `prompts/<name>/<major>_<minor>_<patch>.md` | `src/ai.rs` / `src/fix.rs` callers | Confirm the caller loads by name (not a pinned version) so the new file is auto-picked; if a caller pins a specific version, bump it. |
+| New versioned prompt added under `prompts/<name>/<major>_<minor>_<patch>.md` | `src/ai.rs` / `src/fix.rs` / `src/tailor.rs` callers | Confirm the caller loads by name (not a pinned version) so the new file is auto-picked; if a caller pins a specific version, bump it. |
+| §23 allow/denylist edited in `OSS_SPEC.md` | `prompts/tailor-init/*.md` | The system prompt must reiterate the current scope verbatim (both guards — human approval and prompt steering — need to agree). |
 
 ## Update checklist
 

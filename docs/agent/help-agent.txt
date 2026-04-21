@@ -13,6 +13,7 @@ USAGE
 
 GLOBAL FLAGS
   --no-ai            Skip zag/AI calls (deterministic, offline-friendly)
+  --no-tailor        Skip the interactive post-bootstrap tailoring agent (§23)
   --no-git           Skip `git init` and the first commit
   --no-gh            Skip `gh repo create`
   -y, --yes          Accept all defaults; skip interactive prompts
