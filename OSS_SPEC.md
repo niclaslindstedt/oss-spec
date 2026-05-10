@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.5.0
+version: 2.6.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -852,6 +852,165 @@ A staleness CI check should run on every pull request: build the
 website in dry-run mode, and fail if the extractor reports that any
 source-derived field no longer matches what the website components
 expect. This prevents PRs from silently breaking the showcase.
+
+### 11.3 SEO and discoverability
+
+**Every project website must be optimized for search engines and social
+previews.** A landing page that crawlers cannot read, or that previews
+as a blank URL on Slack/LinkedIn/Twitter, is invisible to the audience
+the project is trying to reach. SEO plumbing is part of the website
+deliverable, not an optional polish step — it must ship from day one
+and stay correct on every deploy.
+
+The goal is concrete: every route the project wants the world to see
+must arrive at a crawler with a real `<title>`, a real description, a
+canonical URL, an Open Graph image, structured data, and a path into
+the rest of the site via the sitemap. Every link shared on social
+media must render a rich preview without manual intervention.
+
+#### Required `<head>` metadata per route
+
+Every public route — the landing page, every docs page, every
+post/changelog/release page, every tag or category index — must emit
+the following elements with values that describe **that specific
+page**, not the site as a whole:
+
+- `<title>` — page-specific, ending with the site name.
+- `<meta name="description">` — one-sentence, page-specific.
+- `<link rel="canonical" href="...">` — absolute URL of this route.
+- `<meta name="robots" content="index,follow,max-image-preview:large">`.
+- `<meta name="author" content="...">`.
+- `<meta name="keywords" content="...">` — page-relevant terms first,
+  then site-wide defaults; deduplicated.
+- Open Graph: `og:site_name`, `og:locale`, `og:type` (`website` for
+  index/landing pages, `article` for posts/changelog entries),
+  `og:title`, `og:description`, `og:url`, `og:image`,
+  `og:image:width`, `og:image:height`, `og:image:alt`.
+- Twitter Card: `twitter:card` set to `summary_large_image`, plus
+  `twitter:title`, `twitter:description`, `twitter:image`.
+- Article meta on content pages with a publish date:
+  `article:published_time`, `article:modified_time`,
+  `article:author`, and one `article:tag` per tag.
+
+The shell (`website/index.html` or its framework equivalent) must also
+emit site-wide constants once: `<meta name="viewport">` with
+`viewport-fit=cover`, `<meta name="theme-color">`,
+`<meta name="color-scheme">`, `<link rel="icon">`, `<link rel="me">`
+to the maintainer's primary identity URL, and the feed/sitemap
+discovery links described below.
+
+#### Open Graph images
+
+Every route must reference an Open Graph image of **1200×630 pixels**
+suitable for Facebook, LinkedIn, Slack, Discord, and Twitter previews.
+Projects must:
+
+- Ship a default OG card at `website/public/og-default.png` for the
+  homepage and any route that does not have a route-specific image.
+- Generate per-page OG cards at build time for content-heavy routes
+  (blog posts, release notes, changelog entries, every docs page on a
+  documentation-heavy site). Per-page cards must be **code-rendered**
+  (e.g. `satori` + `@resvg/resvg-js`, `playwright`, or equivalent) —
+  not hand-designed bitmaps — so the cards stay in sync with titles,
+  dates, tags, and reading times without manual upkeep.
+- Reference cards via absolute URLs in `og:image` and
+  `twitter:image`, never relative paths (some scrapers reject those).
+
+#### Structured data (JSON-LD)
+
+Every route must emit at least one
+`<script type="application/ld+json">` block describing the page in
+[schema.org](https://schema.org/) terms. Use absolute, stable `@id`
+URLs so the graph composes cleanly across deploys.
+
+- **Homepage:** a `Person` for the maintainer with a `sameAs` array
+  linking to their GitHub profile, package-registry profiles
+  (npm/PyPI/crates.io/Docker Hub), LinkedIn, and any other public
+  identity — this is what lets Google's Knowledge Graph attribute the
+  site to the author. Plus a `WebSite` (with `potentialAction` for
+  site search where applicable) and a top-level
+  `SoftwareApplication`, `Blog`, or analogous type for the project
+  itself.
+- **Content pages:** `BlogPosting` / `Article` / `TechArticle` with
+  `headline`, `description`, `datePublished`, `dateModified`,
+  `author`, `publisher`, `inLanguage`, `wordCount`, `keywords`, and
+  `mainEntityOfPage`. Pair every content page with a `BreadcrumbList`
+  so search results render nested crumbs. A `BreadcrumbList` must
+  always have at least two items — single-element lists are rejected
+  by Google's validator.
+- **Index/listing pages** (tag indexes, docs index, archives, etc.):
+  `CollectionPage` with `hasPart` enumerating the contained items.
+
+#### Sitemap, robots.txt, and feeds
+
+Every website must publish, at the site root:
+
+- `sitemap.xml` — XML sitemap listing every route the project wants
+  indexed, with `<lastmod>`, `<changefreq>`, and `<priority>` per URL.
+  `<lastmod>` must come from real source data (file `mtime`, the
+  document's `edited_at` field, the latest git commit touching the
+  source) rather than a build-time `now()` — fake `lastmod` values
+  are eventually penalised by major search engines.
+- `robots.txt` — `User-agent: *` / `Allow: /` plus an absolute
+  `Sitemap:` line pointing at the sitemap above.
+- `feed.xml` (RSS 2.0) and `feed.atom` (Atom 1.0) for any project
+  that publishes time-ordered content (blog posts, release notes,
+  changelog). Both are linked from every route via
+  `<link rel="alternate" type="application/rss+xml" ...>` and
+  `<link rel="alternate" type="application/atom+xml" ...>` in the
+  shell's `<head>`. The sitemap is similarly advertised via
+  `<link rel="sitemap" type="application/xml" href="/sitemap.xml" />`.
+
+These files must be **generated from the same source data the website
+itself consumes** (see §11.2), not hand-maintained.
+
+#### Single source of truth for SEO copy
+
+All SEO copy and configuration — site name, tagline, short description,
+canonical site URL, default keywords, author identity (name, URL, the
+`sameAs` profile array), OG image dimensions and directory, feed and
+sitemap paths, language code — must live in a single configuration
+module (e.g. `website/src/seo/siteConfig.ts`). Both runtime client
+code (`<head>` updates via Helmet, `next/head`, Svelte's `<svelte:head>`,
+or equivalent) and the build-time generator must import from this
+module. Tweaking the site's pitch must be a **one-file change**, not a
+sprawl across ten files.
+
+#### Pre-rendered metadata for single-page apps
+
+Single-page applications must not ship a single shell that crawlers and
+social previewers see for every URL. Generic crawlers do not execute
+JavaScript, and even those that do will not wait for client-side
+`<head>` mutations before snapshotting. Projects with an SPA architecture
+must run a build-time SEO generator (e.g.
+`website/scripts/generate-seo.ts`) as a post-build step that:
+
+1. Reads the framework's emitted `dist/index.html` shell.
+2. Strips the shell's placeholder `<title>` / `<meta name="description">`
+   so per-route values do not collide with site-wide defaults.
+3. For every public route, splices a route-specific `<head>` block
+   (per the requirements above) into a copy of that shell.
+4. Writes the result to the route's path
+   (`dist/<route>/index.html`).
+5. Also writes a `dist/404.html` copy of the homepage so SPA-fallback
+   hosting keeps the `<head>` sensible on unknown URLs.
+6. Emits `sitemap.xml`, `robots.txt`, `feed.xml`, `feed.atom`, and the
+   per-page OG card PNGs in the same pass.
+
+The body of each per-route HTML file must remain the framework's
+hydration root — the generator only rewrites `<head>`. React, Preact,
+Svelte, and Solid all hydrate correctly under this scheme; users get
+the SPA they had before, and crawlers get a fully-formed document.
+
+#### CI verification
+
+The website build job (§10.4) must fail if any of the SEO outputs are
+missing — `sitemap.xml`, `robots.txt`, the feeds, the homepage's
+JSON-LD, and the per-route `<title>` and canonical link. A staleness
+check on every pull request should additionally validate that
+`og:image`, `twitter:image`, and any `sameAs` URLs that point at
+project-owned assets resolve, since a single 404 on a referenced
+asset breaks every social preview that pulls from it.
 
 ## 12. Additional requirements for CLI projects
 
