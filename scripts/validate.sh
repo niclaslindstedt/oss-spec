@@ -35,8 +35,8 @@ SPEC_VERSION="2.6.0"
 # Bump this URL whenever a new version is added to that directory; the
 # `update-prompts` skill is responsible for keeping the bash script and
 # the prompt file in lockstep.
-PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_0_0.md"
-PROMPT_VERSION="1.0.0"
+PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_1_0.md"
+PROMPT_VERSION="1.1.0"
 
 # ---------------------------------------------------------------------------
 # Output helpers
