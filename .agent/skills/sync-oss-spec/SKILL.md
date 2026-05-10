@@ -44,8 +44,6 @@ This skill is complementary to `update-spec`. `update-spec` propagates a spec ed
    curl -fsSL https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/scripts/validate.sh | bash -s -- .   # no checkout needed
    ```
 
-   The two implementations are kept in lockstep by hand (there is no automated drift detector), so prefer the Rust validator whenever it is available — fall back to the bash script only when it is not. If you find a discrepancy between the two during a sync run, fix it in the same PR per the "Validate-script parity" rule in `AGENTS.md`.
-
 4. For each violation, read the relevant section of `OSS_SPEC.md` so the fix matches the spec's intent rather than just silencing the check.
 
 ## Mapping table
