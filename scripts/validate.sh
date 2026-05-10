@@ -31,6 +31,13 @@ set -euo pipefail
 SPEC_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/OSS_SPEC.md"
 SPEC_VERSION="2.6.0"
 
+# The agent-prompt body lives at prompts/validate-sh-agent/<v>.md per §13.5.
+# Bump this URL whenever a new version is added to that directory; the
+# `update-prompts` skill is responsible for keeping the bash script and
+# the prompt file in lockstep.
+PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_0_0.md"
+PROMPT_VERSION="1.0.0"
+
 # ---------------------------------------------------------------------------
 # Output helpers
 # ---------------------------------------------------------------------------
@@ -87,6 +94,61 @@ fi
 # the pointer entirely so the prompt below makes the agent fetch it manually.
 if [ "$SPEC_DOWNLOADED" -eq 0 ]; then
     SPEC_PATH=""
+fi
+
+# Detect whether the freshly-downloaded copy actually differs from what was
+# previously committed. We only nag the agent to `git diff -- OSS_SPEC.md`
+# when there is a real diff to look at.
+#
+# Values:
+#   yes      — pre-existing tracked file, upstream differs from HEAD
+#   no       — pre-existing tracked file, upstream matches HEAD (no-op overwrite)
+#   unknown  — not in a git repo, or file not tracked yet, or git unavailable
+#   fresh    — no pre-existing copy on disk
+SPEC_CHANGED="unknown"
+if [ "$SPEC_DOWNLOADED" -eq 1 ]; then
+    if [ "$SPEC_PREEXISTING" -eq 0 ]; then
+        SPEC_CHANGED="fresh"
+    elif command -v git >/dev/null 2>&1 \
+         && git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1 \
+         && git -C "$TARGET" ls-files --error-unmatch OSS_SPEC.md >/dev/null 2>&1; then
+        if git -C "$TARGET" diff --quiet HEAD -- OSS_SPEC.md 2>/dev/null; then
+            SPEC_CHANGED="no"
+        else
+            SPEC_CHANGED="yes"
+        fi
+    fi
+fi
+
+# Agent-prompt download (best-effort). Stored in a temp file rather than the
+# target repo because, unlike OSS_SPEC.md, this is not an artifact the agent
+# is expected to commit or diff against. The body lives at
+# prompts/validate-sh-agent/<v>.md per §13.5; this script renders the
+# `## User` section with placeholders substituted at run time.
+PROMPT_FILE=""
+# Prefer a local copy when running against a checkout that already ships the
+# prompt (the oss-spec repo itself, or a project that vendors the prompts/
+# tree). Pick the highest-versioned <major>_<minor>_<patch>.md so the
+# loader stays consistent with §13.5.
+_local_prompt_dir="$TARGET/prompts/validate-sh-agent"
+if [ -d "$_local_prompt_dir" ]; then
+    _local_prompt="$(find "$_local_prompt_dir" -maxdepth 1 -type f -name '[0-9]*_[0-9]*_[0-9]*.md' \
+                       2>/dev/null | sort -V | tail -n 1)"
+    if [ -n "$_local_prompt" ] && [ -s "$_local_prompt" ]; then
+        PROMPT_FILE="$_local_prompt"
+    fi
+fi
+if [ -z "$PROMPT_FILE" ]; then
+    _prompt_tmp="${TMPDIR:-/tmp}/_oss_spec_validate_agent_prompt.md"
+    if command -v curl >/dev/null 2>&1; then
+        if curl -fsSL "$PROMPT_URL" -o "$_prompt_tmp" 2>/dev/null; then
+            PROMPT_FILE="$_prompt_tmp"
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        if wget -q "$PROMPT_URL" -O "$_prompt_tmp" 2>/dev/null; then
+            PROMPT_FILE="$_prompt_tmp"
+        fi
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -755,176 +817,107 @@ validate_skill_dir() {
 }
 
 # ---------------------------------------------------------------------------
-# Manual checklist (the AI quality review the binary normally does)
+# Agent prompt rendering
+#
+# The qualitative checklist + final imperative both live in
+# `prompts/validate-sh-agent/<v>.md` (§13.5). At runtime we download the
+# latest version, strip YAML front matter, extract the `## User` section,
+# and substitute the two `{{ jinja }} ` placeholders the script supplies:
+#
+#   {{ spec_ref }}    — single-line path/URL where OSS_SPEC.md can be read
+#   {{ diff_block }}  — multi-line block (or empty string) telling the agent
+#                       to `git diff -- OSS_SPEC.md` when the upstream copy
+#                       differs from the project's committed version
+#
+# When the prompt download fails we print a tight fallback that points the
+# agent at the upstream URL — a stale or missing prompt is worse than a
+# clear pointer.
 # ---------------------------------------------------------------------------
-print_manual_checklist() {
-    cat <<EOF
+print_agent_prompt() {
+    local spec_ref="${SPEC_PATH:-$SPEC_URL}"
+    local diff_block=""
+    if [ "$SPEC_CHANGED" = "yes" ]; then
+        diff_block=$'  1a. Run `git diff -- OSS_SPEC.md` first — this script just replaced\n      OSS_SPEC.md with a newer upstream copy that differs from the\n      version committed in this repo. The diff is the short-list of\n      mandates the project may have drifted away from since the last\n      conformance pass. Treat it as the spec\'s changelog.\n'
+    fi
 
-== Agent review checklist (LLM judgment required, per file) ==
+    if [ -z "$PROMPT_FILE" ] || [ ! -s "$PROMPT_FILE" ]; then
+        printf '\n'
+        warn "Could not fetch the agent review prompt from $PROMPT_URL"
+        warn "(no curl/wget, or network failure)."
+        warn "Read it manually at the URL above before acting on this script's"
+        warn "structural-violations report — the prompt enumerates every spec"
+        warn "section the deterministic checks above could not verify."
+        return
+    fi
 
-The deterministic checks above mirror src/validate/ in the oss-spec
-repository. Everything below is the qualitative review the \`oss-spec\`
-binary would otherwise have run via an LLM. You are the LLM now: open
-each file listed and verify every bullet by reading the actual contents,
-not just the filename. Spec text lives at: ${SPEC_PATH:-$SPEC_URL}
+    local user_body
+    user_body="$(extract_user_section "$PROMPT_FILE")"
+    if [ -z "$user_body" ]; then
+        printf '\n'
+        warn "Downloaded $PROMPT_URL but could not parse a \`## User\` section."
+        warn "Read the file manually at the URL above; it is the qualitative"
+        warn "review checklist and the final agent prompt for this script's output."
+        return
+    fi
 
-§2  LICENSE
-    - Open it. Confirm it contains a single SPDX-identified license text
-      (MIT, Apache-2.0, BSD-3-Clause, etc.) with no modifications.
-    - Cross-check the SPDX ID against the README badge and the language
-      manifest (Cargo.toml / package.json / pyproject.toml / go.mod).
-      Mismatch → flag.
+    # Replace placeholders. Bash parameter expansion handles multi-line
+    # replacement values fine; we deliberately use the same `{{ name }}`
+    # syntax as the project's other prompts so the templates remain
+    # interchangeable.
+    user_body="${user_body//\{\{ spec_ref \}\}/$spec_ref}"
+    user_body="${user_body//\{\{ diff_block \}\}/$diff_block}"
 
-§3  README.md
-    - One-line tagline directly under the H1.
-    - A "Why?" / value-prop section that names the audience and the
-      problem, not just features.
-    - A copy-pasteable quick start that runs from a clean checkout with no
-      hidden prerequisites.
-    - Install, Usage, Examples, Documentation, Contributing, License
-      sections — all populated, not stubs.
-    - Grep for placeholder text: TODO, FIXME, "your project", "your-org",
-      lorem ipsum, "Coming soon". Any hit → flag.
-    - Badges (CI, license, version, spec) point at real URLs and render.
+    printf '\n%s\n' "$user_body"
+}
 
-§4  CONTRIBUTING.md
-    - Spell out: dev environment setup, how to run tests, how to run
-      linters, branching strategy, commit-message rules, PR expectations,
-      where to ask questions, link to the code of conduct.
-
-§5  CODE_OF_CONDUCT.md
-    - Adopted standard text (Contributor Covenant or equivalent) with a
-      project-specific enforcement contact actually filled in (no
-      \`<email>\` placeholders).
-
-§6  SECURITY.md
-    - States: how to report a vulnerability, expected response window,
-      supported versions, and disclosure policy. Generic templates with
-      placeholders → flag.
-
-§7  AGENTS.md
-    - Has architecture summary, build/test commands, and contribution
-      conventions.
-    - Has "Where new code goes" / "Documentation sync points" tables (or
-      equivalent) that map change types to files an agent must update.
-    - Confirms the AGENTS.md symlink siblings (CLAUDE.md, .cursorrules,
-      .windsurfrules, GEMINI.md, .aider.conf.md,
-      .github/copilot-instructions.md) all resolve back to this file.
-
-§8.4 CHANGELOG.md
-    - Keep-a-Changelog format. An "Unreleased" section is present.
-    - Recent entries reference conventional-commit categories (feat, fix,
-      docs, …) and real changes — not "Initial release" indefinitely.
-
-§9  Makefile
-    - Standard targets: build, test, lint, fmt, fmt-check, release,
-      install (or the language-equivalent verbs).
-    - No hard-coded paths or secrets. No targets that bypass tests.
-
-§10 .github/workflows/
-    - ci.yml runs build + test + lint on every PR.
-    - release.yml triggers on tag push and produces published artifacts.
-    - version-bump.yml automates the next-version PR.
-    - pages.yml deploys the project website iff one exists.
-    - Every toolchain version pin is exact (no \`stable\`, \`latest\`, \`lts/*\`).
-
-§11 docs/
-    - At minimum: getting-started, configuration, architecture,
-      troubleshooting. Each one is real prose, not a section header with
-      "TODO" underneath.
-    - Cross-links from README and between docs all resolve.
-
-§13.5 prompts/
-    - Each subdirectory contains at least one versioned
-      \`<major>_<minor>_<patch>.md\` file. Confirm new revisions add a new
-      file (semver bump) instead of editing an existing one.
-
-§15 .github/ISSUE_TEMPLATE / PULL_REQUEST_TEMPLATE
-    - Bug report and feature request templates have useful prompts (repro
-      steps, expected vs actual, environment).
-    - PR template encodes the project's checklist (tests added, changelog
-      updated, docs touched).
-    - dependabot.yml covers every package ecosystem the repo actually
-      uses.
-
-§19 Quality bar (whole-repo)
-    - No raw \`print\` / \`println!\` / \`console.log\` outside the central
-      output module (§19.4) — grep the source tree.
-    - User-visible strings are informative and free of boilerplate.
-
-§20 Tests
-    - Test logic lives under tests/ (or the language equivalent), not
-      inline alongside source.
-    - No non-test source file exceeds 1000 lines unless it carries an
-      \`oss-spec:allow-large-file: <reason>\` marker with a real reason.
-
-§21 Agent skills
-    - Every drift-prone artifact (README.md, docs/, man/, website/, ...)
-      has a matching \`update-*\` skill, plus the always-required
-      \`maintenance\` umbrella.
-    - Each SKILL.md's \`description\` field is specific enough that another
-      agent can decide when to invoke it.
-
-EOF
-
-    # The block below is the agent-directed call-to-action. It is
-    # deliberately the LAST thing the script prints so an agent that only
-    # reads the tail of this output still sees the instruction.
-    cat <<EOF
-== Instructions for the calling agent ==
-
-You are an AI coding agent. This script ran in place of the \`oss-spec\`
-binary because it is unavailable in your environment. Before you do
-anything else, scroll back and read this entire output — not just this
-final block. The structural-violations list and the per-§ checklist
-above are part of the same task.
-
-Then, in order:
-
-  1. Read the spec at: ${SPEC_PATH:-$SPEC_URL}
-     Skim §1–§21; consult specific sections as cited below. If this script
-     replaced an existing OSS_SPEC.md (see the warning at the top of this
-     output), run \`git diff -- OSS_SPEC.md\` first — the diff is the
-     short-list of mandates the project may have drifted away from.
-  2. For every entry under "Structural violations" above, fix it. Each
-     line names the spec section ([§N.M]) and the exact problem.
-  3. Work through every § block under "Agent review checklist" above,
-     opening the named file(s) and verifying the bullets. Treat each
-     bullet as a concrete check you must perform — not a description.
-     Report any failure with the spec section it falls under.
-  4. After fixing, re-run this script:
-       bash scripts/validate.sh .
-     and confirm "Structural violations: none". Then loop on step 3
-     until the qualitative checks also pass.
-  5. Commit the fixes with conventional-commit messages, grouped by
-     spec section where practical.
-
-Do not skip the checklist because the structural section is clean —
-the qualitative checks above are the part the binary would normally
-delegate to an LLM, and you are that LLM.
-EOF
+# Read a §13.5 prompt file and return everything between `## User` and the
+# next `## ` H2 (or EOF). YAML front matter is stripped.
+extract_user_section() {
+    awk '
+        BEGIN { in_fm = 0; opened_fm = 0; in_user = 0 }
+        # Strip YAML front matter (one leading "---" / closing "---" pair).
+        NR == 1 && /^---[[:space:]]*$/ { in_fm = 1; opened_fm = 1; next }
+        opened_fm && in_fm && /^---[[:space:]]*$/ { in_fm = 0; next }
+        in_fm { next }
+        # Track section state.
+        /^##[[:space:]]+User[[:space:]]*$/ { in_user = 1; next }
+        /^##[[:space:]]/                   { if (in_user) in_user = 0 }
+        in_user                             { print }
+    ' "$1"
 }
 
 # ---------------------------------------------------------------------------
 # Run all checks and report
 # ---------------------------------------------------------------------------
 header "oss-spec validate.sh — checking $TARGET"
-info "spec source: $SPEC_URL (script pinned against version: $SPEC_VERSION)"
-if [ "$SPEC_DOWNLOADED" -eq 1 ]; then
-    if [ "$SPEC_PREEXISTING" -eq 1 ]; then
-        warn "OSS_SPEC.md at $SPEC_PATH was REPLACED with the latest upstream copy."
-        warn "Run \`git diff -- OSS_SPEC.md\` to see exactly what mandates changed since"
-        warn "the project was last brought into conformance, and treat that diff as the"
-        warn "spec's changelog when prioritising fixes."
-    else
-        info "OSS_SPEC.md downloaded fresh to $SPEC_PATH."
-    fi
-else
-    warn "Could not fetch $SPEC_URL (no curl/wget, or network failure). The spec"
-    warn "evolves, so this script will not validate against any pre-existing local"
-    warn "OSS_SPEC.md — fetch the current upstream copy out-of-band before acting"
-    warn "on the agent checklist below."
-fi
+info "spec source:   $SPEC_URL (script pinned against version: $SPEC_VERSION)"
+info "agent prompt:  $PROMPT_URL (script pinned against version: $PROMPT_VERSION)"
+case "$SPEC_CHANGED" in
+    yes)
+        warn "OSS_SPEC.md was REPLACED at $SPEC_PATH; the upstream copy differs from"
+        warn "the version committed in this repo. Run \`git diff -- OSS_SPEC.md\` to see"
+        warn "exactly what mandates changed and treat that diff as the spec's changelog"
+        warn "when prioritising fixes."
+        ;;
+    no)
+        ok "OSS_SPEC.md is up to date — the upstream copy matches the committed version."
+        ;;
+    fresh)
+        info "OSS_SPEC.md downloaded fresh to $SPEC_PATH (no pre-existing copy)."
+        ;;
+    unknown)
+        if [ "$SPEC_DOWNLOADED" -eq 1 ]; then
+            info "OSS_SPEC.md at $SPEC_PATH was overwritten with the latest upstream copy."
+            info "(Not in a tracked git repo, so cannot diff — compare against your"
+            info "project's last-known-good copy manually if needed.)"
+        else
+            warn "Could not fetch $SPEC_URL (no curl/wget, or network failure). The spec"
+            warn "evolves, so this script will not validate against any pre-existing local"
+            warn "OSS_SPEC.md — fetch the current upstream copy out-of-band before acting"
+            warn "on the agent prompt below."
+        fi
+        ;;
+esac
 
 check_required_files
 check_agents_symlinks
@@ -953,7 +946,7 @@ else
     done
 fi
 
-print_manual_checklist
+print_agent_prompt
 
 if [ "${#VIOLATIONS[@]}" -ne 0 ]; then
     exit 1
