@@ -1,0 +1,58 @@
+#!/usr/bin/env node
+// Post-build SEO generator (§11.3). Runs after the framework's build step
+// and emits the SEO outputs the spec mandates into dist/:
+//
+//   - sitemap.xml   — every public route the project wants indexed
+//   - robots.txt    — `Allow: /` plus an absolute Sitemap: line
+//
+// Replace SITE_URL and the SITEMAP_URLS list below with real values for
+// this project. Keep the per-route <head> metadata (Open Graph, Twitter
+// Card, JSON-LD) in index.html (or in a per-route generator) — see §11.3.
+
+import { writeFileSync, mkdirSync } from "fs";
+import { resolve, dirname, join } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DIST = resolve(__dirname, "../dist");
+const SITE_URL = "https://{{ name }}.example";
+
+const SITEMAP_URLS = [
+  {
+    loc: `${SITE_URL}/`,
+    lastmod: new Date().toISOString(),
+    changefreq: "weekly",
+    priority: "1.0",
+  },
+];
+
+function escapeXml(s) {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function renderSitemap() {
+  const body = SITEMAP_URLS.map(
+    (u) =>
+      `  <url>\n    <loc>${escapeXml(u.loc)}</loc>\n    <lastmod>${escapeXml(u.lastmod)}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`,
+  ).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
+}
+
+function renderRobots() {
+  return `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
+}
+
+function writeOut(rel, body) {
+  const full = join(DIST, rel);
+  mkdirSync(dirname(full), { recursive: true });
+  writeFileSync(full, body, "utf-8");
+  console.log(`Wrote ${rel}`);
+}
+
+writeOut("sitemap.xml", renderSitemap());
+writeOut("robots.txt", renderRobots());

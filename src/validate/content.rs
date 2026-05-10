@@ -25,6 +25,11 @@ pub(super) fn check(path: &Path, report: &mut Report) -> Result<()> {
     // marker with a motivating reason in the first 20 lines.
     check_source_file_size(path, report)?;
 
+    // §11.3 SEO and discoverability: if the project has a website, it must
+    // ship the SEO scaffolding (Open Graph, Twitter Card, JSON-LD,
+    // sitemap.xml, robots.txt). Skipped if there's no website/.
+    check_website_seo(path, report)?;
+
     Ok(())
 }
 
@@ -265,6 +270,200 @@ fn walk_source_tree(dir: &Path, root: &Path, report: &mut Report) -> Result<()> 
                  in the first {MARKER_SCAN_LINES} lines"
             ),
         });
+    }
+    Ok(())
+}
+
+/// §11.3 SEO and discoverability. If the project ships a website, it must
+/// ship the SEO scaffolding the spec mandates: Open Graph + Twitter Card
+/// meta on the routes a crawler sees, JSON-LD structured data, and a
+/// sitemap.xml + robots.txt emitted by the build.
+///
+/// The check is intentionally vague about *where* the website lives —
+/// it might be `website/`, `pages/`, `site/`, `web/`, `docs-site/`, or
+/// somewhere else entirely. We detect "this project ships a website" via
+/// signals that survive across naming conventions: a GitHub Pages deploy
+/// workflow, or a checked-in `index.html` source. Once a website is
+/// detected, we scan every reasonable text file in the repo for the
+/// five SEO signals; a signal seen *anywhere* counts, since projects
+/// that emit their meta tags from a build script's string literals
+/// satisfy the spec just as well as projects that hard-code them in
+/// hand-authored HTML.
+pub(super) fn check_website_seo(path: &Path, report: &mut Report) -> Result<()> {
+    let mut has_website = false;
+    let mut signals = SeoSignals::default();
+    walk_seo(path, &mut has_website, &mut signals)?;
+
+    if !has_website {
+        return Ok(());
+    }
+
+    let mut missing: Vec<&str> = Vec::new();
+    if !signals.og_image {
+        missing.push("Open Graph (og:image)");
+    }
+    if !signals.twitter_card {
+        missing.push("Twitter Card (twitter:card)");
+    }
+    if !signals.json_ld {
+        missing.push("JSON-LD (application/ld+json)");
+    }
+    if !signals.sitemap {
+        missing.push("sitemap.xml");
+    }
+    if !signals.robots {
+        missing.push("robots.txt");
+    }
+    if missing.is_empty() {
+        return Ok(());
+    }
+
+    report.violations.push(Violation {
+        spec_section: "§11.3",
+        message: format!(
+            "project has a website but its SEO scaffolding is incomplete; \
+             missing: {}",
+            missing.join(", ")
+        ),
+    });
+    Ok(())
+}
+
+#[derive(Default)]
+struct SeoSignals {
+    og_image: bool,
+    twitter_card: bool,
+    json_ld: bool,
+    sitemap: bool,
+    robots: bool,
+}
+
+/// Directories the SEO walk never enters. Same shape as the source-size
+/// excluded list — build artifacts, vendor caches, and VCS metadata.
+const SEO_EXCLUDED_DIRS: &[&str] = &[
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".git",
+    ".agent",
+    ".claude",
+    "__pycache__",
+    ".venv",
+    "venv",
+];
+
+/// `true` if `file_name` is a fingerprint that this project ships a
+/// website. The two signals we trust:
+///
+/// - `index.html` (or its template form) — almost universally present in
+///   the source of any handwritten or framework-built site.
+/// - A GitHub Pages deploy workflow — the canonical "we publish a
+///   website" tell, detected by the `actions/deploy-pages` action being
+///   referenced from a `.github/workflows/*.yml` file (handled in the
+///   walk callback by inspecting workflow contents).
+///
+/// We deliberately do *not* enumerate every static-site / SPA framework
+/// config (`vite.config.*`, `astro.config.*`, etc.) — those names drift
+/// faster than this validator could keep up, and the two signals above
+/// already cover the cases that matter.
+fn is_website_indicator(file_name: &str) -> bool {
+    matches!(file_name, "index.html" | "index.htm" | "index.html.tmpl")
+}
+
+/// `true` if a file with this name is worth scanning for SEO signal
+/// substrings. We deliberately stay text-only — binaries (images, fonts,
+/// archives) can never contain meta tags or JSON-LD, and reading them as
+/// UTF-8 just wastes I/O.
+fn is_seo_scannable(file_name: &str) -> bool {
+    if let Some(ext) = file_name.rsplit('.').next() {
+        return matches!(
+            ext,
+            "html"
+                | "htm"
+                | "js"
+                | "ts"
+                | "mjs"
+                | "cjs"
+                | "jsx"
+                | "tsx"
+                | "vue"
+                | "svelte"
+                | "tmpl"
+        );
+    }
+    false
+}
+
+/// `true` if a file path is a GitHub Actions workflow. Workflows are the
+/// secondary website-detection signal — a `.github/workflows/*.{yml,yaml}`
+/// that references `actions/deploy-pages` says "this project ships a
+/// website" even when the source layout uses an unusual folder name.
+fn is_github_workflow(p: &Path) -> bool {
+    let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("");
+    if ext != "yml" && ext != "yaml" {
+        return false;
+    }
+    let mut comps = p.components().rev();
+    let _file = comps.next();
+    let parent = comps.next().and_then(|c| c.as_os_str().to_str());
+    let grandparent = comps.next().and_then(|c| c.as_os_str().to_str());
+    parent == Some("workflows") && grandparent == Some(".github")
+}
+
+fn walk_seo(dir: &Path, has_website: &mut bool, signals: &mut SeoSignals) -> Result<()> {
+    for entry in std::fs::read_dir(dir)
+        .with_context(|| format!("read {}", dir.display()))?
+        .flatten()
+    {
+        let p = entry.path();
+        let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
+        if p.is_dir() {
+            if SEO_EXCLUDED_DIRS.contains(&name) {
+                continue;
+            }
+            walk_seo(&p, has_website, signals)?;
+            continue;
+        }
+        if !p.is_file() {
+            continue;
+        }
+        if is_website_indicator(name) {
+            *has_website = true;
+        }
+        // Workflow check: a `actions/deploy-pages` reference inside a
+        // `.github/workflows/*.{yml,yaml}` file is the canonical signal
+        // that the project publishes a website, regardless of where the
+        // source lives.
+        if is_github_workflow(&p) {
+            if let Ok(content) = std::fs::read_to_string(&p) {
+                if content.contains("actions/deploy-pages") {
+                    *has_website = true;
+                }
+            }
+        }
+        if !is_seo_scannable(name) {
+            continue;
+        }
+        let content = match std::fs::read_to_string(&p) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        if content.contains("og:image") {
+            signals.og_image = true;
+        }
+        if content.contains("twitter:card") {
+            signals.twitter_card = true;
+        }
+        if content.contains("application/ld+json") {
+            signals.json_ld = true;
+        }
+        if content.contains("sitemap.xml") {
+            signals.sitemap = true;
+        }
+        if content.contains("robots.txt") {
+            signals.robots = true;
+        }
     }
     Ok(())
 }

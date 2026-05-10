@@ -1254,3 +1254,162 @@ fn allow_large_file_marker_outside_first_20_lines_does_not_exempt() {
         v205(&report)
     );
 }
+
+// §11.3 SEO and discoverability ---------------------------------------------
+
+fn v113(report: &validate::Report) -> Vec<&validate::Violation> {
+    report
+        .violations
+        .iter()
+        .filter(|v| v.spec_section == "§11.3")
+        .collect()
+}
+
+#[test]
+fn no_website_skips_seo_check() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::write(root.join("README.md"), "# proj\n").unwrap();
+
+    let report = validate::run(root).unwrap();
+    assert!(
+        v113(&report).is_empty(),
+        "projects without a website must not be flagged: {:?}",
+        v113(&report)
+    );
+}
+
+#[test]
+fn website_with_full_seo_passes() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::create_dir_all(root.join("pages")).unwrap();
+    fs::write(
+        root.join("pages/index.html"),
+        r#"<!doctype html><html><head>
+<meta property="og:image" content="/og.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<script type="application/ld+json">{"@type":"SoftwareApplication"}</script>
+</head><body></body></html>"#,
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("pages/scripts")).unwrap();
+    fs::write(
+        root.join("pages/scripts/build-seo.mjs"),
+        "// emits sitemap.xml and robots.txt\n",
+    )
+    .unwrap();
+
+    let report = validate::run(root).unwrap();
+    assert!(
+        v113(&report).is_empty(),
+        "fully-equipped website must not flag §11.3: {:?}",
+        v113(&report)
+    );
+}
+
+#[test]
+fn website_missing_all_seo_signals_flags_violation() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::create_dir_all(root.join("site")).unwrap();
+    fs::write(
+        root.join("site/index.html"),
+        "<!doctype html><html><head><title>hi</title></head><body></body></html>",
+    )
+    .unwrap();
+
+    let report = validate::run(root).unwrap();
+    let v = v113(&report);
+    assert_eq!(v.len(), 1, "expected one §11.3 violation, got {v:?}");
+    let msg = &v[0].message;
+    assert!(msg.contains("Open Graph"), "missing OG note: {msg}");
+    assert!(msg.contains("Twitter Card"), "missing TC note: {msg}");
+    assert!(msg.contains("JSON-LD"), "missing JSON-LD note: {msg}");
+    assert!(msg.contains("sitemap.xml"), "missing sitemap note: {msg}");
+    assert!(msg.contains("robots.txt"), "missing robots note: {msg}");
+}
+
+#[test]
+fn deploy_pages_workflow_alone_triggers_seo_check() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::create_dir_all(root.join(".github/workflows")).unwrap();
+    fs::write(
+        root.join(".github/workflows/pages.yml"),
+        "jobs:\n  deploy:\n    steps:\n      - uses: actions/deploy-pages@v4\n",
+    )
+    .unwrap();
+
+    let report = validate::run(root).unwrap();
+    assert_eq!(
+        v113(&report).len(),
+        1,
+        "deploy-pages workflow must trigger §11.3 even without index.html"
+    );
+}
+
+#[test]
+fn website_with_partial_seo_lists_only_missing() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::create_dir_all(root.join("docs-site")).unwrap();
+    fs::write(
+        root.join("docs-site/index.html"),
+        r#"<!doctype html><html><head>
+<meta property="og:image" content="/og.png" />
+<meta name="twitter:card" content="summary_large_image" />
+</head></html>"#,
+    )
+    .unwrap();
+
+    let report = validate::run(root).unwrap();
+    let v = v113(&report);
+    assert_eq!(v.len(), 1, "expected one §11.3 violation, got {v:?}");
+    let msg = &v[0].message;
+    assert!(
+        !msg.contains("Open Graph"),
+        "OG should not be missing: {msg}"
+    );
+    assert!(
+        !msg.contains("Twitter Card"),
+        "TC should not be missing: {msg}"
+    );
+    assert!(msg.contains("JSON-LD"), "JSON-LD missing: {msg}");
+    assert!(msg.contains("sitemap.xml"), "sitemap missing: {msg}");
+    assert!(msg.contains("robots.txt"), "robots missing: {msg}");
+}
+
+#[test]
+fn signals_in_build_scripts_count() {
+    // The validator's "directory-agnostic" promise: a project that emits
+    // its meta tags from a build script's string literals satisfies the
+    // check just as well as one that hard-codes them in HTML.
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::create_dir_all(root.join("web/scripts")).unwrap();
+    fs::write(
+        root.join("web/index.html"),
+        "<!doctype html><html><head></head></html>",
+    )
+    .unwrap();
+    fs::write(
+        root.join("web/scripts/seo.mjs"),
+        r#"// emits og:image, twitter:card, application/ld+json,
+           // sitemap.xml and robots.txt at build time
+           const OG_IMAGE = "og:image";
+           const TWITTER = "twitter:card";
+           const JSONLD  = "application/ld+json";
+           const SITEMAP = "sitemap.xml";
+           const ROBOTS  = "robots.txt";
+"#,
+    )
+    .unwrap();
+
+    let report = validate::run(root).unwrap();
+    assert!(
+        v113(&report).is_empty(),
+        "signals in build scripts must count: {:?}",
+        v113(&report)
+    );
+}

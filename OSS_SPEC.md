@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.5.0
+version: 2.6.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -852,6 +852,98 @@ A staleness CI check should run on every pull request: build the
 website in dry-run mode, and fail if the extractor reports that any
 source-derived field no longer matches what the website components
 expect. This prevents PRs from silently breaking the showcase.
+
+### 11.3 SEO and discoverability
+
+**Every project website must be optimized for discovery by its intended
+audience.** A landing page that crawlers cannot read, or that previews
+as a blank URL on Slack/LinkedIn/Twitter, is invisible to the
+contributors and users the project is trying to reach.
+
+What "optimized" looks like is project-shape dependent — a CLI's
+audience is not a library's audience is not a long-form documentation
+site's audience — but the mechanics below apply regardless. Adapt the
+*content* of each element (titles, descriptions, schema.org type,
+keywords) to the project; keep the *structure* in place.
+
+#### Required `<head>` metadata per route
+
+Every public route must emit values that describe **that page**, not
+the site as a whole:
+
+- `<title>` and `<meta name="description">`.
+- `<link rel="canonical" href="...">` — absolute URL.
+- `<meta name="robots" content="index,follow,max-image-preview:large">`.
+- Open Graph: `og:site_name`, `og:type`, `og:title`, `og:description`,
+  `og:url`, `og:image` (plus `og:image:width`, `og:image:height`,
+  `og:image:alt`).
+- Twitter Card: `twitter:card="summary_large_image"`, plus
+  `twitter:title`, `twitter:description`, `twitter:image`.
+
+#### Open Graph image
+
+Every route must reference a 1200×630 PNG suitable for Facebook,
+LinkedIn, Slack, Discord, and Twitter previews. Ship a default at
+`website/public/og-default.png`. Projects whose content benefits from
+per-page cards (e.g. one per release, per docs page, per post) should
+code-render them at build time (`satori` + `@resvg/resvg-js`,
+`playwright`, or equivalent) so they stay in sync with their source
+data without manual upkeep.
+
+#### Structured data (JSON-LD)
+
+Every route must emit at least one
+`<script type="application/ld+json">` block describing the page in
+[schema.org](https://schema.org/) terms. Pick the type that best
+matches the page — `SoftwareApplication` or `SoftwareSourceCode` for a
+tool's landing page, `TechArticle` for documentation,
+`Article`/`BlogPosting` for posts, `CollectionPage` for indexes — and
+use absolute, stable `@id` URLs so the graph composes cleanly across
+deploys.
+
+#### Sitemap and robots.txt
+
+Every website must publish, at the site root, a `sitemap.xml` listing
+every route the project wants indexed (with `<lastmod>` derived from
+real source data — file `mtime`, latest git commit touching the
+source, etc. — never a build-time `now()`) and a `robots.txt` with an
+absolute `Sitemap:` line pointing at it. The sitemap must also be
+advertised in the shell's `<head>` via
+`<link rel="sitemap" type="application/xml" href="/sitemap.xml" />`.
+
+Projects that publish time-ordered content (release notes, blog posts,
+changelog entries) should additionally publish RSS 2.0 and Atom 1.0
+feeds linked from every route via `<link rel="alternate">`.
+
+These outputs must be **generated from the same source data the
+website itself consumes** (see §11.2), not hand-maintained.
+
+#### Single source of truth for SEO copy
+
+All SEO copy and configuration — site name, tagline, description,
+canonical site URL, default keywords, OG image dimensions, language
+code, feed/sitemap paths — must live in a single configuration module
+(e.g. `website/src/seo/siteConfig.ts`) imported by both runtime client
+code (`<head>` updates via Helmet, `next/head`, `<svelte:head>`, or
+equivalent) and any build-time generator. Tweaking the site's pitch
+must be a one-file change.
+
+#### Pre-rendered metadata for single-page apps
+
+Generic crawlers do not execute JavaScript, and even those that do
+will not wait for client-side `<head>` mutations before snapshotting.
+SPA projects must therefore run a post-build generator that, for every
+public route, splices a route-specific `<head>` block into a copy of
+the framework's `dist/index.html` shell and writes it to the route's
+path. The body remains the framework's hydration root — the generator
+only rewrites `<head>`. A `dist/404.html` copy of the homepage keeps
+SPA-fallback hosting sensible on unknown URLs.
+
+#### CI verification
+
+The website build job (§10.4) must fail if any required SEO output is
+missing — `sitemap.xml`, `robots.txt`, the homepage's JSON-LD, and
+per-route `<title>` plus canonical link.
 
 ## 12. Additional requirements for CLI projects
 
