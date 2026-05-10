@@ -855,162 +855,95 @@ expect. This prevents PRs from silently breaking the showcase.
 
 ### 11.3 SEO and discoverability
 
-**Every project website must be optimized for search engines and social
-previews.** A landing page that crawlers cannot read, or that previews
-as a blank URL on Slack/LinkedIn/Twitter, is invisible to the audience
-the project is trying to reach. SEO plumbing is part of the website
-deliverable, not an optional polish step — it must ship from day one
-and stay correct on every deploy.
+**Every project website must be optimized for discovery by its intended
+audience.** A landing page that crawlers cannot read, or that previews
+as a blank URL on Slack/LinkedIn/Twitter, is invisible to the
+contributors and users the project is trying to reach.
 
-The goal is concrete: every route the project wants the world to see
-must arrive at a crawler with a real `<title>`, a real description, a
-canonical URL, an Open Graph image, structured data, and a path into
-the rest of the site via the sitemap. Every link shared on social
-media must render a rich preview without manual intervention.
+What "optimized" looks like is project-shape dependent — a CLI's
+audience is not a library's audience is not a long-form documentation
+site's audience — but the mechanics below apply regardless. Adapt the
+*content* of each element (titles, descriptions, schema.org type,
+keywords) to the project; keep the *structure* in place.
 
 #### Required `<head>` metadata per route
 
-Every public route — the landing page, every docs page, every
-post/changelog/release page, every tag or category index — must emit
-the following elements with values that describe **that specific
-page**, not the site as a whole:
+Every public route must emit values that describe **that page**, not
+the site as a whole:
 
-- `<title>` — page-specific, ending with the site name.
-- `<meta name="description">` — one-sentence, page-specific.
-- `<link rel="canonical" href="...">` — absolute URL of this route.
+- `<title>` and `<meta name="description">`.
+- `<link rel="canonical" href="...">` — absolute URL.
 - `<meta name="robots" content="index,follow,max-image-preview:large">`.
-- `<meta name="author" content="...">`.
-- `<meta name="keywords" content="...">` — page-relevant terms first,
-  then site-wide defaults; deduplicated.
-- Open Graph: `og:site_name`, `og:locale`, `og:type` (`website` for
-  index/landing pages, `article` for posts/changelog entries),
-  `og:title`, `og:description`, `og:url`, `og:image`,
-  `og:image:width`, `og:image:height`, `og:image:alt`.
-- Twitter Card: `twitter:card` set to `summary_large_image`, plus
+- Open Graph: `og:site_name`, `og:type`, `og:title`, `og:description`,
+  `og:url`, `og:image` (plus `og:image:width`, `og:image:height`,
+  `og:image:alt`).
+- Twitter Card: `twitter:card="summary_large_image"`, plus
   `twitter:title`, `twitter:description`, `twitter:image`.
-- Article meta on content pages with a publish date:
-  `article:published_time`, `article:modified_time`,
-  `article:author`, and one `article:tag` per tag.
 
-The shell (`website/index.html` or its framework equivalent) must also
-emit site-wide constants once: `<meta name="viewport">` with
-`viewport-fit=cover`, `<meta name="theme-color">`,
-`<meta name="color-scheme">`, `<link rel="icon">`, `<link rel="me">`
-to the maintainer's primary identity URL, and the feed/sitemap
-discovery links described below.
+#### Open Graph image
 
-#### Open Graph images
-
-Every route must reference an Open Graph image of **1200×630 pixels**
-suitable for Facebook, LinkedIn, Slack, Discord, and Twitter previews.
-Projects must:
-
-- Ship a default OG card at `website/public/og-default.png` for the
-  homepage and any route that does not have a route-specific image.
-- Generate per-page OG cards at build time for content-heavy routes
-  (blog posts, release notes, changelog entries, every docs page on a
-  documentation-heavy site). Per-page cards must be **code-rendered**
-  (e.g. `satori` + `@resvg/resvg-js`, `playwright`, or equivalent) —
-  not hand-designed bitmaps — so the cards stay in sync with titles,
-  dates, tags, and reading times without manual upkeep.
-- Reference cards via absolute URLs in `og:image` and
-  `twitter:image`, never relative paths (some scrapers reject those).
+Every route must reference a 1200×630 PNG suitable for Facebook,
+LinkedIn, Slack, Discord, and Twitter previews. Ship a default at
+`website/public/og-default.png`. Projects whose content benefits from
+per-page cards (e.g. one per release, per docs page, per post) should
+code-render them at build time (`satori` + `@resvg/resvg-js`,
+`playwright`, or equivalent) so they stay in sync with their source
+data without manual upkeep.
 
 #### Structured data (JSON-LD)
 
 Every route must emit at least one
 `<script type="application/ld+json">` block describing the page in
-[schema.org](https://schema.org/) terms. Use absolute, stable `@id`
-URLs so the graph composes cleanly across deploys.
+[schema.org](https://schema.org/) terms. Pick the type that best
+matches the page — `SoftwareApplication` or `SoftwareSourceCode` for a
+tool's landing page, `TechArticle` for documentation,
+`Article`/`BlogPosting` for posts, `CollectionPage` for indexes — and
+use absolute, stable `@id` URLs so the graph composes cleanly across
+deploys.
 
-- **Homepage:** a `Person` for the maintainer with a `sameAs` array
-  linking to their GitHub profile, package-registry profiles
-  (npm/PyPI/crates.io/Docker Hub), LinkedIn, and any other public
-  identity — this is what lets Google's Knowledge Graph attribute the
-  site to the author. Plus a `WebSite` (with `potentialAction` for
-  site search where applicable) and a top-level
-  `SoftwareApplication`, `Blog`, or analogous type for the project
-  itself.
-- **Content pages:** `BlogPosting` / `Article` / `TechArticle` with
-  `headline`, `description`, `datePublished`, `dateModified`,
-  `author`, `publisher`, `inLanguage`, `wordCount`, `keywords`, and
-  `mainEntityOfPage`. Pair every content page with a `BreadcrumbList`
-  so search results render nested crumbs. A `BreadcrumbList` must
-  always have at least two items — single-element lists are rejected
-  by Google's validator.
-- **Index/listing pages** (tag indexes, docs index, archives, etc.):
-  `CollectionPage` with `hasPart` enumerating the contained items.
+#### Sitemap and robots.txt
 
-#### Sitemap, robots.txt, and feeds
+Every website must publish, at the site root, a `sitemap.xml` listing
+every route the project wants indexed (with `<lastmod>` derived from
+real source data — file `mtime`, latest git commit touching the
+source, etc. — never a build-time `now()`) and a `robots.txt` with an
+absolute `Sitemap:` line pointing at it. The sitemap must also be
+advertised in the shell's `<head>` via
+`<link rel="sitemap" type="application/xml" href="/sitemap.xml" />`.
 
-Every website must publish, at the site root:
+Projects that publish time-ordered content (release notes, blog posts,
+changelog entries) should additionally publish RSS 2.0 and Atom 1.0
+feeds linked from every route via `<link rel="alternate">`.
 
-- `sitemap.xml` — XML sitemap listing every route the project wants
-  indexed, with `<lastmod>`, `<changefreq>`, and `<priority>` per URL.
-  `<lastmod>` must come from real source data (file `mtime`, the
-  document's `edited_at` field, the latest git commit touching the
-  source) rather than a build-time `now()` — fake `lastmod` values
-  are eventually penalised by major search engines.
-- `robots.txt` — `User-agent: *` / `Allow: /` plus an absolute
-  `Sitemap:` line pointing at the sitemap above.
-- `feed.xml` (RSS 2.0) and `feed.atom` (Atom 1.0) for any project
-  that publishes time-ordered content (blog posts, release notes,
-  changelog). Both are linked from every route via
-  `<link rel="alternate" type="application/rss+xml" ...>` and
-  `<link rel="alternate" type="application/atom+xml" ...>` in the
-  shell's `<head>`. The sitemap is similarly advertised via
-  `<link rel="sitemap" type="application/xml" href="/sitemap.xml" />`.
-
-These files must be **generated from the same source data the website
-itself consumes** (see §11.2), not hand-maintained.
+These outputs must be **generated from the same source data the
+website itself consumes** (see §11.2), not hand-maintained.
 
 #### Single source of truth for SEO copy
 
-All SEO copy and configuration — site name, tagline, short description,
-canonical site URL, default keywords, author identity (name, URL, the
-`sameAs` profile array), OG image dimensions and directory, feed and
-sitemap paths, language code — must live in a single configuration
-module (e.g. `website/src/seo/siteConfig.ts`). Both runtime client
-code (`<head>` updates via Helmet, `next/head`, Svelte's `<svelte:head>`,
-or equivalent) and the build-time generator must import from this
-module. Tweaking the site's pitch must be a **one-file change**, not a
-sprawl across ten files.
+All SEO copy and configuration — site name, tagline, description,
+canonical site URL, default keywords, OG image dimensions, language
+code, feed/sitemap paths — must live in a single configuration module
+(e.g. `website/src/seo/siteConfig.ts`) imported by both runtime client
+code (`<head>` updates via Helmet, `next/head`, `<svelte:head>`, or
+equivalent) and any build-time generator. Tweaking the site's pitch
+must be a one-file change.
 
 #### Pre-rendered metadata for single-page apps
 
-Single-page applications must not ship a single shell that crawlers and
-social previewers see for every URL. Generic crawlers do not execute
-JavaScript, and even those that do will not wait for client-side
-`<head>` mutations before snapshotting. Projects with an SPA architecture
-must run a build-time SEO generator (e.g.
-`website/scripts/generate-seo.ts`) as a post-build step that:
-
-1. Reads the framework's emitted `dist/index.html` shell.
-2. Strips the shell's placeholder `<title>` / `<meta name="description">`
-   so per-route values do not collide with site-wide defaults.
-3. For every public route, splices a route-specific `<head>` block
-   (per the requirements above) into a copy of that shell.
-4. Writes the result to the route's path
-   (`dist/<route>/index.html`).
-5. Also writes a `dist/404.html` copy of the homepage so SPA-fallback
-   hosting keeps the `<head>` sensible on unknown URLs.
-6. Emits `sitemap.xml`, `robots.txt`, `feed.xml`, `feed.atom`, and the
-   per-page OG card PNGs in the same pass.
-
-The body of each per-route HTML file must remain the framework's
-hydration root — the generator only rewrites `<head>`. React, Preact,
-Svelte, and Solid all hydrate correctly under this scheme; users get
-the SPA they had before, and crawlers get a fully-formed document.
+Generic crawlers do not execute JavaScript, and even those that do
+will not wait for client-side `<head>` mutations before snapshotting.
+SPA projects must therefore run a post-build generator that, for every
+public route, splices a route-specific `<head>` block into a copy of
+the framework's `dist/index.html` shell and writes it to the route's
+path. The body remains the framework's hydration root — the generator
+only rewrites `<head>`. A `dist/404.html` copy of the homepage keeps
+SPA-fallback hosting sensible on unknown URLs.
 
 #### CI verification
 
-The website build job (§10.4) must fail if any of the SEO outputs are
-missing — `sitemap.xml`, `robots.txt`, the feeds, the homepage's
-JSON-LD, and the per-route `<title>` and canonical link. A staleness
-check on every pull request should additionally validate that
-`og:image`, `twitter:image`, and any `sameAs` URLs that point at
-project-owned assets resolve, since a single 404 on a referenced
-asset breaks every social preview that pulls from it.
+The website build job (§10.4) must fail if any required SEO output is
+missing — `sitemap.xml`, `robots.txt`, the homepage's JSON-LD, and
+per-route `<title>` plus canonical link.
 
 ## 12. Additional requirements for CLI projects
 
