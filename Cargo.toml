@@ -22,7 +22,7 @@ path = "src/lib.rs"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
-console = "0.15"
+console = "0.16"
 dialoguer = "0.11"
 include_dir = "0.7"
 minijinja = "2"
