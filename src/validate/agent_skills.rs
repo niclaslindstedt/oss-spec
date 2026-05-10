@@ -4,6 +4,9 @@
 //! specific locations (e.g. `.claude/skills`) are symlinks into it, and
 //! that every published drift-prone artifact has a matching `update-*`
 //! skill alongside the always-required `maintenance` umbrella skill.
+//!
+//! Mirrored in `scripts/validate.sh` — keep both in lockstep when adding
+//! or changing a rule (see [`super`] for the full parity policy).
 
 use super::{Report, Violation};
 use std::path::Path;

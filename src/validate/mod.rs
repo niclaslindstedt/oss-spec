@@ -5,6 +5,18 @@
 //! 1. **Structural** — file-presence, symlink, and directory checks (deterministic).
 //! 2. **AI quality** — one-shot LLM review of file *contents* against OSS_SPEC.md
 //!    (enabled by default, skipped with `--no-ai`).
+//!
+//! ## Parity with `scripts/validate.sh`
+//!
+//! Every deterministic check in this module is mirrored in
+//! [`scripts/validate.sh`](../../scripts/validate.sh) so that agents working
+//! in environments where the Rust binary cannot be installed (sandboxed
+//! sessions, ephemeral CI runners) can still verify §19 conformance via
+//! `curl … | bash`. **Whenever you add, remove, or modify a rule in any
+//! submodule below — `structural`, `content`, `toolchain`, `agent_skills`
+//! — make the equivalent edit in `scripts/validate.sh` in the same PR.**
+//! There is no automated drift check between the two implementations;
+//! reviewers verify parity by hand.
 
 use anyhow::{Context, Result};
 use std::path::Path;

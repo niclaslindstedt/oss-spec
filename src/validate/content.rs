@@ -2,6 +2,9 @@
 //!
 //! Includes §19.4 (central output module), §20 (no inline tests), and
 //! §20.5 (source files ≤ 1000 lines with an opt-in exception marker).
+//!
+//! Mirrored in `scripts/validate.sh` — keep both in lockstep when adding
+//! or changing a rule (see [`super`] for the full parity policy).
 
 use super::{Report, Violation};
 use anyhow::{Context, Result};

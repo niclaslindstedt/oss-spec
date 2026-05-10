@@ -7,8 +7,9 @@ description: "Use when prompts under prompts/ may be stale. Discovers changes to
 
 Every LLM-driven step in this CLI is defined by a versioned prompt under `prompts/<name>/<major>_<minor>_<patch>.md` with a required YAML front matter block (`name`, `description`, `version`) — see §13.5 of `OSS_SPEC.md`. Prompt files are **immutable once committed**; every change lands as a new version. Prompts drift whenever:
 
-- `OSS_SPEC.md` changes — `verify-conformance` embeds the full spec and `fix-conformance` references section numbers, so any spec edit may invalidate them.
-- `src/validate/` grows a new structural rule — the fix agent needs new guidance to handle the new violation shape.
+- `OSS_SPEC.md` changes — `verify-conformance` embeds the full spec and `fix-conformance` references section numbers, so any spec edit may invalidate them. **`validate-sh-agent` is also affected** — its qualitative checklist is organised by §, so new or removed mandates require a new versioned file.
+- `src/validate/` grows a new structural rule — the fix agent needs new guidance to handle the new violation shape, **and `validate-sh-agent` may need to drop a bullet from its qualitative checklist** (anything the deterministic layer now catches no longer needs to be flagged for manual review).
+- `scripts/validate.sh` adds, removes, or changes a deterministic check — `validate-sh-agent`'s opening paragraph and the qualitative checklist must reflect what the script no longer / now covers.
 - `src/ai.rs`, `src/fix.rs`, or `src/tailor.rs` change the rendering context — new Jinja placeholders may appear or disappear.
 - `src/manifest.rs` gains or removes a `Language` / `Kind` / `License` enum variant — the `interpret-prompt` JSON schema must track it.
 - The §23 tailoring allow/denylist changes — `prompts/tailor-init/*.md` must reiterate the current scope.
@@ -37,7 +38,8 @@ This skill exists so that drift between prompt text and the rest of the codebase
 
    ```sh
    git diff --name-only "$BASELINE"..HEAD -- \
-       OSS_SPEC.md src/ai.rs src/fix.rs src/tailor.rs src/validate/ src/manifest.rs prompts/
+       OSS_SPEC.md src/ai.rs src/fix.rs src/tailor.rs src/validate/ src/manifest.rs prompts/ \
+       scripts/validate.sh
    ```
 
 4. For each path that appears in the diff, walk the mapping table below and decide which prompts are now stale.
@@ -54,6 +56,10 @@ This skill exists so that drift between prompt text and the rest of the codebase
 | New `Language` / `Kind` / `License` variant in `src/manifest.rs` | `prompts/interpret-prompt/*.md` | Update the JSON schema `enum` list embedded in the prompt. |
 | New versioned prompt added under `prompts/<name>/<major>_<minor>_<patch>.md` | `src/ai.rs` / `src/fix.rs` / `src/tailor.rs` callers | Confirm the caller loads by name (not a pinned version) so the new file is auto-picked; if a caller pins a specific version, bump it. |
 | §23 allow/denylist edited in `OSS_SPEC.md` | `prompts/tailor-init/*.md` | The system prompt must reiterate the current scope verbatim (both guards — human approval and prompt steering — need to agree). |
+| `OSS_SPEC.md` body (any new mandate that the bash validator can NOT verify deterministically) | `prompts/validate-sh-agent/*.md` | Add a new `§N` block to the qualitative checklist. The bash script tails this file's `## User` section to its callers; missing mandates here mean an agent running `curl … \| bash scripts/validate.sh` will not be told to check the new rule. |
+| `scripts/validate.sh` adds a new deterministic check | `prompts/validate-sh-agent/*.md` | Drop the matching bullet(s) from the qualitative checklist — anything the script now catches no longer needs human review. Update the opening paragraph that summarises what the script verifies. |
+| `scripts/validate.sh` removes / weakens a check | `prompts/validate-sh-agent/*.md` | Add the formerly-deterministic bullet(s) back to the qualitative checklist so the agent does not silently skip them. |
+| `scripts/validate.sh` renames a `{{ placeholder }}` | `prompts/validate-sh-agent/*.md` and the script's substitution block | Both sides must move together — the script's `${user_body//…}` lines and the prompt body's `{{ … }}` tokens are paired. |
 
 ## Update checklist
 
