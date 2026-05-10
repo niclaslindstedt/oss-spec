@@ -23,7 +23,7 @@ path = "src/lib.rs"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 console = "0.15"
-dialoguer = "0.11"
+dialoguer = "0.12"
 include_dir = "0.7"
 minijinja = "2"
 serde = { version = "1", features = ["derive"] }
