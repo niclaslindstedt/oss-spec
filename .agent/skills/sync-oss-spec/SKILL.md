@@ -37,6 +37,15 @@ This skill is complementary to `update-spec`. `update-spec` propagates a spec ed
 
    Each structural violation names the spec section (e.g. `§7.1`, `§10.3`, `§21.5`) and the file or directory at fault. AI findings name the file, the section, a severity, and a suggestion.
 
+   **Nonbinary fallback.** If the `oss-spec` binary and `cargo` are both unavailable in the current environment (sandboxed agent sessions, ephemeral CI without a Rust toolchain, freshly-cloned checkouts where `cargo build` would be too slow), use the language-agnostic bash mirror at `scripts/validate.sh` instead. It implements the same deterministic §19 checks as `src/validate/` and prints the AI quality checklist as a manual prompt at the end:
+
+   ```sh
+   ./scripts/validate.sh .                                                                   # local copy
+   curl -fsSL https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/scripts/validate.sh | bash -s -- .   # no checkout needed
+   ```
+
+   The two implementations are kept in lockstep by hand (there is no automated drift detector), so prefer the Rust validator whenever it is available — fall back to the bash script only when it is not. If you find a discrepancy between the two during a sync run, fix it in the same PR per the "Validate-script parity" rule in `AGENTS.md`.
+
 4. For each violation, read the relevant section of `OSS_SPEC.md` so the fix matches the spec's intent rather than just silencing the check.
 
 ## Mapping table
@@ -68,21 +77,21 @@ This skill is complementary to `update-spec`. `update-spec` propagates a spec ed
 ## Update checklist
 
 - [ ] Read the baseline from `.last-updated` and diff `OSS_SPEC.md` / `src/validate/`
-- [ ] Run `cargo run -q -- validate --no-ai` and record every structural violation
-- [ ] Run `cargo run -q -- validate .` and record every AI finding worth acting on
+- [ ] Run `cargo run -q -- validate --no-ai` and record every structural violation (or `./scripts/validate.sh .` if the binary/cargo is unavailable — see the Nonbinary fallback note above)
+- [ ] Run `cargo run -q -- validate .` and record every AI finding worth acting on (the bash fallback emits the same checklist as a manual prompt at the end of its run)
 - [ ] Walk the mapping table and fix each violation at its source
 - [ ] If a fix requires a propagation step (e.g. new mandate in the spec), hand off to `update-spec` first, then re-run this skill
-- [ ] Re-run `cargo run -q -- validate --no-ai` — it must report zero structural violations
-- [ ] Run `make fmt`, `make lint`, `make test` — the self-conformance test (`tests/self_conformance.rs`) must pass
+- [ ] Re-run the validator — it must report zero structural violations (Rust path preferred; `./scripts/validate.sh .` if the binary/cargo is unavailable)
+- [ ] Run `make fmt`, `make lint`, `make test` — the self-conformance test (`tests/self_conformance.rs`) must pass (skip these if the toolchain is unavailable and note the gap in the PR description so a follow-up run with cargo can confirm)
 - [ ] Write the new baseline:
 
       git rev-parse HEAD > .agent/skills/sync-oss-spec/.last-updated
 
 ## Verification
 
-1. `cargo run -q -- validate --no-ai` prints `repo conforms to OSS_SPEC.md` (see `Report::print`).
-2. `make test` passes, including the self-conformance test.
-3. Every violation present before this run has a matching edit in the diff — no violations were silenced by loosening the validator.
+1. `cargo run -q -- validate --no-ai` prints `repo conforms to OSS_SPEC.md` (see `Report::print`). If cargo is unavailable, `./scripts/validate.sh .` exits 0 instead.
+2. `make test` passes, including the self-conformance test. Skip only if the toolchain is genuinely unavailable; in that case call out the unverified gap in the PR description.
+3. Every violation present before this run has a matching edit in the diff — no violations were silenced by loosening the validator (or its bash mirror).
 4. `.last-updated` was rewritten with the current `HEAD`.
 
 ## Skill self-improvement
