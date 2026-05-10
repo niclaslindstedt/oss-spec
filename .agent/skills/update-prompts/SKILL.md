@@ -8,7 +8,7 @@ description: "Use when prompts under prompts/ may be stale. Discovers changes to
 Every LLM-driven step in this CLI is defined by a versioned prompt under `prompts/<name>/<major>_<minor>_<patch>.md` with a required YAML front matter block (`name`, `description`, `version`) — see §13.5 of `OSS_SPEC.md`. Prompt files are **immutable once committed**; every change lands as a new version. Prompts drift whenever:
 
 - `OSS_SPEC.md` changes — `verify-conformance` embeds the full spec and `fix-conformance` references section numbers, so any spec edit may invalidate them.
-- `src/validate.rs` grows a new structural rule — the fix agent needs new guidance to handle the new violation shape.
+- `src/validate/` grows a new structural rule — the fix agent needs new guidance to handle the new violation shape.
 - `src/ai.rs`, `src/fix.rs`, or `src/tailor.rs` change the rendering context — new Jinja placeholders may appear or disappear.
 - `src/manifest.rs` gains or removes a `Language` / `Kind` / `License` enum variant — the `interpret-prompt` JSON schema must track it.
 - The §23 tailoring allow/denylist changes — `prompts/tailor-init/*.md` must reiterate the current scope.
@@ -37,7 +37,7 @@ This skill exists so that drift between prompt text and the rest of the codebase
 
    ```sh
    git diff --name-only "$BASELINE"..HEAD -- \
-       OSS_SPEC.md src/ai.rs src/fix.rs src/tailor.rs src/validate.rs src/manifest.rs prompts/
+       OSS_SPEC.md src/ai.rs src/fix.rs src/tailor.rs src/validate/ src/manifest.rs prompts/
    ```
 
 4. For each path that appears in the diff, walk the mapping table below and decide which prompts are now stale.
@@ -49,7 +49,7 @@ This skill exists so that drift between prompt text and the rest of the codebase
 | `OSS_SPEC.md` body (any `§N` edit) | `prompts/verify-conformance/*.md` | Embedded checklist — make sure every new or changed mandate is represented. |
 | `OSS_SPEC.md` body (any `§N` edit) | `prompts/fix-conformance/*.md` | Per-section guidance block — add or amend bullets so the agent knows how to fix the new rule. |
 | `OSS_SPEC.md` version field | all prompts that render `{{ spec_version }}` | Nothing to edit — version is pulled from `embedded::oss_spec_version()` at render time. Verify the placeholder is still referenced. |
-| New check in `src/validate.rs` (new `Violation` producer) | `prompts/fix-conformance/*.md` | Add handling guidance; if the check is AI-only, make sure it is mentioned as a quality finding category. |
+| New check in `src/validate/` (new `Violation` producer) | `prompts/fix-conformance/*.md` | Add handling guidance; if the check is AI-only, make sure it is mentioned as a quality finding category. |
 | New placeholder added in `src/ai.rs` `context! { ... }` | the matching prompt's `## User` section | Reference the new placeholder; re-render to confirm no leftover `{{ unused }}` tokens. |
 | New `Language` / `Kind` / `License` variant in `src/manifest.rs` | `prompts/interpret-prompt/*.md` | Update the JSON schema `enum` list embedded in the prompt. |
 | New versioned prompt added under `prompts/<name>/<major>_<minor>_<patch>.md` | `src/ai.rs` / `src/fix.rs` / `src/tailor.rs` callers | Confirm the caller loads by name (not a pinned version) so the new file is auto-picked; if a caller pins a specific version, bump it. |

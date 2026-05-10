@@ -16,7 +16,7 @@ import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST = resolve(__dirname, "../dist");
-const SITE_URL = "https://oss-spec.dev";
+const SITE_URL = "https://niclaslindstedt.github.io/oss-spec";
 
 // Public routes the sitemap should list. `lastmod` comes from the
 // real mtime of a representative source file so search engines see a
