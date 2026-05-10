@@ -69,6 +69,23 @@ repo (works with both `validate` and `fix`):
 oss-spec validate --url https://github.com/foo/bar.git --create-issues --yes
 ```
 
+### No-binary fallback (`scripts/validate.sh`)
+
+When you can't install the `oss-spec` binary — typically inside a sandboxed
+agent session in another project — point the agent at the bash mirror of
+the validator:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/scripts/validate.sh | bash -s -- /path/to/repo
+```
+
+It downloads the latest `OSS_SPEC.md` to the repo root (overwriting any
+existing copy so `git diff -- OSS_SPEC.md` shows what changed since the
+project was last brought into conformance), runs every deterministic §19
+check, and ends with an LLM-directed checklist the calling agent works
+through file by file. AI quality review is left to the agent — the script
+itself is offline-friendly and zero-install.
+
 ## Usage
 
 | Command | What it does |

@@ -62,7 +62,7 @@ Dependency direction is top-down: `main` → `lib` → `cli` → (`interview`, `
 |---|---|
 | New CLI flag / subcommand | `src/cli.rs` (clap) + `src/agent_help.rs` (commands table, COMMAND_SPECS, EXAMPLES) + `man/oss-spec.md` |
 | New template file | `templates/_common/`, `templates/<lang>/`, or `templates/cli/` |
-| New §19 conformance rule | `src/validate/` (structural checks in `structural.rs`, content checks in `content.rs`, toolchain in `toolchain.rs`, agent skills in `agent_skills.rs`) |
+| New §19 conformance rule | `src/validate/` (structural checks in `structural.rs`, content checks in `content.rs`, toolchain in `toolchain.rs`, agent skills in `agent_skills.rs`) **and** `scripts/validate.sh` (bash mirror; keep 1:1 — see "Validate-script parity" below) |
 | New auto-fix behavior | `src/fix.rs` (zag agent orchestration) |
 | New AI-driven step | `src/ai.rs` (thin wrapper) + caller in `interview.rs` |
 | New language overlay | `templates/<lang>/`, plus `Language` enum variant in `manifest.rs` |
@@ -89,7 +89,7 @@ When you change… | Update…
 --- | ---
 A CLI flag or subcommand | `man/oss-spec.md`, `docs/agent/help-agent.txt`, `agent_help::COMMANDS_TABLE`, `agent_help::COMMAND_SPECS`, `README.md` Usage table
 A template file | `templates/_common/` (or overlay) — and re-run `oss-spec validate` against a generated demo
-A §19 rule | `src/validate/` (appropriate submodule), `OSS_SPEC.md`, this `## Documentation sync points` table
+A §19 rule | `src/validate/` (appropriate submodule), **`scripts/validate.sh` (the bash mirror — keep 1:1; see "Validate-script parity" below)**, `OSS_SPEC.md`, this `## Documentation sync points` table
 A toolchain version bump (Rust / Python / Node / Go) | the repo-root pin file (`rust-toolchain.toml`, `.python-version`, `.nvmrc`, or `go.mod`'s `toolchain` directive), its `templates/<lang>/` counterpart, `templates/_common/.github/workflows/ci.yml.tmpl`, and `MIN_TOOLCHAIN_VERSIONS` in `src/validate/toolchain.rs` (§10.5 local/CI parity, §10.3 minimums)
 An LLM prompt's source of truth (spec text, validator rule, manifest enum, rendering-context key) | A new file under `prompts/<name>/<major>_<minor>_<patch>.md` (never edit an existing versioned file — bump semver and create a new one per §13.5). Touch `src/prompts.rs` afterwards (e.g. `touch src/prompts.rs`) so the `include_dir!` proc-macro picks up the new embedded file on the next build. Run the `update-prompts` skill or let the `maintenance` sweep pick it up.
 The list of supported languages | `manifest::Language`, `templates/<lang>/`, `Makefile.tmpl`, `ci.yml.tmpl`, `dependabot.yml.tmpl`
@@ -110,6 +110,7 @@ This repo is the canonical reference implementation of `OSS_SPEC.md`. Other proj
 - **AGENTS.md symlinks.** When generating projects, all of `CLAUDE.md`, `.cursorrules`, `.windsurfrules`, `GEMINI.md`, `.aider.conf.md`, and `.github/copilot-instructions.md` must be symlinks to `AGENTS.md`. The same rule applies to this repo.
 - **`zag` is isolated.** Only `src/ai.rs` may import from `zag`. Every AI call must have a deterministic fallback so `--no-ai` keeps working.
 - **`oss-spec validate .` must always pass on this repo.** A self-conformance test (`tests/self_conformance.rs`) enforces it; if you add a new §19 rule that breaks the dogfood, fix the dogfood at the same time.
+- **Validate-script parity.** `scripts/validate.sh` is a bash mirror of the deterministic checks in `src/validate/` so agents in environments where the Rust binary cannot be installed (sandboxed sessions, ephemeral CI) can still verify §19 conformance via `curl … | bash`. Whenever you add, remove, or change a rule in any `src/validate/` submodule (`structural.rs`, `content.rs`, `toolchain.rs`, `agent_skills.rs`), make the equivalent edit to `scripts/validate.sh` in the same PR. There is no automated drift detector between the two implementations — reviewers verify parity by hand. The bash script's tail is an explicit prompt to the calling agent; if you add a §19 mandate that requires LLM judgment to verify, also extend the "Agent review checklist" block at the bottom of `scripts/validate.sh`.
 - **No raw prints.** All user-facing output goes through `src/output.rs` (`output::status`, `output::warn`, `output::info`, `output::header`, `output::error`). The only exception is machine-readable §12 contract output in `agent_help.rs`. Use `log::debug!` for verbose diagnostics.
 
 ## Maintenance skills

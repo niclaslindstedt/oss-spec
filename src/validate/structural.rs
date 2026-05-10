@@ -3,6 +3,9 @@
 //! Every check here is deterministic and cheap: it reads the filesystem,
 //! pushes a [`Violation`] per problem found, and returns. AI-assisted
 //! quality review lives elsewhere.
+//!
+//! Mirrored in `scripts/validate.sh` — keep both in lockstep when adding
+//! or changing a rule (see [`super`] for the full parity policy).
 
 use super::{Report, Violation, toolchain};
 use anyhow::{Context, Result};

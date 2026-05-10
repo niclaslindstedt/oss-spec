@@ -1,4 +1,9 @@
 //! §10.3 / §10.5 toolchain checks — CI workflow pins and local pin-file parity.
+//!
+//! Mirrored in `scripts/validate.sh` — keep both in lockstep. In particular,
+//! [`MIN_TOOLCHAIN_VERSIONS`] below has a matching `MIN_RUST` / `MIN_PYTHON`
+//! / `MIN_NODE` / `MIN_GO` block in the bash script that must move together
+//! whenever a minimum is bumped (see [`super`] for the full parity policy).
 
 use super::Violation;
 use std::path::Path;
