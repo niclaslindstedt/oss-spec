@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is **auto-generated from conventional commits at release time** —
 do not edit manually.
 
+## [0.4.0] - 2026-05-10
+
+### Added
+
+- Add scripts/validate.sh as a no-binary bash mirror (#57)
+- Mandate SEO and discoverability for project websites (§11.3) (#55)
+- Require GITHUB_TOKEN for release retag step (#45)
+- Mandate shellcheck and actionlint in §16.1 (#44)
+
+### Fixed
+
+- Point extract script at src/validate/structural.rs
+
 ## [0.3.0] - 2026-04-18
 
 ### Added
