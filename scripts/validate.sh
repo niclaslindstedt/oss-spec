@@ -36,9 +36,9 @@ SPEC_VERSION="2.6.0"
 # ---------------------------------------------------------------------------
 if [ -t 1 ]; then
     C_ERR=$'\033[31m'; C_OK=$'\033[32m'; C_WARN=$'\033[33m'
-    C_INFO=$'\033[36m'; C_DIM=$'\033[2m'; C_RST=$'\033[0m'
+    C_INFO=$'\033[36m'; C_RST=$'\033[0m'
 else
-    C_ERR=''; C_OK=''; C_WARN=''; C_INFO=''; C_DIM=''; C_RST=''
+    C_ERR=''; C_OK=''; C_WARN=''; C_INFO=''; C_RST=''
 fi
 
 info()   { printf '%s\n' "${C_INFO}$*${C_RST}"; }
@@ -121,8 +121,9 @@ version_ge() {
 }
 
 versions_same_major_minor() {
-    local a_mm="$(printf '%s' "$1" | awk -F. '{printf "%s.%s", $1, $2}')"
-    local b_mm="$(printf '%s' "$2" | awk -F. '{printf "%s.%s", $1, $2}')"
+    local a_mm b_mm
+    a_mm="$(printf '%s' "$1" | awk -F. '{printf "%s.%s", $1, $2}')"
+    b_mm="$(printf '%s' "$2" | awk -F. '{printf "%s.%s", $1, $2}')"
     [ "$a_mm" = "$b_mm" ]
 }
 
@@ -280,7 +281,7 @@ check_no_inline_tests() {
     local f
     while IFS= read -r -d '' f; do
         if has_inline_test_attribute "$f"; then
-            local rel="${f#$TARGET/}"
+            local rel="${f#"$TARGET"/}"
             add_violation "§20" \
                 "$rel: contains inline test block; move tests to a separate file in tests/"
         fi
@@ -314,7 +315,14 @@ has_inline_test_attribute() {
 check_source_file_size() {
     # §20.5 Source file size limit, with `oss-spec:allow-large-file: <reason>` opt-out.
     local roots=(src lib)
-    local skip_dirs="tests target node_modules .git .agent .claude dist build __pycache__ .venv venv"
+    local skip_dirs=(tests target node_modules .git .agent .claude dist build __pycache__ .venv venv)
+    local prune=()
+    local d_name
+    for d_name in "${skip_dirs[@]}"; do
+        prune+=( -name "$d_name" -o )
+    done
+    prune+=( -name __nope__ )
+
     local r d
     for r in "${roots[@]}"; do
         d="$TARGET/$r"
@@ -322,7 +330,7 @@ check_source_file_size() {
         local f
         while IFS= read -r -d '' f; do
             walk_size_check "$f"
-        done < <(find "$d" \( $(printf -- '-name %s -o ' $skip_dirs)-name __nope__ \) -prune \
+        done < <(find "$d" \( "${prune[@]}" \) -prune \
                        -o -type f \( -name '*.rs' -o -name '*.py' -o -name '*.ts' -o \
                                      -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o \
                                      -name '*.go' -o -name '*.java' -o -name '*.kt' -o \
@@ -341,7 +349,7 @@ walk_size_check() {
     if head -n 20 "$f" | grep -Eq 'oss-spec:allow-large-file:[[:space:]]*[^[:space:]]'; then
         return 0
     fi
-    local rel="${f#$TARGET/}"
+    local rel="${f#"$TARGET"/}"
     add_violation "§20.5" \
         "$rel: $lines lines exceeds 1000-line limit; split the file or add an \`oss-spec:allow-large-file: <reason>\` marker in the first 20 lines"
 }
@@ -350,7 +358,14 @@ check_website_seo() {
     # §11.3 SEO scaffolding (Open Graph, Twitter Card, JSON-LD, sitemap.xml, robots.txt).
     local has_website=0
     local seen_og=0 seen_tw=0 seen_jsonld=0 seen_sitemap=0 seen_robots=0
-    local skip="node_modules target dist build .git .agent .claude __pycache__ .venv venv"
+    local skip_dirs=(node_modules target dist build .git .agent .claude __pycache__ .venv venv)
+    local prune=()
+    local d_name
+    for d_name in "${skip_dirs[@]}"; do
+        prune+=( -name "$d_name" -o )
+    done
+    prune+=( -name __nope__ )
+
     local f
     while IFS= read -r -d '' f; do
         local base; base="$(basename "$f")"
@@ -369,7 +384,7 @@ check_website_seo() {
                 grep -q 'robots.txt' "$f" 2>/dev/null && seen_robots=1
                 ;;
         esac
-    done < <(find "$TARGET" \( $(printf -- '-name %s -o ' $skip)-name __nope__ \) -prune \
+    done < <(find "$TARGET" \( "${prune[@]}" \) -prune \
                    -o -type f -print0 2>/dev/null)
 
     [ "$has_website" -eq 0 ] && return 0
