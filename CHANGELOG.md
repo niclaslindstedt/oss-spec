@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 This file is **auto-generated from conventional commits at release time** —
 do not edit manually.
 
+## [0.4.1] - 2026-05-10
+
+### Documentation
+
+- Drop validate-script parity note from sync-oss-spec (#59)
+- Point sync-oss-spec at the bash validator fallback (#58)
+
 ## [0.4.0] - 2026-05-10
 
 ### Added
