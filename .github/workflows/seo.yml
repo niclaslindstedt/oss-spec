@@ -1,0 +1,33 @@
+name: seo
+
+# §11.3.10 — structural SEO assertions. Runs `check-seo.mjs` against the
+# built site so the failure modes the spec calls out (empty SSR body,
+# missing canonical, JSON-LD that doesn't parse, BlogPosting.image drift
+# from og:image, sitemap.xml that drops a route, llms.txt missing,
+# critical-path JS budget breach) cannot ship silently. Errors block the
+# PR; warnings surface as annotations but don't fail the run.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check-seo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Install website deps
+        working-directory: website
+        run: npm install --prefer-offline --no-audit --no-fund
+      - name: Build
+        run: make website
+      - name: Check SEO surfaces
+        working-directory: website
+        run: npm run check:seo

@@ -4,6 +4,7 @@
 //
 //   - sitemap.xml   — every public route the project wants indexed
 //   - robots.txt    — `Allow: /` plus an absolute Sitemap: line
+//   - llms.txt      — §11.3.6 AI-crawler index per llmstxt.org
 //
 // Per-route <head> metadata (Open Graph, Twitter Card, JSON-LD) is baked
 // into website/index.html itself, since the current site is a single
@@ -59,6 +60,27 @@ function renderRobots() {
   return `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
 }
 
+// §11.3.6 — AI crawlers (Claude, Perplexity, ChatGPT) increasingly look
+// for an llms.txt at the site root. The format (https://llmstxt.org) is
+// a top-level `# Title`, a one-line `> description`, then `## Section`
+// headings whose items are `- [name](url): summary` lines. Generated
+// from the same URL list the sitemap uses so the two stay in lockstep.
+function renderLlmsTxt() {
+  const items = SITEMAP_URLS.map(
+    (u) => `- [${u.loc}](${u.loc}): site root`,
+  ).join("\n");
+  return [
+    "# oss-spec",
+    "",
+    "> Rust CLI that bootstraps new open source repositories conforming to OSS_SPEC.md.",
+    "",
+    "## Pages",
+    "",
+    items,
+    "",
+  ].join("\n");
+}
+
 function writeOut(rel, body) {
   const full = join(DIST, rel);
   mkdirSync(dirname(full), { recursive: true });
@@ -68,3 +90,4 @@ function writeOut(rel, body) {
 
 writeOut("sitemap.xml", renderSitemap());
 writeOut("robots.txt", renderRobots());
+writeOut("llms.txt", renderLlmsTxt());

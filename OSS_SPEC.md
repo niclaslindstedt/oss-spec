@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.6.0
+version: 2.7.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -855,95 +855,295 @@ expect. This prevents PRs from silently breaking the showcase.
 
 ### 11.3 SEO and discoverability
 
-**Every project website must be optimized for discovery by its intended
-audience.** A landing page that crawlers cannot read, or that previews
-as a blank URL on Slack/LinkedIn/Twitter, is invisible to the
-contributors and users the project is trying to reach.
+**Every project website (§11.2) must be findable.** Search engines, AI
+crawlers, social-card unfurlers, and feed readers each consume a
+different slice of the same page, and each slice has to ship enough
+signal that the project shows up where users look for it. The minimum
+bar is non-trivial — JS-rendered single-page apps in particular tend to
+ship empty bodies that look like soft-404s to Googlebot — so this
+section is prescriptive about both *what* every route emits and *how*
+the build verifies it before deploy.
 
-What "optimized" looks like is project-shape dependent — a CLI's
-audience is not a library's audience is not a long-form documentation
-site's audience — but the mechanics below apply regardless. Adapt the
-*content* of each element (titles, descriptions, schema.org type,
-keywords) to the project; keep the *structure* in place.
+The mechanics below are project-shape agnostic: the *content* of titles,
+descriptions, schema.org types, and keywords must be tailored to the
+project's audience, but the *structure* applies to every website that
+follows this spec.
 
-#### Required `<head>` metadata per route
+#### 11.3.1 Prerendered HTML body — never an empty SPA shell
 
-Every public route must emit values that describe **that page**, not
-the site as a whole:
+Every public URL the website serves must return HTML whose `<body>`
+contains the visible content (heading, prose, internal links) at
+request time, not after a JavaScript framework hydrates. A bare
+`<body><div id="root"></div></body>` is the classic indexing-killer:
+Google's two-stage pipeline indexes the initial HTML first and queues
+JS rendering on a separate, heavily-deprioritised pass, so SPAs that
+ship empty bodies regularly sit at "Discovered – currently not indexed"
+indefinitely.
 
-- `<title>` and `<meta name="description">`.
-- `<link rel="canonical" href="...">` — absolute URL.
-- `<meta name="robots" content="index,follow,max-image-preview:large">`.
-- Open Graph: `og:site_name`, `og:type`, `og:title`, `og:description`,
-  `og:url`, `og:image` (plus `og:image:width`, `og:image:height`,
-  `og:image:alt`).
-- Twitter Card: `twitter:card="summary_large_image"`, plus
-  `twitter:title`, `twitter:description`, `twitter:image`.
+Required pattern:
 
-#### Open Graph image
+1. A static-site generator or post-build SSR step emits a real HTML
+   file per route under `dist/`.
+2. The prerendered body includes the page's `<h1>`, the full prose,
+   breadcrumbs, and the page's outbound internal links.
+3. If the site is a JS app, it hydrates the prerendered HTML rather
+   than wiping the root and re-rendering. In React this means
+   `hydrateRoot` (not `createRoot`), `renderToString` (not
+   `renderToStaticMarkup`, so Suspense boundary markers are emitted),
+   and any state that depends on browser-only APIs (`localStorage`,
+   `window`, media queries) is deferred to `useEffect` so the first
+   client render matches the server render exactly. Other frameworks
+   have equivalent hydration entry points; the requirement is that no
+   route's first paint blanks the prerendered body.
 
-Every route must reference a 1200×630 PNG suitable for Facebook,
-LinkedIn, Slack, Discord, and Twitter previews. Ship a default at
-`website/public/og-default.png`. Projects whose content benefits from
-per-page cards (e.g. one per release, per docs page, per post) should
-code-render them at build time (`satori` + `@resvg/resvg-js`,
-`playwright`, or equivalent) so they stay in sync with their source
-data without manual upkeep.
+A `dist/404.html` copy of the shell with `noindex,follow` keeps
+SPA-fallback hosting sensible on unknown URLs without leaking
+soft-404 signals when crawlers guess URLs.
 
-#### Structured data (JSON-LD)
+#### 11.3.2 Per-route `<head>` requirements
 
-Every route must emit at least one
-`<script type="application/ld+json">` block describing the page in
-[schema.org](https://schema.org/) terms. Pick the type that best
-matches the page — `SoftwareApplication` or `SoftwareSourceCode` for a
-tool's landing page, `TechArticle` for documentation,
-`Article`/`BlogPosting` for posts, `CollectionPage` for indexes — and
-use absolute, stable `@id` URLs so the graph composes cleanly across
-deploys.
+Every prerendered HTML file must include, in `<head>`, values that
+describe **that page** rather than the site as a whole:
 
-#### Sitemap and robots.txt
-
-Every website must publish, at the site root, a `sitemap.xml` listing
-every route the project wants indexed (with `<lastmod>` derived from
-real source data — file `mtime`, latest git commit touching the
-source, etc. — never a build-time `now()`) and a `robots.txt` with an
-absolute `Sitemap:` line pointing at it. The sitemap must also be
-advertised in the shell's `<head>` via
-`<link rel="sitemap" type="application/xml" href="/sitemap.xml" />`.
-
-Projects that publish time-ordered content (release notes, blog posts,
-changelog entries) should additionally publish RSS 2.0 and Atom 1.0
-feeds linked from every route via `<link rel="alternate">`.
-
-These outputs must be **generated from the same source data the
-website itself consumes** (see §11.2), not hand-maintained.
-
-#### Single source of truth for SEO copy
+- `<title>` — page-specific, ≤ 60 characters where possible (Google
+  truncates around 60).
+- `<meta name="description">` — page-specific, ≤ 160 characters.
+- `<link rel="canonical">` — absolute URL on the canonical host.
+- `<meta name="robots">` — `index,follow,max-image-preview:large` on
+  real pages; `noindex,follow` on `404.html`.
+- `<meta charset="utf-8">`, `<meta name="viewport">`, and
+  `<html lang="…">` on the root element.
+- Open Graph: `og:type`, `og:title`, `og:description`, `og:url`,
+  `og:image` (with `og:image:width`, `og:image:height`,
+  `og:image:alt`), `og:site_name`, `og:locale`. Use `og:type=profile`
+  (with `profile:first_name` / `profile:last_name`) on author or
+  maintainer pages; `og:type=article` (with `article:published_time` /
+  `article:modified_time` / `article:tag`) on long-form content;
+  `og:type=website` for everything else.
+- Twitter card: `twitter:card=summary_large_image`, `twitter:title`,
+  `twitter:description`, `twitter:image`, `twitter:image:alt`. The
+  `:alt` is separately required — Twitter does not fall back to
+  `og:image:alt`.
+- `<meta name="theme-color">` with `media="(prefers-color-scheme:
+  light)"` and `(dark)` variants matching the rendered backgrounds.
+- `<meta name="referrer" content="strict-origin-when-cross-origin">`.
 
 All SEO copy and configuration — site name, tagline, description,
 canonical site URL, default keywords, OG image dimensions, language
 code, feed/sitemap paths — must live in a single configuration module
 (e.g. `website/src/seo/siteConfig.ts`) imported by both runtime client
-code (`<head>` updates via Helmet, `next/head`, `<svelte:head>`, or
-equivalent) and any build-time generator. Tweaking the site's pitch
-must be a one-file change.
+code and any build-time generator. Tweaking the site's pitch must be
+a one-file change.
 
-#### Pre-rendered metadata for single-page apps
+#### 11.3.3 Structured data (JSON-LD)
 
-Generic crawlers do not execute JavaScript, and even those that do
-will not wait for client-side `<head>` mutations before snapshotting.
-SPA projects must therefore run a post-build generator that, for every
-public route, splices a route-specific `<head>` block into a copy of
-the framework's `dist/index.html` shell and writes it to the route's
-path. The body remains the framework's hydration root — the generator
-only rewrites `<head>`. A `dist/404.html` copy of the homepage keeps
-SPA-fallback hosting sensible on unknown URLs.
+Every page ships at least one `<script type="application/ld+json">`
+block. The exact schema.org type depends on the page:
 
-#### CI verification
+- **Homepage:** `Person` (the author or maintainer) + `WebSite` + the
+  page-specific entity (`SoftwareApplication`, `Blog`, `CollectionPage`,
+  etc.). The Person uses a canonical `@id` (e.g.
+  `${SITE_URL}/#author`) so it dedupes across pages.
+- **Article / blog post / release notes / changelog entry:**
+  `BlogPosting` or `TechArticle` with `headline`, `description`,
+  `image` as an `ImageObject` with explicit `width`/`height`,
+  `datePublished`, `dateModified`, `author` (Person with `sameAs`
+  listing every external profile), `publisher` (Organization with
+  `logo` ImageObject when available, otherwise the author Person),
+  `wordCount`, `keywords`, `inLanguage`, `mainEntityOfPage`. Pair
+  every Article with a `BreadcrumbList`.
+- **About / maintainer profile:** `ProfilePage` whose `mainEntity`
+  references the canonical Person `@id`.
+- **Tag / category / index pages:** `CollectionPage` with `hasPart`
+  enumerating member items; pair with a `BreadcrumbList`.
+- **404:** none — the page is `noindex`.
 
-The website build job (§10.4) must fail if any required SEO output is
-missing — `sitemap.xml`, `robots.txt`, the homepage's JSON-LD, and
-per-route `<title>` plus canonical link.
+Critical invariants the structural SEO check (§11.3.10) must enforce:
+
+- The `BlogPosting.image` URL (or equivalent on other Article-like
+  types) equals the `<meta property="og:image">` URL. Google's
+  article-rich-result and Discover surfaces read the JSON-LD image,
+  not the OG meta, and silent drift is a frequent regression.
+- Each external profile (GitHub, LinkedIn, package registries, ORCID,
+  etc.) appears in the Person's `sameAs` array.
+- Every JSON-LD block parses; the `@type` field is set.
+
+Use absolute, stable `@id` URLs so the graph composes cleanly across
+deploys.
+
+#### 11.3.4 Internal link graph
+
+Every URL listed in `sitemap.xml` must be reachable from the homepage
+by following static `<a href>` links in prerendered HTML — not via
+JavaScript-driven navigation. Patterns that satisfy this:
+
+- A site-wide footer (rendered into every page) carries the canonical
+  internal anchors (about, source repository, feed URLs).
+- The homepage explicitly lists the most important child pages (post
+  list, command index, plugin registry, etc.) as real `<a href>`
+  elements, not buttons that route on click.
+- Per-content-type pages (tag pages, category pages, etc.) cross-link
+  member items.
+
+A page that the sitemap lists but no other prerendered HTML links to
+is *orphaned*. Google heavily downweights orphaned URLs even when
+they are in the sitemap.
+
+#### 11.3.5 Heading hierarchy
+
+The heading outline must not skip levels. A page with `<h1>Title</h1>`
+followed immediately by `<h3>Section</h3>` (no `<h2>` between them)
+fails Lighthouse accessibility and reads as a structural smell to
+Google. Markdown body content is rendered with `<h2>` for top-level
+sections, not auto-shifted to `<h3>`. Page templates that render a
+page title as `<h1>` must accept body-content `<h2>`s as the next
+level.
+
+#### 11.3.6 Site-wide discovery files
+
+The build must emit, at the dist root:
+
+- **`/sitemap.xml`** — every indexable URL with `<lastmod>` (derived
+  from real source data — file `mtime`, latest git commit touching
+  the source, etc. — never a build-time `now()`), `<changefreq>`, and
+  `<priority>`. Generated from the source-derived data file (§11.2),
+  never hand-maintained. The sitemap must also be advertised in the
+  shell's `<head>` via
+  `<link rel="sitemap" type="application/xml" href="/sitemap.xml" />`.
+- **`/robots.txt`** — `User-agent: * / Allow: /` plus an absolute
+  `Sitemap:` line.
+- **`/llms.txt`** — per the [<llmstxt.org>](https://llmstxt.org)
+  convention: site title (`# Title`), one-line description (`> …`),
+  section headings (`## Posts`, `## Commands`, `## API`, etc.), and
+  each item as `- [name](url): summary`. AI crawlers (Claude,
+  Perplexity, ChatGPT) increasingly check for this; it costs nothing
+  to generate from the same source data the sitemap uses.
+
+#### 11.3.7 Feeds (when the project has time-ordered content)
+
+For blogs, release notes, changelogs, and any other time-ordered
+surface, ship three feed formats so subscribers do not have to know
+which one their reader prefers:
+
+- **`/feed.xml`** — RSS 2.0 with the `xmlns:content` namespace
+  declared on `<rss>` and full body HTML in `<content:encoded>` per
+  item (CDATA-wrapped). `<description>` keeps the summary lede;
+  readers that do not render the full body fall back to it.
+- **`/feed.atom`** — Atom 1.0 with `<content type="html">` per entry
+  (same CDATA wrap, same body HTML as RSS).
+- **`/feed.json`** — JSON Feed 1.1 with `content_html` per item, plus
+  `version`, `language`, `authors`.
+
+Body HTML for the feeds is rendered from the same markdown source as
+the website, but **without** the site's component overrides
+(interactive buttons, modal triggers, lazy-loaded widgets) — feed
+readers have no runtime to drive them. Each feed URL is declared in
+`<head>` as a `<link rel="alternate">` with the matching MIME type
+(`application/rss+xml`, `application/atom+xml`,
+`application/feed+json`) and listed visibly in the site footer
+alongside the source-repository link.
+
+#### 11.3.8 Open Graph image per content item
+
+Every route must reference a 1200×630 PNG suitable for Facebook,
+LinkedIn, Slack, Discord, and Twitter previews. Ship a default at
+`website/public/og-default.png`. Each indexable content item (post,
+doc page, release, command, etc.) additionally ships a per-item
+1200×630 PNG at a stable path (`/og/<slug>.png`), code-rendered from
+the same source data the page uses — title, summary, author, brand
+— so the image cannot drift from the page content. Recommended
+toolchains: `satori` + `@resvg/resvg-js` for static-site builds; an
+OG image service for dynamic content; a pre-generated set committed
+to the repo for tiny sites.
+
+#### 11.3.9 Page-weight budgets
+
+Critical-path JS (the entry chunk plus every chunk emitted via
+`<link rel="modulepreload">` in the static HTML) must stay under a
+fixed byte budget. Default: **600 KB minified / 175 KB gzipped**.
+Projects with stricter Core Web Vitals targets should lower it.
+Achieved through:
+
+1. **Code-splitting heavy libraries into vendor chunks** via the
+   bundler's `manualChunks` (markdown stack, syntax highlighter,
+   charting library, etc.) so each library caches independently.
+2. **Lazy-loading routes and modals** via `React.lazy()` / dynamic
+   `import()`. Modals must be gated on their `open` flag so the lazy
+   fetch fires only on user trigger — a lazy modal that always
+   renders (returning `null` when closed) will have its chunk eagerly
+   fetched on first render.
+3. **Filtering lazy chunks out of `modulePreload`.** Vite's default
+   preloads every transitive dependency including chunks reached only
+   through a lazy boundary, which silently undoes the split. Filter
+   explicitly via `build.modulePreload.resolveDependencies` (or the
+   equivalent in other bundlers).
+
+#### 11.3.10 CI enforcement
+
+Two workflows guard the SEO surfaces, separate from the unit-test
+pipeline (§10). Both are required (§19) alongside `pages.yml` for any
+spec-conforming project.
+
+**`seo` — structural assertions.** A Node/TypeScript script
+(`website/scripts/check-seo.{ts,mjs}`) walks every HTML file under
+`dist/` after the build and asserts:
+
+- `<body>` contains substantive content (≥ 20 words).
+- Exactly one `<h1>` per page; heading levels do not skip.
+- Non-empty `<title>` (≤ 70 chars) and meta description (≤ 160 chars).
+- Absolute canonical on the canonical host.
+- Robots meta indexable on real pages; `noindex` on `404.html` only.
+- `og:image` resolves to a real file under `dist/`;
+  `twitter:image:alt` present.
+- All JSON-LD blocks parse; `BlogPosting.image` URL matches
+  `og:image`.
+- No tracking-param leaks (`?utm_*`, in-app view-state params, etc.)
+  in internal `href`s in the prerendered HTML.
+- Every `<img>` carries `alt`, `width`, `height`, and `loading`.
+- `sitemap.xml` lists every per-content HTML file.
+- `robots.txt` advertises the sitemap and does not `Disallow: /`.
+- `llms.txt` exists with a top-level `# Site title` heading.
+- Critical-path JS stays under the §11.3.9 budget.
+
+Each failure emits a GitHub Actions `::error::` annotation tied to
+the specific dist file so the PR file view highlights it. The
+workflow runs on push to the default branch and on every PR.
+`.github/workflows/seo.yml` wires the script into CI.
+
+**`lighthouse` — real-device measured signals.**
+`.github/workflows/lighthouse.yml` runs `lhci autorun` against a
+static serve of `dist/` for the homepage plus one representative URL
+per content type. Thresholds in
+`.github/lighthouse/lighthouserc.json`:
+
+| Category / metric | Threshold |
+| ----------------- | --------- |
+| Performance       | ≥ 0.85    |
+| Accessibility     | ≥ 0.9     |
+| Best practices    | ≥ 0.9     |
+| SEO               | ≥ 0.95    |
+| LCP               | < 2500 ms |
+| CLS               | < 0.1     |
+| TBT               | < 300 ms  |
+
+New projects start every assertion on `warn` and ratchet specific
+ones to `error` once a baseline of three or more clean runs on the
+default branch exists. Reports upload to `temporary-public-storage`
+so every run produces a public report URL.
+
+The deterministic conformance check (§19) verifies that both
+`seo.yml` and `lighthouse.yml` exist, that `llms.txt` is generated,
+and that the existing five-signal scan (Open Graph, Twitter Card,
+JSON-LD, sitemap.xml, robots.txt) still passes. The qualitative
+assertions in the bullet list above are enforced at build time by
+`check-seo` itself.
+
+#### 11.3.11 README badge row
+
+The README's badge row (§3) carries `ci`, `seo` (the structural
+check from §11.3.10), `pages` (deploy status), and `license`. The
+two quality-gate badges sit next to each other so a single glance at
+the README answers "is the discoverability surface healthy".
 
 ## 12. Additional requirements for CLI projects
 

@@ -1,0 +1,28 @@
+name: lighthouse
+
+# §11.3.10 — real-device Lighthouse runs against the built site, with
+# thresholds enforced via `.github/lighthouse/lighthouserc.json`. Catches
+# the Core Web Vitals (LCP, INP, CLS) regressions that the static
+# `check-seo` workflow can't see — byte counts don't tell you how long
+# the page takes to become interactive on a throttled emulated mobile
+# device, but Lighthouse does.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+      - run: cd website && npm install && npm run build
+      - run: npm install --global @lhci/cli@0.14.x
+      - run: lhci autorun --config=./.github/lighthouse/lighthouserc.json
