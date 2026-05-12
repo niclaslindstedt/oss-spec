@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "extract": "node scripts/extract-source-data.mjs",
-    "build": "npm run extract && node scripts/generate-og-image.mjs && vite build && cp dist/index.html dist/404.html && node scripts/generate-seo.mjs",
+    "build": "npm run extract && node scripts/generate-og-image.mjs && vite build && node scripts/prerender.mjs && node scripts/generate-seo.mjs",
     "check:seo": "node scripts/check-seo.mjs",
     "preview": "vite preview"
   },
