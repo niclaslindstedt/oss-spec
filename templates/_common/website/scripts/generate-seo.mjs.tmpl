@@ -4,6 +4,7 @@
 //
 //   - sitemap.xml   — every public route the project wants indexed
 //   - robots.txt    — `Allow: /` plus an absolute Sitemap: line
+//   - llms.txt      — §11.3.6 AI-crawler index per llmstxt.org
 //
 // Replace SITE_URL and the SITEMAP_URLS list below with real values for
 // this project. Keep the per-route <head> metadata (Open Graph, Twitter
@@ -47,6 +48,27 @@ function renderRobots() {
   return `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
 }
 
+// §11.3.6 — AI crawlers (Claude, Perplexity, ChatGPT) look for an
+// llms.txt at the site root. Format: top-level `# Title`, a one-line
+// `> description`, then `## Section` headings whose items are
+// `- [name](url): summary` lines. Generated from the same URL list the
+// sitemap uses so the two stay in lockstep.
+function renderLlmsTxt() {
+  const items = SITEMAP_URLS.map(
+    (u) => `- [${u.loc}](${u.loc}): site root`,
+  ).join("\n");
+  return [
+    "# {{ name }}",
+    "",
+    "> {{ description }}",
+    "",
+    "## Pages",
+    "",
+    items,
+    "",
+  ].join("\n");
+}
+
 function writeOut(rel, body) {
   const full = join(DIST, rel);
   mkdirSync(dirname(full), { recursive: true });
@@ -56,3 +78,4 @@ function writeOut(rel, body) {
 
 writeOut("sitemap.xml", renderSitemap());
 writeOut("robots.txt", renderRobots());
+writeOut("llms.txt", renderLlmsTxt());

@@ -279,8 +279,10 @@ fn walk_source_tree(dir: &Path, root: &Path, report: &mut Report) -> Result<()> 
 
 /// §11.3 SEO and discoverability. If the project ships a website, it must
 /// ship the SEO scaffolding the spec mandates: Open Graph + Twitter Card
-/// meta on the routes a crawler sees, JSON-LD structured data, and a
-/// sitemap.xml + robots.txt emitted by the build.
+/// meta on the routes a crawler sees, JSON-LD structured data, a
+/// sitemap.xml + robots.txt + llms.txt emitted by the build, a
+/// structural `check-seo` script wired into a workflow (§11.3.10), and a
+/// `lighthouse` workflow with a checked-in lighthouserc config.
 ///
 /// The check is intentionally vague about *where* the website lives —
 /// it might be `website/`, `pages/`, `site/`, `web/`, `docs-site/`, or
@@ -288,9 +290,9 @@ fn walk_source_tree(dir: &Path, root: &Path, report: &mut Report) -> Result<()> 
 /// signals that survive across naming conventions: a GitHub Pages deploy
 /// workflow, or a checked-in `index.html` source. Once a website is
 /// detected, we scan every reasonable text file in the repo for the
-/// five SEO signals; a signal seen *anywhere* counts, since projects
-/// that emit their meta tags from a build script's string literals
-/// satisfy the spec just as well as projects that hard-code them in
+/// SEO signals; a signal seen *anywhere* counts, since projects that
+/// emit their meta tags from a build script's string literals satisfy
+/// the spec just as well as projects that hard-code them in
 /// hand-authored HTML.
 pub(super) fn check_website_seo(path: &Path, report: &mut Report) -> Result<()> {
     let mut has_website = false;
@@ -317,6 +319,15 @@ pub(super) fn check_website_seo(path: &Path, report: &mut Report) -> Result<()> 
     if !signals.robots {
         missing.push("robots.txt");
     }
+    if !signals.llms_txt {
+        missing.push("llms.txt");
+    }
+    if !signals.seo_check {
+        missing.push("check-seo script/workflow");
+    }
+    if !signals.lighthouse {
+        missing.push("lighthouse workflow / lighthouserc");
+    }
     if missing.is_empty() {
         return Ok(());
     }
@@ -339,6 +350,16 @@ struct SeoSignals {
     json_ld: bool,
     sitemap: bool,
     robots: bool,
+    /// §11.3.6 — `/llms.txt` referenced or emitted somewhere in source.
+    llms_txt: bool,
+    /// §11.3.10 — a structural SEO check is wired in. Satisfied by either
+    /// a checked-in `check-seo.*` / `check_seo.*` script, or a workflow
+    /// step that invokes it (`check:seo`, `check-seo`, etc.).
+    seo_check: bool,
+    /// §11.3.10 — a Lighthouse CI run is wired in. Satisfied by either a
+    /// `lighthouserc.{json,js,cjs,yml}` config in the repo, or a workflow
+    /// step that runs `lhci`.
+    lighthouse: bool,
 }
 
 /// Directories the SEO walk never enters. Same shape as the source-size
@@ -393,9 +414,33 @@ fn is_seo_scannable(file_name: &str) -> bool {
                 | "vue"
                 | "svelte"
                 | "tmpl"
+                | "json"
         );
     }
     false
+}
+
+/// `true` if `file_name` is the structural-SEO script the spec mandates
+/// at `website/scripts/check-seo.{ts,mjs}` (§11.3.10). We accept hyphen
+/// or underscore and any common script extension so projects laid out
+/// differently still pass.
+fn is_check_seo_script(file_name: &str) -> bool {
+    let stem = file_name
+        .rsplit_once('.')
+        .map(|(s, _)| s)
+        .unwrap_or(file_name);
+    matches!(stem, "check-seo" | "check_seo")
+}
+
+/// `true` if `file_name` is a Lighthouse CI config file. Lighthouse CI
+/// reads `lighthouserc.{json,js,cjs,yml,yaml}` at the project root (or
+/// wherever the workflow points it).
+fn is_lighthouserc(file_name: &str) -> bool {
+    let stem = file_name
+        .rsplit_once('.')
+        .map(|(s, _)| s)
+        .unwrap_or(file_name);
+    stem == "lighthouserc"
 }
 
 /// `true` if a file path is a GitHub Actions workflow. Workflows are the
@@ -434,14 +479,33 @@ fn walk_seo(dir: &Path, has_website: &mut bool, signals: &mut SeoSignals) -> Res
         if is_website_indicator(name) {
             *has_website = true;
         }
-        // Workflow check: a `actions/deploy-pages` reference inside a
-        // `.github/workflows/*.{yml,yaml}` file is the canonical signal
-        // that the project publishes a website, regardless of where the
-        // source lives.
+        // §11.3.10 — checked-in `check-seo.{ts,mjs,js,…}` script counts
+        // as the structural-SEO check even without inspecting workflow
+        // contents. Many projects co-locate it under website/scripts/.
+        if is_check_seo_script(name) {
+            signals.seo_check = true;
+        }
+        // §11.3.10 — a checked-in `lighthouserc.*` config means Lighthouse
+        // CI is wired in (the workflow that consumes it is a separate but
+        // less load-bearing concern; the config is the source of truth).
+        if is_lighthouserc(name) {
+            signals.lighthouse = true;
+        }
+        // Workflow scan: a `.github/workflows/*.{yml,yaml}` can supply the
+        // website-publishing signal *and* the SEO-CI signals on its own.
+        // `actions/deploy-pages` says "this project publishes a website";
+        // `check-seo` / `check:seo` says the structural SEO check runs in
+        // CI; `lhci` says Lighthouse CI runs in CI.
         if is_github_workflow(&p) {
             if let Ok(content) = std::fs::read_to_string(&p) {
                 if content.contains("actions/deploy-pages") {
                     *has_website = true;
+                }
+                if content.contains("check-seo") || content.contains("check:seo") {
+                    signals.seo_check = true;
+                }
+                if content.contains("lhci") || content.contains("lighthouserc") {
+                    signals.lighthouse = true;
                 }
             }
         }
@@ -466,6 +530,15 @@ fn walk_seo(dir: &Path, has_website: &mut bool, signals: &mut SeoSignals) -> Res
         }
         if content.contains("robots.txt") {
             signals.robots = true;
+        }
+        if content.contains("llms.txt") {
+            signals.llms_txt = true;
+        }
+        if content.contains("check-seo") || content.contains("check:seo") {
+            signals.seo_check = true;
+        }
+        if content.contains("lhci") || content.contains("lighthouserc") {
+            signals.lighthouse = true;
         }
     }
     Ok(())

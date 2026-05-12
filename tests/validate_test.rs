@@ -411,8 +411,15 @@ fn scaffold_minimal_repo(root: &std::path::Path) {
         &root.join(".github/copilot-instructions.md"),
     )
     .unwrap();
-    // Required workflows
-    for w in ["ci.yml", "version-bump.yml", "release.yml", "pages.yml"] {
+    // Required workflows (§10 + §11.3.10)
+    for w in [
+        "ci.yml",
+        "version-bump.yml",
+        "release.yml",
+        "pages.yml",
+        "seo.yml",
+        "lighthouse.yml",
+    ] {
         fs::write(root.join(".github/workflows").join(w), "").unwrap();
     }
     // Required templates
@@ -1296,7 +1303,17 @@ fn website_with_full_seo_passes() {
     fs::create_dir_all(root.join("pages/scripts")).unwrap();
     fs::write(
         root.join("pages/scripts/build-seo.mjs"),
-        "// emits sitemap.xml and robots.txt\n",
+        "// emits sitemap.xml, robots.txt, and llms.txt\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("pages/scripts/check-seo.mjs"),
+        "// structural SEO check per §11.3.10\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("lighthouserc.json"),
+        r#"{"ci":{"assert":{"assertions":{}}}}"#,
     )
     .unwrap();
 
@@ -1328,6 +1345,9 @@ fn website_missing_all_seo_signals_flags_violation() {
     assert!(msg.contains("JSON-LD"), "missing JSON-LD note: {msg}");
     assert!(msg.contains("sitemap.xml"), "missing sitemap note: {msg}");
     assert!(msg.contains("robots.txt"), "missing robots note: {msg}");
+    assert!(msg.contains("llms.txt"), "missing llms.txt note: {msg}");
+    assert!(msg.contains("check-seo"), "missing check-seo note: {msg}");
+    assert!(msg.contains("lighthouse"), "missing lighthouse note: {msg}");
 }
 
 #[test]
@@ -1359,7 +1379,16 @@ fn website_with_partial_seo_lists_only_missing() {
         r#"<!doctype html><html><head>
 <meta property="og:image" content="/og.png" />
 <meta name="twitter:card" content="summary_large_image" />
+<script type="application/ld+json">{}</script>
 </head></html>"#,
+    )
+    .unwrap();
+    // Bake in the remaining "site-wide discovery" signals so the test
+    // isolates the §11.3.10 enforcement bits.
+    fs::create_dir_all(root.join("docs-site/scripts")).unwrap();
+    fs::write(
+        root.join("docs-site/scripts/build.mjs"),
+        "// emits sitemap.xml, robots.txt, and llms.txt\n",
     )
     .unwrap();
 
@@ -1375,9 +1404,67 @@ fn website_with_partial_seo_lists_only_missing() {
         !msg.contains("Twitter Card"),
         "TC should not be missing: {msg}"
     );
-    assert!(msg.contains("JSON-LD"), "JSON-LD missing: {msg}");
-    assert!(msg.contains("sitemap.xml"), "sitemap missing: {msg}");
-    assert!(msg.contains("robots.txt"), "robots missing: {msg}");
+    assert!(
+        !msg.contains("JSON-LD"),
+        "JSON-LD should not be missing: {msg}"
+    );
+    assert!(
+        !msg.contains("sitemap.xml"),
+        "sitemap should not be missing: {msg}"
+    );
+    assert!(
+        !msg.contains("robots.txt"),
+        "robots should not be missing: {msg}"
+    );
+    assert!(
+        !msg.contains("llms.txt"),
+        "llms.txt should not be missing: {msg}"
+    );
+    assert!(msg.contains("check-seo"), "check-seo missing: {msg}");
+    assert!(msg.contains("lighthouse"), "lighthouse missing: {msg}");
+}
+
+#[test]
+fn lighthouse_workflow_satisfies_seo_check() {
+    // §11.3.10 — a workflow that runs `lhci autorun` and a separate one
+    // that invokes the structural `check:seo` npm script together cover
+    // the two enforcement signals even when the project does not check
+    // in a `lighthouserc.json` or a standalone `check-seo.*` script.
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    fs::create_dir_all(root.join(".github/workflows")).unwrap();
+    fs::write(
+        root.join(".github/workflows/pages.yml"),
+        "jobs:\n  deploy:\n    steps:\n      - uses: actions/deploy-pages@v4\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".github/workflows/seo.yml"),
+        "jobs:\n  seo-check:\n    steps:\n      - run: npm run check:seo\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join(".github/workflows/lighthouse.yml"),
+        "jobs:\n  lighthouse:\n    steps:\n      - run: lhci autorun\n",
+    )
+    .unwrap();
+    // The Pages workflow alone is enough to trigger the §11.3 audit, so
+    // we still need to satisfy the other six signals.
+    fs::create_dir_all(root.join("web/scripts")).unwrap();
+    fs::write(
+        root.join("web/scripts/seo.mjs"),
+        "// emits og:image, twitter:card, application/ld+json,
+         // sitemap.xml, robots.txt, llms.txt
+",
+    )
+    .unwrap();
+
+    let report = validate::run(root).unwrap();
+    assert!(
+        v113(&report).is_empty(),
+        "lhci + check:seo workflows must satisfy §11.3.10: {:?}",
+        v113(&report)
+    );
 }
 
 #[test]
@@ -1396,12 +1483,16 @@ fn signals_in_build_scripts_count() {
     fs::write(
         root.join("web/scripts/seo.mjs"),
         r#"// emits og:image, twitter:card, application/ld+json,
-           // sitemap.xml and robots.txt at build time
+           // sitemap.xml, robots.txt, llms.txt, plus references the
+           // check-seo step and lhci wiring at build time
            const OG_IMAGE = "og:image";
            const TWITTER = "twitter:card";
            const JSONLD  = "application/ld+json";
            const SITEMAP = "sitemap.xml";
            const ROBOTS  = "robots.txt";
+           const LLMS    = "llms.txt";
+           const CHECK   = "check-seo";
+           const LH      = "lhci";
 "#,
     )
     .unwrap();

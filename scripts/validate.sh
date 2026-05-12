@@ -29,14 +29,14 @@
 set -euo pipefail
 
 SPEC_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/OSS_SPEC.md"
-SPEC_VERSION="2.6.0"
+SPEC_VERSION="2.7.0"
 
 # The agent-prompt body lives at prompts/validate-sh-agent/<v>.md per §13.5.
 # Bump this URL whenever a new version is added to that directory; the
 # `update-prompts` skill is responsible for keeping the bash script and
 # the prompt file in lockstep.
 PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_0_0.md"
-PROMPT_VERSION="1.0.0"
+PROMPT_VERSION="1.1.0"
 
 # ---------------------------------------------------------------------------
 # Output helpers
@@ -271,11 +271,20 @@ check_prompts_versioned() {
 }
 
 check_workflows() {
-    local required=(ci.yml version-bump.yml release.yml pages.yml)
+    # §10 base workflows + §11.3.10 SEO quality gates. Every spec-conforming
+    # project ships a website (§11.2), so seo.yml + lighthouse.yml are
+    # required alongside pages.yml.
+    local required_10=(ci.yml version-bump.yml release.yml pages.yml)
+    local required_seo=(seo.yml lighthouse.yml)
     local w
-    for w in "${required[@]}"; do
+    for w in "${required_10[@]}"; do
         if [ ! -e "$TARGET/.github/workflows/$w" ]; then
             add_violation "§10" "missing .github/workflows/$w"
+        fi
+    done
+    for w in "${required_seo[@]}"; do
+        if [ ! -e "$TARGET/.github/workflows/$w" ]; then
+            add_violation "§11.3.10" "missing .github/workflows/$w"
         fi
     done
 }
@@ -417,9 +426,15 @@ walk_size_check() {
 }
 
 check_website_seo() {
-    # §11.3 SEO scaffolding (Open Graph, Twitter Card, JSON-LD, sitemap.xml, robots.txt).
+    # §11.3 SEO scaffolding. Detects "this project ships a website" via
+    # index.html or a Pages deploy workflow, then asserts the eight
+    # signals the spec mandates: Open Graph, Twitter Card, JSON-LD,
+    # sitemap.xml, robots.txt, llms.txt, a structural check-seo
+    # script/workflow (§11.3.10), and a Lighthouse workflow / rc config
+    # (§11.3.10).
     local has_website=0
     local seen_og=0 seen_tw=0 seen_jsonld=0 seen_sitemap=0 seen_robots=0
+    local seen_llms=0 seen_check_seo=0 seen_lighthouse=0
     local skip_dirs=(node_modules target dist build .git .agent .claude __pycache__ .venv venv)
     local prune=()
     local d_name
@@ -434,16 +449,29 @@ check_website_seo() {
         case "$base" in
             index.html|index.htm|index.html.tmpl) has_website=1 ;;
         esac
+        # §11.3.10 — checked-in `check-seo.*` / `check_seo.*` script.
+        case "$base" in
+            check-seo.*|check_seo.*) seen_check_seo=1 ;;
+        esac
+        # §11.3.10 — checked-in `lighthouserc.*` config.
+        case "$base" in
+            lighthouserc.*) seen_lighthouse=1 ;;
+        esac
         if [[ "$f" == */.github/workflows/*.yml || "$f" == */.github/workflows/*.yaml ]]; then
             grep -q 'actions/deploy-pages' "$f" 2>/dev/null && has_website=1
+            grep -qE 'check-seo|check:seo' "$f" 2>/dev/null && seen_check_seo=1
+            grep -qE 'lhci|lighthouserc' "$f" 2>/dev/null && seen_lighthouse=1
         fi
         case "$base" in
-            *.html|*.htm|*.js|*.ts|*.mjs|*.cjs|*.jsx|*.tsx|*.vue|*.svelte|*.tmpl)
+            *.html|*.htm|*.js|*.ts|*.mjs|*.cjs|*.jsx|*.tsx|*.vue|*.svelte|*.tmpl|*.json)
                 grep -q 'og:image' "$f" 2>/dev/null && seen_og=1
                 grep -q 'twitter:card' "$f" 2>/dev/null && seen_tw=1
                 grep -q 'application/ld+json' "$f" 2>/dev/null && seen_jsonld=1
                 grep -q 'sitemap.xml' "$f" 2>/dev/null && seen_sitemap=1
                 grep -q 'robots.txt' "$f" 2>/dev/null && seen_robots=1
+                grep -q 'llms.txt' "$f" 2>/dev/null && seen_llms=1
+                grep -qE 'check-seo|check:seo' "$f" 2>/dev/null && seen_check_seo=1
+                grep -qE 'lhci|lighthouserc' "$f" 2>/dev/null && seen_lighthouse=1
                 ;;
         esac
     done < <(find "$TARGET" \( "${prune[@]}" \) -prune \
@@ -451,11 +479,14 @@ check_website_seo() {
 
     [ "$has_website" -eq 0 ] && return 0
     local missing=()
-    [ "$seen_og" -eq 0 ]      && missing+=("Open Graph (og:image)")
-    [ "$seen_tw" -eq 0 ]      && missing+=("Twitter Card (twitter:card)")
-    [ "$seen_jsonld" -eq 0 ]  && missing+=("JSON-LD (application/ld+json)")
-    [ "$seen_sitemap" -eq 0 ] && missing+=("sitemap.xml")
-    [ "$seen_robots" -eq 0 ]  && missing+=("robots.txt")
+    [ "$seen_og" -eq 0 ]         && missing+=("Open Graph (og:image)")
+    [ "$seen_tw" -eq 0 ]         && missing+=("Twitter Card (twitter:card)")
+    [ "$seen_jsonld" -eq 0 ]     && missing+=("JSON-LD (application/ld+json)")
+    [ "$seen_sitemap" -eq 0 ]    && missing+=("sitemap.xml")
+    [ "$seen_robots" -eq 0 ]     && missing+=("robots.txt")
+    [ "$seen_llms" -eq 0 ]       && missing+=("llms.txt")
+    [ "$seen_check_seo" -eq 0 ]  && missing+=("check-seo script/workflow")
+    [ "$seen_lighthouse" -eq 0 ] && missing+=("lighthouse workflow / lighthouserc")
     if [ "${#missing[@]}" -gt 0 ]; then
         local IFS=', '
         add_violation "§11.3" \

@@ -108,13 +108,24 @@ pub(super) fn check(path: &Path, report: &mut Report) -> Result<()> {
         }
     }
 
-    // Required CI workflows (§10.1, §10.3, §10.4).
-    let required_workflows: &[&str] = &["ci.yml", "version-bump.yml", "release.yml", "pages.yml"];
-    for w in required_workflows {
+    // Required CI workflows (§10.1, §10.3, §10.4, §11.3.10). `seo.yml`
+    // and `lighthouse.yml` are required alongside `pages.yml` because
+    // every spec-conforming project ships a website (§11.2), and a
+    // website without the two SEO quality gates is exactly the
+    // discoverability regression §11.3 exists to prevent.
+    let required_workflows: &[(&str, &str)] = &[
+        ("ci.yml", "§10"),
+        ("version-bump.yml", "§10"),
+        ("release.yml", "§10"),
+        ("pages.yml", "§10"),
+        ("seo.yml", "§11.3.10"),
+        ("lighthouse.yml", "§11.3.10"),
+    ];
+    for (w, sec) in required_workflows {
         let p = path.join(".github/workflows").join(w);
         if !p.exists() {
             report.violations.push(Violation {
-                spec_section: "§10",
+                spec_section: sec,
                 message: format!("missing .github/workflows/{w}"),
             });
         }
