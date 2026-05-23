@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.7.0
+version: 2.8.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -1144,6 +1144,198 @@ The README's badge row (§3) carries `ci`, `seo` (the structural
 check from §11.3.10), `pages` (deploy status), and `license`. The
 two quality-gate badges sit next to each other so a single glance at
 the README answers "is the discoverability surface healthy".
+
+### 11.4 Progressive Web App requirements
+
+**If the website is the deliverable, it must be a Progressive Web
+App.** This section applies to projects whose primary user surface is
+the deployed web page — a notes app, a calculator, a budget tracker, a
+game, an editor, a dashboard. It does **not** apply to projects whose
+website is a marketing showcase, a documentation site, a portfolio, a
+blog, or a hosted reference manual for a library or CLI binary that
+ships separately. The discriminator is intent: if a user comes to the
+site to *use* the app, §11.4 applies; if they come to *read about* the
+app, only §11.2 and §11.3 apply.
+
+The reference shape is `kind = "webapp"` in the project manifest —
+`oss-spec init` infers this from the freeform prompt and scaffolds the
+PWA infrastructure described below. Existing projects retrofit by
+adding the same files; the validator detects PWA opt-in from the
+presence of a Web App Manifest, a service-worker registration, or a
+known build plugin (vite-plugin-pwa, next-pwa, workbox) — once any of
+those signals appears, completeness is required.
+
+The point of the spec being prescriptive here is that "almost a PWA"
+fails silently. A site with a manifest but no maskable icon installs
+on Android with a launcher-eaten glyph; a site with icons but no
+service worker installs but cannot launch offline; a service worker
+without an update prompt refreshes mid-edit and destroys local state.
+The mandate is not "tick the Lighthouse PWA box" — it is "ship the
+whole shape so the installation actually behaves like an app."
+
+#### 11.4.1 Web App Manifest
+
+Every PWA must ship a [Web App Manifest](https://www.w3.org/TR/appmanifest/)
+served from the site root and linked from the document head:
+
+```html
+<link rel="manifest" href="/manifest.webmanifest" />
+```
+
+The manifest may be a checked-in static file (`public/manifest.webmanifest`)
+or generated at build time by a plugin (vite-plugin-pwa, next-pwa,
+@angular/pwa, workbox-build). Either path is acceptable; the
+generated output must end up at a stable URL the browser fetches on
+first navigation.
+
+**Required manifest fields:**
+
+- `name` — full application name, used by the install prompt and
+  splash screen.
+- `short_name` — ≤ 12-character name used by the home-screen launcher.
+- `id` — stable app identity (W3C recommendation; defaults to
+  `start_url` if omitted, which breaks identity across slot moves).
+  Set it explicitly to the scope path.
+- `start_url` — relative URL the launcher opens.
+- `scope` — URL prefix the service worker controls. Must match (or be
+  a prefix of) `start_url`.
+- `display` — `standalone` (default), `minimal-ui`, or `fullscreen`.
+  `browser` is **not** acceptable; it produces a tabbed install that
+  feels like a bookmark rather than an app.
+- `theme_color` — UA chrome / status bar tint. Must match the
+  `<meta name="theme-color">` value in `index.html` so the splash
+  screen and the loaded app agree.
+- `background_color` — splash-screen background, shown before the app
+  paints its first frame. Pick a colour that matches the app's first
+  rendered background so there is no flash on launch.
+- `icons` — at minimum:
+  - 192×192 PNG (any purpose — used for the launcher and notification
+    icon on most platforms).
+  - 512×512 PNG (any purpose — used for the splash screen).
+  - 512×512 PNG with `"purpose": "maskable"` — required for Android's
+    [adaptive-icon mask](https://www.w3.org/TR/appmanifest/#dfn-purpose).
+    The artwork must fit inside the W3C 80%-diameter safe zone or
+    Android's launcher mask will eat the edges.
+
+Recommended (not enforced): `description`, `categories`, `orientation`,
+and `lang`.
+
+#### 11.4.2 Icon generation from a single source
+
+Icon PNGs must be **generated from a single vector source**, not
+edited pixel-by-pixel into the repo. The generator runs from a
+documented Makefile target or npm script (`make icons`, `npm run
+icons`, etc.) and overwrites every committed raster. Hand-edited PNGs
+drift from the source on every redesign and produce inconsistent
+chrome across devices.
+
+The reference toolchain is
+[`@vite-pwa/assets-generator`](https://github.com/vite-pwa/assets-generator)
+driven by a checked-in `pwa-assets.config.{ts,mjs,js}`. Any equivalent
+SVG-to-PNG pipeline (pwa-asset-generator, sharp scripts, ImageMagick
+recipes) is acceptable; the spec only requires that one source
+artwork (`public/favicon.svg` or `public/icon.svg`) is the canonical
+input and the script that derives PNGs from it is tracked.
+
+#### 11.4.3 Service worker and offline shell
+
+The PWA must register a service worker that precaches the application
+shell so the first paint after launch does not require the network. A
+build plugin (vite-plugin-pwa, next-pwa, workbox-cli) is the
+recommended path — they emit a precache manifest from the build
+output and handle versioning across deploys. Hand-written service
+workers are allowed; they must still precache the shell and
+configure a `navigateFallback` so deep links resolve when offline.
+
+Required behaviour:
+
+- The service worker is registered on every page load — either via the
+  framework hook (`useRegisterSW`, `register: 'autoUpdate'`) or via an
+  explicit `navigator.serviceWorker.register(...)` call in source.
+- A `navigateFallback` (workbox) or hand-rolled fetch handler returns
+  the precached shell for unknown SPA routes when offline.
+- Precache covers the routes a returning user is most likely to
+  open — at minimum the home route's HTML, the main bundle, the CSS,
+  and the manifest itself.
+
+Dev-mode service workers usually interfere with HMR; gating them
+behind an env flag (`VITE_PWA_DEV=1` or equivalent) is the standard
+workaround and does not violate the spec.
+
+#### 11.4.4 Update strategy must be user-visible
+
+A new build deploying mid-session must **not** silently refresh the
+page. Service workers using `skipWaiting` + `clientsClaim` without a
+UI prompt will replace the running JS the next time the user navigates
+or hard-refreshes, which destroys any in-flight local state (unsaved
+form input, open editor buffers, IndexedDB transactions).
+
+The PWA must surface a non-blocking "reload to apply" affordance —
+typically a toast component that appears when the service worker's
+`waiting` state transitions, with an explicit user-triggered reload.
+The affordance lives in source as a named component (`UpdateToast`,
+`UpdatePrompt`, `ReloadBanner` — the name doesn't matter, the
+behaviour does) wired to the framework's "new SW available" hook.
+
+#### 11.4.5 iOS install metadata
+
+iOS does not consume the Web App Manifest for home-screen installs.
+The document head must carry the equivalent legacy meta tags so the
+installed app launches without Safari chrome and shows the correct
+icon and title:
+
+```html
+<link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="<App name>" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#1d2027" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#eef0f2" media="(prefers-color-scheme: light)" />
+```
+
+The `apple-touch-icon` PNG is part of the icon-generation pipeline
+(§11.4.2) — typically 180×180, painted to the manifest's
+`background_color` so the home-screen tile bleeds full-frame instead
+of revealing a white border under iOS's corner rounding.
+
+#### 11.4.6 Installability documented in the README
+
+The README (§3) must tell users they can install the app. A single
+short paragraph under the Usage section, or a screenshot of the
+install prompt on a real device, is sufficient. Users overwhelmingly
+do not try "Add to Home Screen" on a hunch; if installation is not
+mentioned, the install rate drops to ~zero regardless of how
+correctly the manifest is configured.
+
+#### 11.4.7 Lighthouse PWA score in CI
+
+The §11.3.10 Lighthouse workflow must include the `pwa` category for
+projects that opt into PWA. The `lighthouserc.json` config asserts
+`categories:pwa` at `minScore: 0.9` so installability regressions
+fail CI. The same workflow already gates SEO and performance; adding
+the PWA category is a one-line config change.
+
+#### 11.4.8 Disjoint scopes for preview deployments (recommended)
+
+Projects that publish a preview slot alongside production (e.g. `/`
+and `/preview/` on the same Pages domain) should branch every
+identity-bearing field on the slot:
+
+- `manifest.id`, `manifest.scope`, `manifest.start_url` — `/` vs
+  `/preview/`. Distinct identity means iOS / Android install the two
+  builds as separate apps with separate storage.
+- `manifest.name` / `short_name` — make the slot visible in the
+  installed app's title.
+- The service worker's cache id (workbox `cacheId`, or equivalent)
+  — disjoint cache keys so the two builds never poison each other's
+  precache.
+
+This is recommended rather than required because not every project
+publishes a preview slot. When a project does, omitting the
+branching causes the two installs to fight over the same scope and
+manifests as random "white screen on launch" reports — the kind of
+bug that only appears on real installed devices, not in dev mode.
 
 ## 12. Additional requirements for CLI projects
 

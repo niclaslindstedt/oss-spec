@@ -58,7 +58,7 @@ prompt that the `zag` library interprets into a structured manifest.
 | `-y, --yes` | bool | false | Accept defaults; non-interactive. |
 | `--path <DIR>` | path | cwd | Target dir (or parent dir when `--name` is set). |
 | `--lang <L>` | enum | rust | rust\|python\|node\|go\|generic |
-| `--kind <K>` | enum | cli | lib\|cli\|service |
+| `--kind <K>` | enum | cli | lib\|cli\|service\|webapp |
 | `--license <L>` | enum | MIT | MIT\|Apache-2.0\|MPL-2.0 |
 | `--visibility <V>` | enum | public | public\|private |
 

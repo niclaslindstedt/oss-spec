@@ -66,7 +66,7 @@ const COMMAND_SPECS: &[(&str, &str)] = &[
          --no-tailor (or --no-ai to skip all AI).\n\
          \n\
          Flags: --lang rust|python|node|go|generic\n\
-                --kind lib|cli|service\n\
+                --kind lib|cli|service|webapp\n\
                 --license MIT|Apache-2.0|MPL-2.0\n\
                 --visibility public|private\n\
                 --no-ai --no-tailor --no-git --no-gh --yes --path <dir> --name <name>\n",

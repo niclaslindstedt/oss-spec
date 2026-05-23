@@ -13,8 +13,9 @@
 //! in environments where the Rust binary cannot be installed (sandboxed
 //! sessions, ephemeral CI runners) can still verify §19 conformance via
 //! `curl … | bash`. **Whenever you add, remove, or modify a rule in any
-//! submodule below — `structural`, `content`, `toolchain`, `agent_skills`
-//! — make the equivalent edit in `scripts/validate.sh` in the same PR.**
+//! submodule below — `structural`, `content`, `pwa`, `toolchain`,
+//! `agent_skills` — make the equivalent edit in `scripts/validate.sh`
+//! in the same PR.**
 //! There is no automated drift check between the two implementations;
 //! reviewers verify parity by hand.
 
@@ -23,6 +24,7 @@ use std::path::Path;
 
 mod agent_skills;
 mod content;
+mod pwa;
 mod structural;
 mod toolchain;
 
@@ -120,6 +122,7 @@ pub fn run(path: &Path) -> Result<Report> {
 
     structural::check(&path, &mut report)?;
     content::check(&path, &mut report)?;
+    pwa::check(&path, &mut report)?;
     agent_skills::check(&path, &mut report);
 
     Ok(report)

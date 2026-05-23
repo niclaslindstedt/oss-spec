@@ -45,7 +45,7 @@ pub struct BootstrapOpts {
     #[arg(long)]
     pub lang: Option<String>,
 
-    /// Override kind: lib|cli|service.
+    /// Override kind: lib|cli|service|webapp.
     #[arg(long)]
     pub kind: Option<String>,
 

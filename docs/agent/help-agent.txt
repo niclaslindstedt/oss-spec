@@ -20,7 +20,7 @@ GLOBAL FLAGS
   --path <DIR>       Target dir (or parent dir when --name is set); defaults to CWD
   --name <NAME>      Project name; when set, creates <path|cwd>/<NAME>
   --lang <L>         rust|python|node|go|generic
-  --kind <K>         lib|cli|service
+  --kind <K>         lib|cli|service|webapp
   --license <L>      MIT|Apache-2.0|MPL-2.0
   --visibility <V>   public|private (passed to `gh repo create`)
 

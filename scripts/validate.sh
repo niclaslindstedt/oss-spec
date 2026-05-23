@@ -29,14 +29,14 @@
 set -euo pipefail
 
 SPEC_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/OSS_SPEC.md"
-SPEC_VERSION="2.7.0"
+SPEC_VERSION="2.8.0"
 
 # The agent-prompt body lives at prompts/validate-sh-agent/<v>.md per §13.5.
 # Bump this URL whenever a new version is added to that directory; the
 # `update-prompts` skill is responsible for keeping the bash script and
 # the prompt file in lockstep.
-PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_0_0.md"
-PROMPT_VERSION="1.1.0"
+PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_2_0.md"
+PROMPT_VERSION="1.2.0"
 
 # ---------------------------------------------------------------------------
 # Output helpers
@@ -491,6 +491,164 @@ check_website_seo() {
         local IFS=', '
         add_violation "§11.3" \
             "project has a website but its SEO scaffolding is incomplete; missing: ${missing[*]}"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# §11.4 Progressive Web App completeness (mirrors src/validate/pwa.rs)
+#
+# Detects PWA opt-in from repository signals (manifest.webmanifest /
+# `<link rel="manifest">` / vite-plugin-pwa / next-pwa / workbox /
+# `navigator.serviceWorker.register(`) and, once any signal appears,
+# asserts that the rest of the §11.4 shape is present: required manifest
+# fields, a maskable 512×512 icon, iOS install meta tags, an offline
+# fallback, a user-visible update affordance, an icon-generation
+# source, and a Lighthouse PWA assertion.
+# ---------------------------------------------------------------------------
+check_pwa() {
+    local opted_in=0
+    local seen_manifest_link=0
+    local seen_name=0 seen_short_name=0 seen_start_url=0
+    local seen_display=0 seen_theme_color=0 seen_background_color=0
+    local seen_icons=0 seen_maskable=0
+    local seen_sw=0 seen_offline=0
+    local seen_apple_icon=0 seen_apple_capable=0 seen_apple_title=0
+    local seen_theme_meta=0
+    local seen_update=0 seen_icon_pipeline=0 seen_lighthouse_pwa=0
+
+    local skip_dirs=(node_modules target dist build .git .agent .claude __pycache__ .venv venv)
+    local prune=()
+    local d_name
+    for d_name in "${skip_dirs[@]}"; do
+        prune+=( -name "$d_name" -o )
+    done
+    prune+=( -name __nope__ )
+
+    local f base
+    while IFS= read -r -d '' f; do
+        base="$(basename "$f")"
+
+        # Strong opt-in by filename.
+        case "$base" in
+            manifest.webmanifest|manifest.json|site.webmanifest|pwa-assets.config.*)
+                opted_in=1
+                ;;
+        esac
+
+        # Skip non-text files — same scannability gate as the SEO walker.
+        case "$base" in
+            *.html|*.htm|*.js|*.ts|*.mjs|*.cjs|*.jsx|*.tsx|*.vue|*.svelte|*.tmpl|*.json|*.webmanifest|*.yml|*.yaml) ;;
+            *) continue ;;
+        esac
+
+        # Strong opt-in by file contents.
+        if grep -qE 'vite-plugin-pwa|VitePWA\(|next-pwa|withPWA\(|@angular/pwa|workbox-build|workbox-webpack-plugin' "$f" 2>/dev/null; then
+            opted_in=1
+        fi
+        if grep -qE 'rel="manifest"|rel='"'"'manifest'"'"'|manifest\.webmanifest|manifest\.json"' "$f" 2>/dev/null; then
+            seen_manifest_link=1
+        fi
+
+        # Service-worker registration.
+        if grep -qE 'serviceWorker\.register\(|navigator\.serviceWorker|useRegisterSW|registerSW\(|VitePWA\(|withPWA\(|@angular/service-worker' "$f" 2>/dev/null; then
+            seen_sw=1
+        fi
+
+        # Manifest fields — accept JSON quoted keys and JS/TS bare keys.
+        case "$base" in
+            *.webmanifest|manifest.json|site.webmanifest)
+                _manifest_like=1
+                ;;
+            *)
+                if grep -qE 'VitePWA\(|withPWA\(|workbox-build' "$f" 2>/dev/null; then
+                    _manifest_like=1
+                else
+                    case "$base" in
+                        *.ts|*.tsx|*.js|*.mjs|*.cjs|*.json) _manifest_like=1 ;;
+                        *) _manifest_like=0 ;;
+                    esac
+                fi
+                ;;
+        esac
+        if [ "${_manifest_like:-0}" -eq 1 ]; then
+            grep -qE '"name":|(^|[^_a-zA-Z0-9])name:' "$f" 2>/dev/null && seen_name=1
+            grep -qE '"short_name":|short_name:' "$f" 2>/dev/null && seen_short_name=1
+            grep -qE '"start_url":|start_url:' "$f" 2>/dev/null && seen_start_url=1
+            grep -qE '"display":|display:' "$f" 2>/dev/null && seen_display=1
+            grep -qE '"theme_color":|theme_color:' "$f" 2>/dev/null && seen_theme_color=1
+            grep -qE '"background_color":|background_color:' "$f" 2>/dev/null && seen_background_color=1
+            grep -qE '"icons":|icons:' "$f" 2>/dev/null && seen_icons=1
+            grep -qE '"maskable"|'"'"'maskable'"'" "$f" 2>/dev/null && seen_maskable=1
+        fi
+        _manifest_like=0
+
+        # Offline fallback (workbox / hand-rolled).
+        grep -qE 'navigateFallback|navigate_fallback|precacheAndRoute' "$f" 2>/dev/null && seen_offline=1
+
+        # iOS install meta tags + theme-color.
+        grep -q 'apple-touch-icon' "$f" 2>/dev/null && seen_apple_icon=1
+        grep -qE 'apple-mobile-web-app-capable|mobile-web-app-capable' "$f" 2>/dev/null && seen_apple_capable=1
+        grep -q 'apple-mobile-web-app-title' "$f" 2>/dev/null && seen_apple_title=1
+        grep -qE 'name="theme-color"|name='"'"'theme-color'"'" "$f" 2>/dev/null && seen_theme_meta=1
+
+        # Update-prompt affordance.
+        grep -qE 'UpdateToast|UpdatePrompt|ReloadBanner|ReloadPrompt|onNeedRefresh|needRefresh|PWAUpdate' "$f" 2>/dev/null && seen_update=1
+
+        # Icon-generation pipeline.
+        case "$base" in
+            Makefile|Makefile.tmpl)
+                grep -qE '^icons:' "$f" 2>/dev/null && seen_icon_pipeline=1
+                ;;
+            package.json|package.json.tmpl)
+                grep -qE '"icons":|"generate-pwa-assets":' "$f" 2>/dev/null && seen_icon_pipeline=1
+                ;;
+            pwa-assets.config.*)
+                seen_icon_pipeline=1
+                ;;
+        esac
+        grep -qE '@vite-pwa/assets-generator|pwa-asset-generator' "$f" 2>/dev/null && seen_icon_pipeline=1
+
+        # Lighthouse PWA assertion in lighthouserc.*.
+        case "$base" in
+            lighthouserc.*)
+                if grep -qE 'categories:pwa|"pwa"|'"'"'pwa'"'" "$f" 2>/dev/null; then
+                    seen_lighthouse_pwa=1
+                fi
+                ;;
+        esac
+    done < <(find "$TARGET" \( "${prune[@]}" \) -prune \
+                   -o -type f -print0 2>/dev/null)
+
+    # Aggregate opt-in: a manifest-link or any service-worker registration
+    # is enough on its own.
+    if [ "$opted_in" -eq 0 ] && [ "$seen_manifest_link" -eq 0 ] && [ "$seen_sw" -eq 0 ]; then
+        return 0
+    fi
+
+    local missing=()
+    [ "$seen_manifest_link" -eq 0 ]       && missing+=("<link rel=\"manifest\"> in HTML head")
+    [ "$seen_name" -eq 0 ]                && missing+=("manifest \`name\` field")
+    [ "$seen_short_name" -eq 0 ]          && missing+=("manifest \`short_name\` field")
+    [ "$seen_start_url" -eq 0 ]           && missing+=("manifest \`start_url\` field")
+    [ "$seen_display" -eq 0 ]             && missing+=("manifest \`display\` field (standalone / minimal-ui / fullscreen)")
+    [ "$seen_theme_color" -eq 0 ]         && missing+=("manifest \`theme_color\` field")
+    [ "$seen_background_color" -eq 0 ]    && missing+=("manifest \`background_color\` field")
+    [ "$seen_icons" -eq 0 ]               && missing+=("manifest \`icons\` array")
+    [ "$seen_maskable" -eq 0 ]            && missing+=("maskable 512×512 icon (icons entry with \`purpose: maskable\`)")
+    [ "$seen_sw" -eq 0 ]                  && missing+=("service worker registration (registerSW / register( / VitePWA / next-pwa)")
+    [ "$seen_offline" -eq 0 ]             && missing+=("offline navigateFallback (workbox navigateFallback or hand-rolled handler)")
+    [ "$seen_apple_icon" -eq 0 ]          && missing+=("apple-touch-icon link in HTML head")
+    [ "$seen_apple_capable" -eq 0 ]       && missing+=("apple-mobile-web-app-capable meta tag")
+    [ "$seen_apple_title" -eq 0 ]         && missing+=("apple-mobile-web-app-title meta tag")
+    [ "$seen_theme_meta" -eq 0 ]          && missing+=("theme-color meta tag in HTML head")
+    [ "$seen_update" -eq 0 ]              && missing+=("user-visible update prompt component (UpdateToast / UpdatePrompt / ReloadBanner / useRegisterSW onNeedRefresh)")
+    [ "$seen_icon_pipeline" -eq 0 ]       && missing+=("icon-generation source (pwa-assets.config.* / \`make icons\` / \`npm run icons\`)")
+    [ "$seen_lighthouse_pwa" -eq 0 ]      && missing+=("Lighthouse \`pwa\` category in lighthouserc (minScore ≥ 0.9)")
+
+    if [ "${#missing[@]}" -gt 0 ]; then
+        local IFS=', '
+        add_violation "§11.4" \
+            "project opted into PWA but the PWA shape is incomplete; missing: ${missing[*]}"
     fi
 }
 
@@ -961,6 +1119,7 @@ check_output_module
 check_no_inline_tests
 check_source_file_size
 check_website_seo
+check_pwa
 check_ci_toolchains
 check_local_pins
 check_agent_skills

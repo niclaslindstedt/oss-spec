@@ -1504,3 +1504,130 @@ fn signals_in_build_scripts_count() {
         v113(&report)
     );
 }
+
+// §11.4 Progressive Web App ----------------------------------------------
+
+fn v114(report: &validate::Report) -> Vec<&validate::Violation> {
+    report
+        .violations
+        .iter()
+        .filter(|v| v.spec_section == "§11.4")
+        .collect()
+}
+
+#[test]
+fn no_pwa_signals_skips_pwa_check() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    // A repo with a website but zero PWA signals must not be flagged
+    // — §11.4 applies only when the project opts into PWA (manifest /
+    // VitePWA / serviceWorker.register).
+    fs::write(root.join("index.html"), "<!doctype html><html></html>").unwrap();
+    let report = validate::run(root).unwrap();
+    assert!(
+        v114(&report).is_empty(),
+        "websites without PWA opt-in must not be flagged for §11.4: {:?}",
+        v114(&report)
+    );
+}
+
+#[test]
+fn pwa_opt_in_with_missing_pieces_is_violation() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    // Strong opt-in: ship a manifest.webmanifest file but skip nearly
+    // everything else. The validator must flag the missing pieces.
+    fs::write(
+        root.join("manifest.webmanifest"),
+        r#"{ "name": "Demo", "start_url": "/" }"#,
+    )
+    .unwrap();
+    let report = validate::run(root).unwrap();
+    let vs = v114(&report);
+    assert_eq!(vs.len(), 1, "expected one §11.4 violation: {vs:?}");
+    let msg = &vs[0].message;
+    // Sanity: a few of the obviously-missing pieces are surfaced.
+    assert!(
+        msg.contains("maskable"),
+        "should flag missing maskable icon: {msg}"
+    );
+    assert!(
+        msg.contains("service worker") || msg.contains("VitePWA"),
+        "should flag missing service worker: {msg}"
+    );
+    assert!(
+        msg.contains("apple-touch-icon"),
+        "should flag missing apple-touch-icon: {msg}"
+    );
+}
+
+#[test]
+fn pwa_fully_configured_passes() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    // A repo that ships every §11.4 signal — across a couple of files
+    // — must satisfy the check. We deliberately spread signals across
+    // multiple files to exercise the "seen anywhere" model.
+    fs::write(
+        root.join("manifest.webmanifest"),
+        r##"{
+            "name": "Budget",
+            "short_name": "Budget",
+            "start_url": "/",
+            "scope": "/",
+            "id": "/",
+            "display": "standalone",
+            "theme_color": "#1d2027",
+            "background_color": "#1d2027",
+            "icons": [
+                { "src": "/pwa-192x192.png", "sizes": "192x192", "type": "image/png" },
+                { "src": "/pwa-512x512.png", "sizes": "512x512", "type": "image/png" },
+                { "src": "/maskable-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+            ]
+        }"##,
+    )
+    .unwrap();
+    fs::write(
+        root.join("index.html"),
+        r##"<!doctype html><html><head>
+            <link rel="manifest" href="/manifest.webmanifest" />
+            <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+            <meta name="apple-mobile-web-app-capable" content="yes" />
+            <meta name="apple-mobile-web-app-title" content="Budget" />
+            <meta name="theme-color" content="#1d2027" />
+        </head><body></body></html>"##,
+    )
+    .unwrap();
+    fs::write(
+        root.join("sw-register.ts"),
+        r##"import { registerSW } from 'virtual:pwa-register';
+            // VitePWA hook + UpdateToast wired up
+            const updateSW = registerSW({
+                onNeedRefresh() { /* show <UpdateToast/> */ },
+            });
+            // navigateFallback configured in build:
+            // workbox: { navigateFallback: '/index.html' }
+        "##,
+    )
+    .unwrap();
+    fs::write(
+        root.join("pwa-assets.config.ts"),
+        r##"import { defineConfig } from '@vite-pwa/assets-generator/config';
+            export default defineConfig({ images: ['public/favicon.svg'] });
+        "##,
+    )
+    .unwrap();
+    fs::create_dir_all(root.join(".github/lighthouse")).unwrap();
+    fs::write(
+        root.join(".github/lighthouse/lighthouserc.json"),
+        r##"{ "ci": { "assert": { "assertions": { "categories:pwa": ["error", { "minScore": 0.9 }] } } } }"##,
+    )
+    .unwrap();
+
+    let report = validate::run(root).unwrap();
+    assert!(
+        v114(&report).is_empty(),
+        "fully-configured PWA must not be flagged: {:?}",
+        v114(&report)
+    );
+}

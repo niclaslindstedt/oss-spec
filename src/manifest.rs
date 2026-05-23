@@ -48,6 +48,10 @@ pub enum Kind {
     Lib,
     Cli,
     Service,
+    /// A web application — the website is the deliverable, not a marketing
+    /// or documentation surface. Triggers the §11.4 PWA mandates during
+    /// bootstrap.
+    WebApp,
 }
 
 impl Kind {
@@ -56,6 +60,7 @@ impl Kind {
             Kind::Lib => "lib",
             Kind::Cli => "cli",
             Kind::Service => "service",
+            Kind::WebApp => "webapp",
         }
     }
 
@@ -64,6 +69,7 @@ impl Kind {
             "lib" | "library" => Some(Self::Lib),
             "cli" | "tool" | "binary" | "bin" => Some(Self::Cli),
             "service" | "server" | "daemon" => Some(Self::Service),
+            "webapp" | "web-app" | "app" | "pwa" => Some(Self::WebApp),
             _ => None,
         }
     }

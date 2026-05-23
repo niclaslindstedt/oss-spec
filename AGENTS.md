@@ -45,7 +45,7 @@ src/
 ├── bootstrap.rs   # walks embedded tree → writes target dir
 ├── tailor.rs      # interactive post-bootstrap tailoring agent (§23)
 ├── git.rs         # git init / gh repo create wrappers
-├── validate/      # §19 conformance validator (structural, content, toolchain, agent_skills)
+├── validate/      # §19 conformance validator (structural, content, pwa, toolchain, agent_skills)
 ├── fix.rs         # zag-driven auto-fix agent
 ├── agent_help.rs  # §12 CLI discoverability contract
 └── output.rs      # central logging + styled output (§19 logging)
@@ -62,7 +62,7 @@ Dependency direction is top-down: `main` → `lib` → `cli` → (`interview`, `
 |---|---|
 | New CLI flag / subcommand | `src/cli.rs` (clap) + `src/agent_help.rs` (commands table, COMMAND_SPECS, EXAMPLES) + `man/oss-spec.md` |
 | New template file | `templates/_common/`, `templates/<lang>/`, or `templates/cli/` |
-| New §19 conformance rule | `src/validate/` (structural checks in `structural.rs`, content checks in `content.rs`, toolchain in `toolchain.rs`, agent skills in `agent_skills.rs`) **and** `scripts/validate.sh` (bash mirror; keep 1:1 — see "Validate-script parity" below) |
+| New §19 conformance rule | `src/validate/` (structural checks in `structural.rs`, content checks in `content.rs`, PWA checks in `pwa.rs`, toolchain in `toolchain.rs`, agent skills in `agent_skills.rs`) **and** `scripts/validate.sh` (bash mirror; keep 1:1 — see "Validate-script parity" below) |
 | New auto-fix behavior | `src/fix.rs` (zag agent orchestration) |
 | New AI-driven step | `src/ai.rs` (thin wrapper) + caller in `interview.rs` |
 | New language overlay | `templates/<lang>/`, plus `Language` enum variant in `manifest.rs` |
@@ -90,6 +90,7 @@ When you change… | Update…
 A CLI flag or subcommand | `man/oss-spec.md`, `docs/agent/help-agent.txt`, `agent_help::COMMANDS_TABLE`, `agent_help::COMMAND_SPECS`, `README.md` Usage table
 A template file | `templates/_common/` (or overlay) — and re-run `oss-spec validate` against a generated demo
 A §11.3 SEO rule | `OSS_SPEC.md` §11.3, `src/validate/content.rs::check_website_seo`, `scripts/validate.sh::check_website_seo`, `website/scripts/check-seo.mjs`, `templates/_common/website/scripts/check-seo.mjs.tmpl`, `templates/_common/.github/workflows/seo.yml`, `templates/_common/.github/workflows/lighthouse.yml`, `templates/_common/.github/lighthouse/lighthouserc.json`, the README badge row
+A §11.4 PWA rule | `OSS_SPEC.md` §11.4, `src/validate/pwa.rs`, `scripts/validate.sh::check_pwa`, the `prompts/validate-sh-agent/<v>.md` checklist (bump per §13.5), `templates/_common/.github/lighthouse/lighthouserc.json` (when adding the `categories:pwa` assertion), `Kind::WebApp` in `src/manifest.rs`
 A §19 rule | `src/validate/` (appropriate submodule), **`scripts/validate.sh` (the bash mirror — keep 1:1; see "Validate-script parity" below)**, `OSS_SPEC.md`, this `## Documentation sync points` table
 A toolchain version bump (Rust / Python / Node / Go) | the repo-root pin file (`rust-toolchain.toml`, `.python-version`, `.nvmrc`, or `go.mod`'s `toolchain` directive), its `templates/<lang>/` counterpart, `templates/_common/.github/workflows/ci.yml.tmpl`, and `MIN_TOOLCHAIN_VERSIONS` in `src/validate/toolchain.rs` (§10.5 local/CI parity, §10.3 minimums)
 An LLM prompt's source of truth (spec text, validator rule, manifest enum, rendering-context key, **deterministic coverage of `scripts/validate.sh`**) | A new file under `prompts/<name>/<major>_<minor>_<patch>.md` (never edit an existing versioned file — bump semver and create a new one per §13.5). Touch `src/prompts.rs` afterwards (e.g. `touch src/prompts.rs`) so the `include_dir!` proc-macro picks up the new embedded file on the next build. Run the `update-prompts` skill or let the `maintenance` sweep pick it up. Note: `prompts/validate-sh-agent/` is the qualitative checklist printed by `scripts/validate.sh`; whenever the bash script gains or loses a deterministic check, that prompt needs a matching version bump.
