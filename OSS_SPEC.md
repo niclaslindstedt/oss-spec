@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.8.0
+version: 2.9.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -1319,23 +1319,134 @@ the PWA category is a one-line config change.
 #### 11.4.8 Disjoint scopes for preview deployments (recommended)
 
 Projects that publish a preview slot alongside production (e.g. `/`
-and `/preview/` on the same Pages domain) should branch every
-identity-bearing field on the slot:
+and `/preview/` on the same Pages domain — see the slot topology in
+§11.5) should branch every identity-bearing field on the slot:
 
 - `manifest.id`, `manifest.scope`, `manifest.start_url` — `/` vs
-  `/preview/`. Distinct identity means iOS / Android install the two
-  builds as separate apps with separate storage.
+  `/preview/` vs `/branch/`. Distinct identity means iOS / Android
+  install each build as a separate app with separate storage.
 - `manifest.name` / `short_name` — make the slot visible in the
   installed app's title.
 - The service worker's cache id (workbox `cacheId`, or equivalent)
-  — disjoint cache keys so the two builds never poison each other's
+  — disjoint cache keys so the builds never poison each other's
   precache.
 
 This is recommended rather than required because not every project
-publishes a preview slot. When a project does, omitting the
-branching causes the two installs to fight over the same scope and
+publishes secondary slots. When a project does, omitting the
+branching causes the installs to fight over the same scope and
 manifests as random "white screen on launch" reports — the kind of
 bug that only appears on real installed devices, not in dev mode.
+
+### 11.5 Deployment slots for web app projects (the website is the product)
+
+This section applies to the same projects as §11.4 — those whose
+deliverable **is** the deployed web page (`kind = "webapp"`). It does
+**not** apply to a marketing showcase, a documentation site, or a
+hosted reference manual for a library/CLI that ships separately; those
+deploy a single artifact on every `main` commit per §10.4. The
+discriminator is identical to §11.4: if a user comes to the site to
+*use* the app, this section applies.
+
+For a web app, "deploy" is not one thing. Maintainers need the last
+released build serving stable URLs to real users, the current `main`
+branch serving somewhere safe to dogfood before it is released, and —
+often — one in-flight feature branch reachable on a real device for
+review. §10.4 covers the showcase case (deploy `main` on every push);
+this section covers the web-app case, where a single hosting target
+must carry **several builds at once** without them colliding.
+
+#### 11.5.1 The slot model
+
+A web-app project **should** serve its builds from disjoint path
+prefixes on a single hosting target (e.g. one GitHub Pages domain),
+one prefix per slot. The reference topology is three slots:
+
+| Slot | Path | Source | Audience | Indexed (§11.3) | Analytics |
+|---|---|---|---|---|---|
+| **Production** | `/` | The highest released `v*` tag | End users | Yes — the only indexed slot | Yes — the only slot with the tracker |
+| **Staging** | `/preview/` | Current default-branch (`main`) HEAD | Maintainers dogfooding the next release | No (`noindex,nofollow`) | No |
+| **Branch** (optional) | `/branch/` | One manually-chosen feature branch | Reviewers testing a single PR on a real device | No (`noindex,nofollow`) | No |
+
+Two-slot (`/` + `/preview/`) is the common minimum; the `/branch/`
+slot is optional and exists only when a maintainer parks a branch in
+it. Production is sourced from the **highest semver tag**, not the
+nearest reachable commit, so a release cut from an earlier commit
+(e.g. a hotfix off an older point) is still the one served at `/`
+regardless of ancestry. Until the first release tag exists,
+production falls back to serving `main` at `/` and the `/preview/`
+slot is skipped.
+
+Only the production slot is indexable and only the production slot
+carries the analytics tracker (§11.3, §11.3.10). Secondary slots must
+ship `noindex,nofollow` so search engines never index a second copy
+of the app, and must omit the tracker so dogfooding and review traffic
+never pollute production metrics. Each slot is otherwise a complete,
+independently installable PWA with disjoint identity per §11.4.8.
+
+#### 11.5.2 One deploy, several packages
+
+The slots are assembled by a **single** Pages workflow run, not one
+workflow per slot. Each slot is built separately — the same source
+built once per slot with a slot-specific base path (`VITE_BASE_PATH`
+or the framework equivalent) so every asset URL is rooted at the
+slot's prefix — and the resulting directories are merged into one tree
+(`/`, `/preview/`, `/branch/`) that is uploaded as a single Pages
+artifact and deployed once. Every trigger therefore produces one
+deploy carrying up to three freshly-positioned packages.
+
+The workflow triggers are:
+
+- `push` to the default branch — rebuilds the staging slot (and
+  re-emits production from the current release tag).
+- `workflow_call` from the release pipeline (§10.3) — the release
+  workflow, after tagging `vX.Y.Z`, chains into the Pages workflow and
+  passes the new tag in so production at `/` updates immediately rather
+  than waiting for the next push.
+- `workflow_dispatch` — the manual escape hatch, and the way a branch
+  is parked in the `/branch/` slot (§11.5.3).
+
+Concurrency is configured exactly as in §10.4
+(`concurrency: { group: pages, cancel-in-progress: false }`) so the
+several-package assembly is never interrupted mid-merge.
+
+#### 11.5.3 The branch slot is stable and persistent
+
+The `/branch/` slot's defining property is that **its URL never
+changes — only what is parked in it does.** A reviewer (or the
+maintainer's installed PWA) points at `/branch/` once; subsequent
+dispatches swap the build underneath that stable URL. This is what
+makes it reviewable on a real device: the install survives the swap.
+
+Because the slot is fed by an occasional manual dispatch but the Pages
+artifact is rebuilt on every push, the parked build must **persist
+across deploys that did not target it**. The reference mechanism is a
+dedicated orphan branch (e.g. `branch-deploy`) that stores the most
+recently dispatched `/branch/` build:
+
+- A `workflow_dispatch` carrying a branch ref builds that ref at the
+  `/branch/` base path and force-pushes the output to the orphan
+  branch.
+- **Every** Pages run (including plain pushes to `main`) rehydrates the
+  `/branch/` slot from the orphan branch and carries it forward into
+  the new artifact untouched.
+
+So the slot holds whatever was last dispatched until the next dispatch
+overwrites it, and ordinary releases and `main` pushes never disturb
+it. A project that does not need on-device branch review can omit this
+slot entirely; the two-slot `/` + `/preview/` topology remains
+conformant.
+
+#### 11.5.4 Per-slot build identity
+
+So that a running build reveals which slot and which source it came
+from, each build should embed a slot-aware build label (a short string
+combining the version/commit with a slot suffix — e.g. `pre` for
+staging, `br[-<source-branch>]` for the branch slot) and expose it to
+the update affordance (§11.4.4) and, for the branch slot, surface the
+source branch name even though the URL is stable. Combined with the
+disjoint PWA identity of §11.4.8, this is what lets a user tell at a
+glance whether they are looking at production, staging, or a parked
+feature branch.
 
 ## 12. Additional requirements for CLI projects
 

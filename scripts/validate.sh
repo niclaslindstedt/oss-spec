@@ -556,7 +556,7 @@ check_pwa() {
 
         # Manifest fields — accept JSON quoted keys and JS/TS bare keys.
         case "$base" in
-            *.webmanifest|manifest.json|site.webmanifest)
+            *.webmanifest|manifest.json)
                 _manifest_like=1
                 ;;
             *)
