@@ -3192,9 +3192,9 @@ dependencies = [
 
 [[package]]
 name = "zag"
-version = "0.12.8"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9f8b6a2b87a38fb18aa350034d05ca7bbb515c92958d0929e42368ab40157b7"
+checksum = "5ce06eac7ef062381b8cc529bab1aebcf35f195c49cef9e61ea2f96304a5bd9d"
 dependencies = [
  "zag-agent",
  "zag-orch",
@@ -3203,9 +3203,9 @@ dependencies = [
 
 [[package]]
 name = "zag-agent"
-version = "0.12.8"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f518ec70f31e53fb8793da38d5f9e9c41f9019f43dbc7edd0d10e811df0d9cd"
+checksum = "65e79821be8e4da3f13a070b0c35b002eb1e224c3ce9b28a6327bb6aeefc0c32"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3220,6 +3220,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sha2",
+ "termimad",
  "tokio",
  "toml",
  "uuid",
@@ -3227,9 +3228,9 @@ dependencies = [
 
 [[package]]
 name = "zag-orch"
-version = "0.12.8"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59ca730af298e863c74de5d3f2ef17e3a88332528919f17ec7acaa8ad5bac5e1"
+checksum = "d72be78faa553e0cc18a40f35479f919b436b8f2ecb188aec710e2be5b1f1fc7"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3238,7 +3239,6 @@ dependencies = [
  "nix",
  "serde",
  "serde_json",
- "termimad",
  "tokio",
  "uuid",
  "zag-agent",
@@ -3246,9 +3246,9 @@ dependencies = [
 
 [[package]]
 name = "zag-serve"
-version = "0.12.8"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89200a18de4a7eb0f0e49f78f8d4e4da2f3046e4fd92fc07d8df2b18a8896a94"
+checksum = "c42d11dff880490e17fccebc5f938a7e8a242124c8e29b22b87084e1621e4f9d"
 dependencies = [
  "anyhow",
  "axum",
