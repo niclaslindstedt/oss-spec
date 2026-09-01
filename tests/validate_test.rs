@@ -432,7 +432,7 @@ fn scaffold_minimal_repo(root: &std::path::Path) {
     // mandatory. docs/ was created above, so update-docs is mandatory too.
     // `maintenance` is always required (§21.6).
     for skill in ["update-readme", "update-docs", "maintenance"] {
-        let dir = root.join(".agent/skills").join(skill);
+        let dir = root.join(".agents/skills").join(skill);
         fs::create_dir_all(&dir).unwrap();
         fs::write(
             dir.join("SKILL.md"),
@@ -444,9 +444,9 @@ fn scaffold_minimal_repo(root: &std::path::Path) {
         .unwrap();
         fs::write(dir.join(".last-updated"), "").unwrap();
     }
-    // §21.2: `.claude/skills` -> `../.agent/skills`
+    // §21.2: `.claude/skills` -> `../.agents/skills`
     fs::create_dir_all(root.join(".claude")).unwrap();
-    symlink_dir(Path::new("../.agent/skills"), &root.join(".claude/skills")).unwrap();
+    symlink_dir(Path::new("../.agents/skills"), &root.join(".claude/skills")).unwrap();
 }
 
 #[test]
@@ -622,7 +622,7 @@ fn missing_agent_skills_dir_is_violation() {
     let root = tmp.path();
     scaffold_minimal_repo(root);
     // Blow away the skills tree entirely.
-    fs::remove_dir_all(root.join(".agent")).unwrap();
+    fs::remove_dir_all(root.join(".agents")).unwrap();
     remove_symlink(&root.join(".claude/skills"));
 
     let report = validate::run(root).unwrap();
@@ -631,8 +631,8 @@ fn missing_agent_skills_dir_is_violation() {
         .filter(|v| v.spec_section == "§21.2")
         .collect();
     assert!(
-        v.iter().any(|v| v.message.contains(".agent/skills")),
-        "expected a violation about missing .agent/skills, got {v:?}"
+        v.iter().any(|v| v.message.contains(".agents/skills")),
+        "expected a violation about missing .agents/skills, got {v:?}"
     );
 }
 
@@ -661,7 +661,7 @@ fn missing_update_readme_skill_is_violation() {
     let tmp = tempdir().unwrap();
     let root = tmp.path();
     scaffold_minimal_repo(root);
-    fs::remove_dir_all(root.join(".agent/skills/update-readme")).unwrap();
+    fs::remove_dir_all(root.join(".agents/skills/update-readme")).unwrap();
 
     let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
@@ -679,7 +679,7 @@ fn missing_maintenance_umbrella_skill_is_violation() {
     let tmp = tempdir().unwrap();
     let root = tmp.path();
     scaffold_minimal_repo(root);
-    fs::remove_dir_all(root.join(".agent/skills/maintenance")).unwrap();
+    fs::remove_dir_all(root.join(".agents/skills/maintenance")).unwrap();
 
     let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
@@ -697,7 +697,7 @@ fn missing_update_docs_required_because_docs_exists() {
     let tmp = tempdir().unwrap();
     let root = tmp.path();
     scaffold_minimal_repo(root);
-    fs::remove_dir_all(root.join(".agent/skills/update-docs")).unwrap();
+    fs::remove_dir_all(root.join(".agents/skills/update-docs")).unwrap();
 
     let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
@@ -752,7 +752,7 @@ fn skill_missing_skill_md_is_violation() {
     let root = tmp.path();
     scaffold_minimal_repo(root);
     // Add an empty skill directory (no SKILL.md).
-    fs::create_dir_all(root.join(".agent/skills/broken-skill")).unwrap();
+    fs::create_dir_all(root.join(".agents/skills/broken-skill")).unwrap();
 
     let report = validate::run(root).unwrap();
     let v: Vec<_> = v21(&report)
@@ -770,7 +770,7 @@ fn skill_missing_front_matter_is_violation() {
     let tmp = tempdir().unwrap();
     let root = tmp.path();
     scaffold_minimal_repo(root);
-    let dir = root.join(".agent/skills/plain-skill");
+    let dir = root.join(".agents/skills/plain-skill");
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join("SKILL.md"), "# plain-skill\n\nno front matter\n").unwrap();
     fs::write(dir.join(".last-updated"), "").unwrap();
@@ -792,7 +792,7 @@ fn skill_front_matter_missing_description_is_violation() {
     let tmp = tempdir().unwrap();
     let root = tmp.path();
     scaffold_minimal_repo(root);
-    let dir = root.join(".agent/skills/nameless-skill");
+    let dir = root.join(".agents/skills/nameless-skill");
     fs::create_dir_all(&dir).unwrap();
     fs::write(
         dir.join("SKILL.md"),
@@ -817,7 +817,7 @@ fn skill_missing_last_updated_is_violation() {
     let tmp = tempdir().unwrap();
     let root = tmp.path();
     scaffold_minimal_repo(root);
-    let dir = root.join(".agent/skills/no-tracking");
+    let dir = root.join(".agents/skills/no-tracking");
     fs::create_dir_all(&dir).unwrap();
     fs::write(
         dir.join("SKILL.md"),
@@ -842,7 +842,7 @@ fn skill_name_must_be_kebab_case() {
     let tmp = tempdir().unwrap();
     let root = tmp.path();
     scaffold_minimal_repo(root);
-    let dir = root.join(".agent/skills/BadName");
+    let dir = root.join(".agents/skills/BadName");
     fs::create_dir_all(&dir).unwrap();
     fs::write(
         dir.join("SKILL.md"),

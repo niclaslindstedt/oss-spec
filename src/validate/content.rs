@@ -203,7 +203,7 @@ fn is_excluded_dir(name: &str) -> bool {
             | "target"
             | "node_modules"
             | ".git"
-            | ".agent"
+            | ".agents"
             | ".claude"
             | "dist"
             | "build"
@@ -370,7 +370,7 @@ const SEO_EXCLUDED_DIRS: &[&str] = &[
     "dist",
     "build",
     ".git",
-    ".agent",
+    ".agents",
     ".claude",
     "__pycache__",
     ".venv",

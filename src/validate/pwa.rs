@@ -158,7 +158,7 @@ const PWA_EXCLUDED_DIRS: &[&str] = &[
     "dist",
     "build",
     ".git",
-    ".agent",
+    ".agents",
     ".claude",
     "__pycache__",
     ".venv",

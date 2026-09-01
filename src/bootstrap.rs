@@ -58,7 +58,7 @@ pub fn write(manifest: &ProjectManifest, target_dir: &Path) -> Result<()> {
     crate::output::info("Creating AGENTS.md symlinks...");
     create_agents_symlinks(target_dir)?;
 
-    // 6. Agent-skills symlink: `.claude/skills` -> `../.agent/skills` (§21.2).
+    // 6. Agent-skills symlink: `.claude/skills` -> `../.agents/skills` (§21.2).
     crate::output::info("Creating agent-skills symlink...");
     create_skills_symlink(target_dir)?;
 
@@ -66,7 +66,7 @@ pub fn write(manifest: &ProjectManifest, target_dir: &Path) -> Result<()> {
 }
 
 fn create_skills_symlink(target: &Path) -> Result<()> {
-    let skills_root = target.join(".agent/skills");
+    let skills_root = target.join(".agents/skills");
     if !skills_root.is_dir() {
         // Nothing to link to — the template set did not ship any skills.
         return Ok(());
@@ -82,8 +82,8 @@ fn create_skills_symlink(target: &Path) -> Result<()> {
             std::fs::remove_dir(&link).ok();
         }
     }
-    symlink_dir(Path::new("../.agent/skills"), &link)
-        .with_context(|| format!("symlink {} -> ../.agent/skills", link.display()))?;
+    symlink_dir(Path::new("../.agents/skills"), &link)
+        .with_context(|| format!("symlink {} -> ../.agents/skills", link.display()))?;
     Ok(())
 }
 

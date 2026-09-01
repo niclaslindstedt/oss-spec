@@ -67,7 +67,7 @@ Dependency direction is top-down: `main` → `lib` → `cli` → (`interview`, `
 | New AI-driven step | `src/ai.rs` (thin wrapper) + caller in `interview.rs` |
 | New language overlay | `templates/<lang>/`, plus `Language` enum variant in `manifest.rs` |
 | Tests | `tests/` |
-| New agent skill | `.agent/skills/<name>/SKILL.md` (+ `.last-updated`); also `templates/_common/.agent/skills/<name>/` for generated projects |
+| New agent skill | `.agents/skills/<name>/SKILL.md` (+ `.last-updated`); also `templates/_common/.agents/skills/<name>/` for generated projects |
 
 ## Test conventions
 
@@ -117,7 +117,7 @@ This repo is the canonical reference implementation of `OSS_SPEC.md`. Other proj
 
 ## Maintenance skills
 
-Per §21 of `OSS_SPEC.md`, this repo ships agent skills for keeping drift-prone artifacts in sync with their sources of truth. Skills live under `.agent/skills/<name>/`; `.claude/skills` is a symlink into that tree so Claude Code picks them up at their canonical location.
+Per §21 of `OSS_SPEC.md`, this repo ships agent skills for keeping drift-prone artifacts in sync with their sources of truth. Skills live under `.agents/skills/<name>/`; `.claude/skills` is a symlink into that tree so Claude Code picks them up at their canonical location.
 
 | Skill | When to run | Artifacts it fixes |
 |---|---|---|

@@ -1,6 +1,6 @@
 //! §21 Agent skills — maintenance playbooks for drift-prone artifacts.
 //!
-//! Checks that the canonical `.agent/skills/` tree exists, that tool-
+//! Checks that the canonical `.agents/skills/` tree exists, that tool-
 //! specific locations (e.g. `.claude/skills`) are symlinks into it, and
 //! that every published drift-prone artifact has a matching `update-*`
 //! skill alongside the always-required `maintenance` umbrella skill.
@@ -11,23 +11,23 @@
 use super::{Report, Violation};
 use std::path::Path;
 
-/// §21 Agent skills. Every repo must ship the canonical `.agent/skills/`
+/// §21 Agent skills. Every repo must ship the canonical `.agents/skills/`
 /// tree, the `.claude/skills` symlink, and at least one maintenance skill
 /// per drift-prone artifact it publishes.
 pub(super) fn check(path: &Path, report: &mut Report) {
-    let skills_root = path.join(".agent/skills");
+    let skills_root = path.join(".agents/skills");
 
     // 21.2: canonical tree must exist.
     if !skills_root.is_dir() {
         report.violations.push(Violation {
             spec_section: "§21.2",
-            message: "missing directory .agent/skills (see §21 Agent skills)".into(),
+            message: "missing directory .agents/skills (see §21 Agent skills)".into(),
         });
         return;
     }
 
     // 21.2: `.claude/skills` must be a symlink whose target (after
-    // normalizing path separators) ends with `.agent/skills`. We deliberately
+    // normalizing path separators) ends with `.agents/skills`. We deliberately
     // avoid `canonicalize` here: on Windows it returns verbatim `\\?\` UNC
     // paths that may not compare equal even for the same location, and the
     // directory-vs-file symlink distinction can make following the link
@@ -37,18 +37,18 @@ pub(super) fn check(path: &Path, report: &mut Report) {
         Ok(meta) if meta.file_type().is_symlink() => std::fs::read_link(&claude_skills)
             .ok()
             .and_then(|t| t.to_str().map(|s| s.replace('\\', "/")))
-            .map(|s| s.trim_end_matches('/').ends_with(".agent/skills"))
+            .map(|s| s.trim_end_matches('/').ends_with(".agents/skills"))
             .unwrap_or(false),
         _ => false,
     };
     if !link_ok {
         report.violations.push(Violation {
             spec_section: "§21.2",
-            message: ".claude/skills must be a symlink to ../.agent/skills".into(),
+            message: ".claude/skills must be a symlink to ../.agents/skills".into(),
         });
     }
 
-    // 21.3/21.4: every subdirectory under `.agent/skills/` must be a valid
+    // 21.3/21.4: every subdirectory under `.agents/skills/` must be a valid
     // skill (SKILL.md with YAML front matter + `.last-updated` file).
     let entries = match std::fs::read_dir(&skills_root) {
         Ok(it) => it,
@@ -98,14 +98,14 @@ pub(super) fn check(path: &Path, report: &mut Report) {
             report.violations.push(Violation {
                 spec_section: sec,
                 message: format!(
-                    "missing maintenance skill .agent/skills/{skill}/SKILL.md ({reason})"
+                    "missing maintenance skill .agents/skills/{skill}/SKILL.md ({reason})"
                 ),
             });
         }
     }
 }
 
-/// Validate a single `.agent/skills/<name>/` directory. Pushes a violation
+/// Validate a single `.agents/skills/<name>/` directory. Pushes a violation
 /// for each problem found — missing SKILL.md, missing front matter, missing
 /// tracking file, etc.
 fn validate_skill_dir(dir: &Path, name: &str, report: &mut Report) {
@@ -114,7 +114,7 @@ fn validate_skill_dir(dir: &Path, name: &str, report: &mut Report) {
         report.violations.push(Violation {
             spec_section: "§21.5",
             message: format!(
-                ".agent/skills/{name}: skill name must be kebab-case \
+                ".agents/skills/{name}: skill name must be kebab-case \
                  (lowercase letters, digits, hyphens)"
             ),
         });
@@ -126,7 +126,7 @@ fn validate_skill_dir(dir: &Path, name: &str, report: &mut Report) {
     if !skill_md.is_file() {
         report.violations.push(Violation {
             spec_section: "§21.3",
-            message: format!(".agent/skills/{name}: missing SKILL.md"),
+            message: format!(".agents/skills/{name}: missing SKILL.md"),
         });
         return;
     }
@@ -134,7 +134,7 @@ fn validate_skill_dir(dir: &Path, name: &str, report: &mut Report) {
         report.violations.push(Violation {
             spec_section: "§21.4",
             message: format!(
-                ".agent/skills/{name}: missing .last-updated tracking file \
+                ".agents/skills/{name}: missing .last-updated tracking file \
                  (see §21.4)"
             ),
         });
@@ -148,7 +148,7 @@ fn validate_skill_dir(dir: &Path, name: &str, report: &mut Report) {
         report.violations.push(Violation {
             spec_section: "§21.3",
             message: format!(
-                ".agent/skills/{name}/SKILL.md: missing YAML front matter \
+                ".agents/skills/{name}/SKILL.md: missing YAML front matter \
                  with `name` and `description`"
             ),
         });
@@ -157,14 +157,14 @@ fn validate_skill_dir(dir: &Path, name: &str, report: &mut Report) {
     if !has_yaml_key(front, "name") {
         report.violations.push(Violation {
             spec_section: "§21.3",
-            message: format!(".agent/skills/{name}/SKILL.md: front matter missing `name` field"),
+            message: format!(".agents/skills/{name}/SKILL.md: front matter missing `name` field"),
         });
     }
     if !has_yaml_key(front, "description") {
         report.violations.push(Violation {
             spec_section: "§21.3",
             message: format!(
-                ".agent/skills/{name}/SKILL.md: front matter missing `description` field"
+                ".agents/skills/{name}/SKILL.md: front matter missing `description` field"
             ),
         });
     }
