@@ -47,6 +47,7 @@ fn bootstrap_then_check_passes() {
         ".github/workflows/lighthouse.yml",
         ".github/lighthouse/lighthouserc.json",
         "website/scripts/check-seo.mjs",
+        ".agents/skills/maintenance/SKILL.md",
         ".github/PULL_REQUEST_TEMPLATE.md",
         ".github/dependabot.yml",
         "docs/getting-started.md",
@@ -68,6 +69,15 @@ fn bootstrap_then_check_passes() {
         let p = target.join(link);
         assert!(p.is_symlink(), "{link} should be a symlink");
     }
+    let skills_link = target.join(".claude/skills");
+    assert!(
+        skills_link.is_symlink(),
+        ".claude/skills should be a symlink"
+    );
+    assert_eq!(
+        std::fs::read_link(&skills_link).expect("read .claude/skills link"),
+        std::path::Path::new("../.agents/skills")
+    );
 
     let report = validate::run(&target).expect("check run");
     if !report.is_clean() {

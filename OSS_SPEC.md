@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.9.0
+version: 2.9.1
 ---
 
 # Open Source Project Bootstrap Specification
@@ -2107,13 +2107,13 @@ the code, improved over time, and re-run on demand.
 Agent skills live at:
 
 ```
-.agent/skills/<skill-name>/SKILL.md
+.agents/skills/<skill-name>/SKILL.md
 ```
 
-`.agent/` is the generic, tool-neutral home for any file an AI coding
+`.agents/` is the generic, tool-neutral home for any file an AI coding
 agent needs but a human typically does not. Tool-specific directories
 (e.g. `.claude/skills/` for Claude Code) must be **symbolic links** to
-`.agent/skills/` so that any tool which discovers skills from a fixed
+`.agents/skills/` so that any tool which discovers skills from a fixed
 path sees the same canonical set. This is the same single-source-of-
 truth rule as §7.1.
 
@@ -2121,7 +2121,7 @@ Required directory symlinks:
 
 | Link path            | Tool          | Target            |
 |----------------------|---------------|-------------------|
-| `.claude/skills`     | Claude Code   | `../.agent/skills`|
+| `.claude/skills`     | Claude Code   | `../.agents/skills`|
 
 Additional tool-specific paths may be added as support lands, but every
 such path must be a symlink — editing skills through a tool-specific
@@ -2177,7 +2177,7 @@ Every `SKILL.md` must contain:
 Each skill directory must contain a `.last-updated` file:
 
 ```
-.agent/skills/<skill-name>/.last-updated
+.agents/skills/<skill-name>/.last-updated
 ```
 
 It holds a single line: the git commit hash of the last successful run
@@ -2230,7 +2230,7 @@ Y" bug report.
 In addition to the per-artifact skills above, every project must ship a
 **`maintenance`** skill whose sole job is to dispatch to the individual
 `update-*` skills in the correct order and aggregate their output.
-`.agent/skills/maintenance/SKILL.md` is the entry point for any agent
+`.agents/skills/maintenance/SKILL.md` is the entry point for any agent
 that wants to bring the whole repository back into sync without first
 diagnosing *which* artifact is stale.
 
@@ -2271,7 +2271,7 @@ other skills, runs them in order, aggregates the combined diff, and
 The `AGENTS.md` file (§7) must include a **Maintenance skills** section
 that lists every skill the project ships and describes when each one
 should run. This is the discovery surface for agents that do not yet
-autoload skills from `.agent/skills/`.
+autoload skills from `.agents/skills/`.
 
 ## 22. Bootstrap checklist
 
@@ -2329,13 +2329,13 @@ checked before the first public tag.
 [ ] Central output module, no raw print statements       (§19.4)
 [ ] Always-on debug log file                             (§19.2)
 [ ] --debug flag for verbose terminal output             (§19.3)
-[ ] .agent/skills/update-readme/ with SKILL.md +
+[ ] .agents/skills/update-readme/ with SKILL.md +
     .last-updated                                       (§21.5)
-[ ] .agent/skills/update-docs/ with SKILL.md +
+[ ] .agents/skills/update-docs/ with SKILL.md +
     .last-updated                                       (§21.5)
-[ ] .agent/skills/maintenance/ umbrella skill routing
+[ ] .agents/skills/maintenance/ umbrella skill routing
     to every update-* skill                             (§21.6)
-[ ] .claude/skills symlinked to ../.agent/skills         (§21.2)
+[ ] .claude/skills symlinked to ../.agents/skills         (§21.2)
 [ ] AGENTS.md documents maintenance skills                (§21.8)
 
 CLI projects additionally:
@@ -2349,7 +2349,7 @@ CLI projects additionally:
     <name> --examples                                   (§12.4)
 [ ] CI check: manpage ↔ flag parity                     (§12.3)
 [ ] CI snapshot test: --help-agent / --debug-agent      (§12.1, §12.2)
-[ ] .agent/skills/update-manpages/ with SKILL.md +
+[ ] .agents/skills/update-manpages/ with SKILL.md +
     .last-updated                                       (§21.5)
 ```
 
@@ -2375,7 +2375,7 @@ The tailoring pass MUST operate only on the **scaffolding layer**:
 - `README.md`
 - `AGENTS.md` (and leave its symlinks alone — §7.1)
 - `docs/**`
-- `.agent/skills/**`
+- `.agents/skills/**`
 - `.github/workflows/**`, `.github/ISSUE_TEMPLATE/**`,
   `.github/PULL_REQUEST_TEMPLATE.md`
 - `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`

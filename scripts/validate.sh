@@ -386,7 +386,7 @@ has_inline_test_attribute() {
 check_source_file_size() {
     # §20.5 Source file size limit, with `oss-spec:allow-large-file: <reason>` opt-out.
     local roots=(src lib)
-    local skip_dirs=(tests target node_modules .git .agent .claude dist build __pycache__ .venv venv)
+    local skip_dirs=(tests target node_modules .git .agents .claude dist build __pycache__ .venv venv)
     local prune=()
     local d_name
     for d_name in "${skip_dirs[@]}"; do
@@ -435,7 +435,7 @@ check_website_seo() {
     local has_website=0
     local seen_og=0 seen_tw=0 seen_jsonld=0 seen_sitemap=0 seen_robots=0
     local seen_llms=0 seen_check_seo=0 seen_lighthouse=0
-    local skip_dirs=(node_modules target dist build .git .agent .claude __pycache__ .venv venv)
+    local skip_dirs=(node_modules target dist build .git .agents .claude __pycache__ .venv venv)
     local prune=()
     local d_name
     for d_name in "${skip_dirs[@]}"; do
@@ -516,7 +516,7 @@ check_pwa() {
     local seen_theme_meta=0
     local seen_update=0 seen_icon_pipeline=0 seen_lighthouse_pwa=0
 
-    local skip_dirs=(node_modules target dist build .git .agent .claude __pycache__ .venv venv)
+    local skip_dirs=(node_modules target dist build .git .agents .claude __pycache__ .venv venv)
     local prune=()
     local d_name
     for d_name in "${skip_dirs[@]}"; do
@@ -919,24 +919,24 @@ has_front_matter() {
 }
 
 check_agent_skills() {
-    local skills_root="$TARGET/.agent/skills"
+    local skills_root="$TARGET/.agents/skills"
     if [ ! -d "$skills_root" ]; then
-        add_violation "§21.2" "missing directory .agent/skills (see §21 Agent skills)"
+        add_violation "§21.2" "missing directory .agents/skills (see §21 Agent skills)"
         return
     fi
 
-    # .claude/skills must be a symlink whose target ends with .agent/skills.
+    # .claude/skills must be a symlink whose target ends with .agents/skills.
     local claude="$TARGET/.claude/skills"
     local link_ok=0
     if [ -L "$claude" ]; then
         local tgt; tgt="$(readlink "$claude")"
         tgt="${tgt%/}"
         case "$tgt" in
-            *".agent/skills") link_ok=1 ;;
+            *".agents/skills") link_ok=1 ;;
         esac
     fi
     if [ "$link_ok" -eq 0 ]; then
-        add_violation "§21.2" ".claude/skills must be a symlink to ../.agent/skills"
+        add_violation "§21.2" ".claude/skills must be a symlink to ../.agents/skills"
     fi
 
     # Validate every skill subdirectory.
@@ -972,7 +972,7 @@ check_agent_skills() {
             else
                 reason="required because $artifact is present"
             fi
-            add_violation "$sec" "missing maintenance skill .agent/skills/$skill/SKILL.md ($reason)"
+            add_violation "$sec" "missing maintenance skill .agents/skills/$skill/SKILL.md ($reason)"
         fi
     done
 }
@@ -981,27 +981,27 @@ validate_skill_dir() {
     local dir="$1" name="$2"
     if ! is_kebab_case "$name"; then
         add_violation "§21.5" \
-            ".agent/skills/$name: skill name must be kebab-case (lowercase letters, digits, hyphens)"
+            ".agents/skills/$name: skill name must be kebab-case (lowercase letters, digits, hyphens)"
     fi
     local skill_md="$dir/SKILL.md"
     local last_updated="$dir/.last-updated"
     if [ ! -f "$skill_md" ]; then
-        add_violation "§21.3" ".agent/skills/$name: missing SKILL.md"
+        add_violation "§21.3" ".agents/skills/$name: missing SKILL.md"
         return
     fi
     if [ ! -f "$last_updated" ]; then
-        add_violation "§21.4" ".agent/skills/$name: missing .last-updated tracking file (see §21.4)"
+        add_violation "§21.4" ".agents/skills/$name: missing .last-updated tracking file (see §21.4)"
     fi
     if ! has_front_matter "$skill_md"; then
         add_violation "§21.3" \
-            ".agent/skills/$name/SKILL.md: missing YAML front matter with \`name\` and \`description\`"
+            ".agents/skills/$name/SKILL.md: missing YAML front matter with \`name\` and \`description\`"
         return
     fi
     if ! extract_yaml_key "$skill_md" "name"; then
-        add_violation "§21.3" ".agent/skills/$name/SKILL.md: front matter missing \`name\` field"
+        add_violation "§21.3" ".agents/skills/$name/SKILL.md: front matter missing \`name\` field"
     fi
     if ! extract_yaml_key "$skill_md" "description"; then
-        add_violation "§21.3" ".agent/skills/$name/SKILL.md: front matter missing \`description\` field"
+        add_violation "§21.3" ".agents/skills/$name/SKILL.md: front matter missing \`description\` field"
     fi
 }
 

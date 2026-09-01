@@ -32,7 +32,7 @@ pub async fn run(manifest: &ProjectManifest, target: &Path, assume_yes: bool) ->
         "About to launch an interactive zag agent that proposes edits to README.md,",
     );
     crate::output::info(
-        "AGENTS.md, docs/, .agent/skills/, and .github/workflows/ so they read as if",
+        "AGENTS.md, docs/, .agents/skills/, and .github/workflows/ so they read as if",
     );
     crate::output::info(
         "they were written for this specific project. Application source (src/, tests/)",

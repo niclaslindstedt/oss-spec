@@ -19,7 +19,7 @@ src/
 │   ├── mod.rs         # Report/Violation types and orchestrator
 │   ├── structural.rs  # required files/dirs/symlinks/workflows
 │   ├── content.rs     # §11.3 SEO scaffolding, §19.4 output module, §20 inline tests, §20.5 file size
-│   ├── agent_skills.rs# §21 .agent/skills/ tree and per-skill checks
+│   ├── agent_skills.rs# §21 .agents/skills/ tree and per-skill checks
 │   └── toolchain.rs   # §10.3/§10.5 pin-file and CI parity
 ├── fix.rs         # zag-driven auto-fix agent
 ├── agent_help.rs  # §12 CLI discoverability contract
