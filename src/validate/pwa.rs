@@ -86,7 +86,9 @@ pub(super) fn check(path: &Path, report: &mut Report) -> Result<()> {
         missing
             .push("icon-generation source (pwa-assets.config.* / `make icons` / `npm run icons`)");
     }
-    if !signals.lighthouse_pwa {
+    // §11.4.7 extends the §11.3.10 Lighthouse workflow, which an
+    // unlisted website (§11.3.12) does not have.
+    if !signals.lighthouse_pwa && !super::unlisted::declares_unlisted_website(path) {
         missing.push("Lighthouse `pwa` category in lighthouserc (minScore ≥ 0.9)");
     }
 

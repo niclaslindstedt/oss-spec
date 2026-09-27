@@ -13,8 +13,8 @@
 //! in environments where the Rust binary cannot be installed (sandboxed
 //! sessions, ephemeral CI runners) can still verify §19 conformance via
 //! `curl … | bash`. **Whenever you add, remove, or modify a rule in any
-//! submodule below — `structural`, `content`, `pwa`, `toolchain`,
-//! `agent_skills`, `references` — make the equivalent edit in `scripts/validate.sh`
+//! submodule below — `structural`, `content`, `pwa`, `unlisted`,
+//! `toolchain`, `agent_skills`, `references` — make the equivalent edit in `scripts/validate.sh`
 //! in the same PR.**
 //! There is no automated drift check between the two implementations;
 //! reviewers verify parity by hand.
@@ -28,6 +28,7 @@ mod pwa;
 mod references;
 mod structural;
 mod toolchain;
+mod unlisted;
 
 pub use agent_skills::{extract_front_matter, has_yaml_key, is_kebab_case};
 pub use references::{
@@ -36,6 +37,10 @@ pub use references::{
 pub use toolchain::{
     check_local_toolchain_pin, check_toolchain_versions, find_rust_ci_version, find_setup_version,
     parse_go_toolchain, parse_rust_channel, version_ge, versions_same_major_minor,
+};
+pub use unlisted::{
+    UNLISTED_WEBSITE_MARKER, declares_unlisted_website, has_robots_noindex_meta,
+    has_unlisted_marker, robots_txt_disallows_all,
 };
 
 #[derive(Debug, Clone)]

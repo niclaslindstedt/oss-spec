@@ -112,7 +112,9 @@ pub(super) fn check(path: &Path, report: &mut Report) -> Result<()> {
     // and `lighthouse.yml` are required alongside `pages.yml` because
     // every spec-conforming project ships a website (§11.2), and a
     // website without the two SEO quality gates is exactly the
-    // discoverability regression §11.3 exists to prevent.
+    // discoverability regression §11.3 exists to prevent — unless the
+    // website is declared unlisted (§11.3.12), which drops both gates.
+    let unlisted = super::unlisted::declares_unlisted_website(path);
     let required_workflows: &[(&str, &str)] = &[
         ("ci.yml", "§10"),
         ("version-bump.yml", "§10"),
@@ -122,6 +124,9 @@ pub(super) fn check(path: &Path, report: &mut Report) -> Result<()> {
         ("lighthouse.yml", "§11.3.10"),
     ];
     for (w, sec) in required_workflows {
+        if unlisted && *sec == "§11.3.10" {
+            continue;
+        }
         let p = path.join(".github/workflows").join(w);
         if !p.exists() {
             report.violations.push(Violation {

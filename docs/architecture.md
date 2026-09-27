@@ -20,6 +20,7 @@ src/
 │   ├── structural.rs  # required files/dirs/symlinks/workflows
 │   ├── content.rs     # §11.3 SEO scaffolding, §19.4 output module, §20 inline tests, §20.5 file size
 │   ├── pwa.rs         # §11.4 Progressive Web App shape, once opted in
+│   ├── unlisted.rs    # §11.3.12 unlisted websites: the AGENTS.md marker, noindex, crawlable robots.txt
 │   ├── references.rs  # §24 scientific references registry, [ref:<id>] tags, and the view that reads it
 │   ├── agent_skills.rs# §21 .agents/skills/ tree and per-skill checks
 │   └── toolchain.rs   # §10.3/§10.5 pin-file and CI parity
