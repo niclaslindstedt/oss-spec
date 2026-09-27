@@ -9,11 +9,11 @@
 #
 # IMPORTANT FOR MAINTAINERS:
 #   This script MUST stay in lockstep with src/validate/ (structural.rs,
-#   content.rs, toolchain.rs, agent_skills.rs). Whenever you change a §19
-#   rule on either side, mirror the change here. The self-conformance test
-#   in tests/self_conformance.rs only exercises the Rust path; drift
-#   between the two implementations is not caught by CI, so reviews must
-#   verify parity by hand.
+#   content.rs, pwa.rs, toolchain.rs, agent_skills.rs, references.rs).
+#   Whenever you change a §19 rule on either side, mirror the change
+#   here. The self-conformance test in tests/self_conformance.rs only
+#   exercises the Rust path; drift between the two implementations is not
+#   caught by CI, so reviews must verify parity by hand.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/scripts/validate.sh | bash -s -- [<path>]
@@ -29,14 +29,14 @@
 set -euo pipefail
 
 SPEC_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/OSS_SPEC.md"
-SPEC_VERSION="2.8.0"
+SPEC_VERSION="2.10.0"
 
 # The agent-prompt body lives at prompts/validate-sh-agent/<v>.md per §13.5.
 # Bump this URL whenever a new version is added to that directory; the
 # `update-prompts` skill is responsible for keeping the bash script and
 # the prompt file in lockstep.
-PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_2_0.md"
-PROMPT_VERSION="1.2.0"
+PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_3_0.md"
+PROMPT_VERSION="1.3.0"
 
 # ---------------------------------------------------------------------------
 # Output helpers
@@ -653,6 +653,185 @@ check_pwa() {
 }
 
 # ---------------------------------------------------------------------------
+# §24 scientific references registry (mirrors src/validate/references.rs)
+# ---------------------------------------------------------------------------
+REFS_REGISTRY="docs/references.json"
+REFS_EVIDENCE="guideline, consensus, systematic-review, meta-analysis, randomized-trial, cohort, clinical-study, review, method, dataset, health-service"
+
+# A test file by name: a §20.2 stem (`foo_test.rs`) or a JS runner's
+# `foo.test.ts` / `foo.spec.ts`.
+refs_is_test_name() {
+    local name="$1" stem="${1%%.*}"
+    case "$stem" in
+        *_test|*_tests|*Test|*Tests) return 0 ;;
+    esac
+    case "$name" in
+        *.test.*|*.spec.*) return 0 ;;
+    esac
+    return 1
+}
+
+# find(1) over $1, skipping hidden entries and the §20.5 excluded
+# directories, printing NUL-separated files with the given extensions.
+refs_find() {
+    local dir="$1"; shift
+    local skip_dirs=(tests target node_modules .git .agents .claude dist build __pycache__ .venv venv)
+    local prune=( -name '.*' -o ) d_name
+    for d_name in "${skip_dirs[@]}"; do
+        prune+=( -name "$d_name" -o )
+    done
+    prune+=( -name __nope__ )
+    local names=() ext
+    for ext in "$@"; do
+        names+=( -name "*.$ext" -o )
+    done
+    names+=( -name __nope__ )
+    find "$dir" -mindepth 1 \( "${prune[@]}" \) -prune -o -type f \( "${names[@]}" \) -print0 2>/dev/null
+}
+
+REFS_SOURCE_EXTS=(rs py ts tsx js jsx go java kt cs swift)
+REFS_BUILD_EXTS=(mjs cjs mts cts vue svelte)
+
+check_references() {
+    # §24: opt-in is the registry or any [ref:<id>] tag in the §20.5 source
+    # tree; from then on every tag resolves, every entry is complete and
+    # cited, usedBy is exact, and something outside the tests reads the
+    # registry to show it to users.
+    local registry="$TARGET/$REFS_REGISTRY"
+    local tags; tags="$(mktemp)"
+    local r f name rel id
+    for r in src lib; do
+        [ -d "$TARGET/$r" ] || continue
+        while IFS= read -r -d '' f; do
+            name="$(basename "$f")"
+            refs_is_test_name "$name" && continue
+            rel="${f#"$TARGET"/}"
+            { grep -oE '\[ref:[a-z0-9]+(-[a-z0-9]+)*\]' "$f" 2>/dev/null || true; } \
+                | sed -E 's/^\[ref:(.*)\]$/\1/' \
+                | while IFS= read -r id; do printf '%s\t%s\n' "$id" "$rel"; done
+        done < <(refs_find "$TARGET/$r" "${REFS_SOURCE_EXTS[@]}")
+    done | LC_ALL=C sort -u > "$tags"
+
+    if [ ! -f "$registry" ]; then
+        if [ -s "$tags" ]; then
+            local ids n
+            ids="$(cut -f1 "$tags" | LC_ALL=C sort -u | paste -sd, - | sed 's/,/, /g')"
+            n="$(cut -f1 "$tags" | LC_ALL=C sort -u | wc -l | tr -d ' ')"
+            add_violation "§24" \
+                "source files cite $n reference id(s) ($ids) but $REFS_REGISTRY does not exist; add an entry for every cited source"
+        fi
+        rm -f "$tags"
+        return 0
+    fi
+
+    if ! command -v jq >/dev/null 2>&1; then
+        warn "validate.sh: jq not found; skipping the §24 references registry checks"
+        warn "(install jq, or run the oss-spec binary)."
+        rm -f "$tags"
+        return 0
+    fi
+
+    local parse_err
+    if ! parse_err="$(jq empty "$registry" 2>&1)"; then
+        add_violation "§24" "$REFS_REGISTRY is not valid JSON: $parse_err"
+        rm -f "$tags"
+        return 0
+    fi
+    if ! jq -e '(.references | type) == "object"' "$registry" >/dev/null 2>&1; then
+        add_violation "§24" "$REFS_REGISTRY must be an object with a \`references\` object keyed by id"
+        rm -f "$tags"
+        return 0
+    fi
+
+    # Per-entry completeness, as "<id>\t<problem>", ids in sorted order.
+    local problem
+    while IFS=$'\t' read -r id problem; do
+        [ -n "$id" ] || continue
+        add_violation "§24" "$REFS_REGISTRY: \`$id\` $problem"
+    done < <(jq -r --arg kinds "$REFS_EVIDENCE" '
+        def ne: type == "string" and (test("^\\s*$") | not);
+        ($kinds | split(", ")) as $vocab
+        | .references | to_entries | sort_by(.key)[] | .key as $id | .value as $e
+        | ( (if ($id | test("^[a-z0-9]+(-[a-z0-9]+)*$")) then empty else "id is not kebab-case" end),
+            (if ($e | type) != "object" then "is not an object" else
+              (if ($e.title | ne) then empty else "is missing `title`" end),
+              (if ($e.year | type) == "number" and ($e.year == ($e.year | floor)) then empty
+               else "is missing an integer `year`" end),
+              (if (($e.authors | type) == "array" and ($e.authors | length) > 0
+                   and all($e.authors[]; ne)) or ($e.organization | ne) then empty
+               else "needs a non-empty `authors` list or an `organization`" end),
+              (if [$e.doi, $e.url, $e.isbn] | any(.[]; ne) then empty
+               else "needs a `doi`, `url`, or `isbn`" end),
+              (if ($e.doi | type) == "string" and ($e.doi | test("^10\\.[0-9][0-9.]{3,}/\\S+$") | not)
+               then "`doi` \"\($e.doi)\" is not a bare DOI (10.<registrant>/<suffix>)" else empty end),
+              (if ($e.url | type) == "string" and ($e.url | startswith("https://") | not)
+               then "`url` \"\($e.url)\" is not an https:// URL" else empty end),
+              (if ($e | has("accessed")) and (($e.accessed | type) != "string"
+                   or ($e.accessed | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}$") | not))
+               then "`accessed` is not a YYYY-MM-DD date" else empty end),
+              (if ($e.evidence | type) != "string" then "is missing `evidence`"
+               elif ($vocab | index([$e.evidence])) then empty
+               else "`evidence` \"\($e.evidence)\" is not one of: \($kinds)" end),
+              (if ($e.quotes | type) == "array" and ($e.quotes | length) > 0
+                   and all($e.quotes[]; (if type == "object" then .text else null end) | ne)
+               then empty
+               else "needs a non-empty `quotes` list, each with the verbatim `text` the numbers come from" end),
+              (if ($e.supports | ne) then empty
+               else "is missing `supports` (what the project uses the source for)" end),
+              (if ($e.usedBy | type) == "array" and all($e.usedBy[]; type == "string") then empty
+               else "is missing a `usedBy` list of the files that cite it" end)
+            end) )
+        | "\($id)\t\(.)"
+    ' "$registry")
+
+    # Tags with no entry.
+    local entry_ids; entry_ids="$(jq -r '.references | keys[]' "$registry" | LC_ALL=C sort)"
+    local files
+    while IFS= read -r id; do
+        [ -n "$id" ] || continue
+        if ! printf '%s\n' "$entry_ids" | grep -qxF "$id"; then
+            files="$(awk -F'\t' -v id="$id" '$1 == id { print $2 }' "$tags" | LC_ALL=C sort -u | paste -sd, - | sed 's/,/, /g')"
+            add_violation "§24" "[ref:$id] is cited in $files but has no entry in $REFS_REGISTRY"
+        fi
+    done < <(cut -f1 "$tags" | LC_ALL=C sort -u)
+
+    # Entries nothing cites, and usedBy lists that disagree with the tags.
+    local listed has_used_by
+    while IFS= read -r id; do
+        [ -n "$id" ] || continue
+        files="$(awk -F'\t' -v id="$id" '$1 == id { print $2 }' "$tags" | LC_ALL=C sort -u | paste -sd, - | sed 's/,/, /g')"
+        if [ -z "$files" ]; then
+            add_violation "§24" \
+                "$REFS_REGISTRY: \`$id\` is not cited by any [ref:$id] tag in the source tree; cite it beside the number it supports, or remove the entry"
+            continue
+        fi
+        has_used_by="$(jq -r --arg id "$id" '.references[$id].usedBy | type == "array"' "$registry")"
+        [ "$has_used_by" = "true" ] || continue
+        listed="$(jq -r --arg id "$id" '.references[$id].usedBy[] | strings' "$registry" | LC_ALL=C sort -u | paste -sd, - | sed 's/,/, /g')"
+        if [ "$listed" != "$files" ]; then
+            add_violation "§24" \
+                "$REFS_REGISTRY: \`$id\` usedBy [$listed] does not match the files that cite it [$files]"
+        fi
+    done <<< "$entry_ids"
+    rm -f "$tags"
+
+    # §24.4: something that ships reads the registry.
+    local read_by=0
+    while IFS= read -r -d '' f; do
+        name="$(basename "$f")"
+        refs_is_test_name "$name" && continue
+        if grep -qF 'references.json' "$f" 2>/dev/null; then
+            read_by=1
+            break
+        fi
+    done < <(refs_find "$TARGET" "${REFS_SOURCE_EXTS[@]}" "${REFS_BUILD_EXTS[@]}")
+    if [ "$read_by" -eq 0 ]; then
+        add_violation "§24" \
+            "no non-test source or build file reads references.json; §24.4 requires the references to be shown to users from $REFS_REGISTRY (an in-app view that imports it, or a page generated from it)"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # Toolchain checks (mirrors src/validate/toolchain.rs)
 # ---------------------------------------------------------------------------
 # Spec-defined minimums (§10.3). Keep aligned with MIN_TOOLCHAIN_VERSIONS in
@@ -1120,6 +1299,7 @@ check_no_inline_tests
 check_source_file_size
 check_website_seo
 check_pwa
+check_references
 check_ci_toolchains
 check_local_pins
 check_agent_skills

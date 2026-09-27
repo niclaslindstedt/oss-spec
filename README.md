@@ -7,7 +7,7 @@
 [![release](https://github.com/niclaslindstedt/oss-spec/actions/workflows/release.yml/badge.svg)](https://github.com/niclaslindstedt/oss-spec/actions/workflows/release.yml)
 [![pages](https://github.com/niclaslindstedt/oss-spec/actions/workflows/pages.yml/badge.svg)](https://github.com/niclaslindstedt/oss-spec/actions/workflows/pages.yml)
 [![crates](https://img.shields.io/crates/v/oss-spec.svg)](https://crates.io/crates/oss-spec)
-[![spec](https://img.shields.io/badge/OSS__SPEC-v2.9.1-blueviolet)](OSS_SPEC.md)
+[![spec](https://img.shields.io/badge/OSS__SPEC-v2.10.0-blueviolet)](OSS_SPEC.md)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## Why?
@@ -15,6 +15,7 @@
 - **One command to a real repo.** `oss-spec init "create a python cli for finding stock buys"` produces a complete project — LICENSE, README, AGENTS.md (with all the agent symlinks), CONTRIBUTING/COC/SECURITY, CI workflows, release/pages pipelines, docs, examples, website skeleton, language manifest, Makefile, and a starter `.claude/` skill — and creates the GitHub remote.
 - **The spec is the source of truth.** Every file is derived from [`OSS_SPEC.md`](OSS_SPEC.md). `oss-spec validate` will tell you exactly which §19 items an existing repo is missing.
 - **AI is a feature, not a dependency.** With `--no-ai` you get a deterministic skeleton; with `oss-spec init` `zag` interprets a freeform prompt into a structured manifest, then an interactive tailoring agent (§23) offers to customize the scaffolding (README, AGENTS.md, docs, skills, workflows) to the project — application source is off-limits. Skip the tailoring pass alone with `--no-tailor`.
+- **Claims that cite their sources.** A health app or a tool built on a published algorithm keeps every source in `docs/references.json`, tags the number it supports with `[ref:<id>]`, and shows its references to users (§24); `oss-spec validate` holds the tags, the registry, and the view to one another.
 - **Agent-friendly out of the box.** The generated repo includes the OSS_SPEC.md §12 CLI discoverability contract: `--help-agent`, `--debug-agent`, `commands`, `docs`, and `man` are all wired up so coding agents can self-serve.
 - **Built on the same conventions it ships.** oss-spec is its own first customer — `oss-spec validate .` against this very repo passes.
 
@@ -85,7 +86,9 @@ existing copy so `git diff -- OSS_SPEC.md` shows what changed since the
 project was last brought into conformance), runs every deterministic §19
 check, and ends with an LLM-directed checklist the calling agent works
 through file by file. AI quality review is left to the agent — the script
-itself is offline-friendly and zero-install.
+itself is offline-friendly and zero-install. The §24 references checks read
+`docs/references.json` with `jq`, and are skipped with a warning where it is
+not installed.
 
 ## Usage
 

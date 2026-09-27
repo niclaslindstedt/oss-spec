@@ -7,3 +7,6 @@
 | `fatal: empty ident` | git user.name/email unset | `git config --global user.name "..."` and `user.email "..."` |
 | Symlinks fail on Windows | Symlink permission required | Enable Developer Mode or run as admin |
 | `templates/_common missing` | Built without templates/ present | Reinstall from a clean source tree |
+| `[§24] … usedBy [...] does not match the files that cite it [...]` | A `[ref:<id>]` tag was added to or removed from a file without updating the registry | Set that entry's `usedBy` in `docs/references.json` to exactly the files the message lists |
+| `[§24] [ref:<id>] is cited in … but has no entry` | A source is cited in code but not recorded | Add the entry from the source itself — title, year, authors, DOI/URL, verbatim quotes. Never invent one |
+| `jq not found; skipping the §24 references registry checks` | `scripts/validate.sh` reads the registry with `jq` | Install `jq`, or run the `oss-spec` binary |

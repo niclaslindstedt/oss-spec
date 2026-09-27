@@ -55,6 +55,10 @@ fn picks_highest_version() {
         p.system.contains("§20.5"),
         "highest-version picker should have selected the 1.2.0 template with §20.5 guidance"
     );
+    assert!(
+        p.system.contains("§24") && p.system.contains("do not invent it"),
+        "the 1.4.0 template must carry the §24 guidance, including the no-fabrication rule"
+    );
 }
 
 #[test]
