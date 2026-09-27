@@ -1,7 +1,9 @@
 //! Tests for the §24 scientific references registry check
 //! (`src/validate/references.rs`).
 
-use oss_spec::validate::{self, EVIDENCE_KINDS, citation_tags, entry_problems, is_bare_doi};
+use oss_spec::validate::{
+    self, EVIDENCE_KINDS, citation_tags, entry_problems, is_bare_doi, is_language_tag,
+};
 use serde_json::json;
 use std::fs;
 use std::path::Path;
@@ -268,6 +270,59 @@ fn malformed_fields_are_named() {
         "`quotes`",
     ] {
         assert!(problems.contains(needle), "{needle} not in:\n{problems}");
+    }
+}
+
+#[test]
+fn a_summary_and_topics_in_shape_pass() {
+    let mut e = entry(&["src/a.ts"]);
+    e["summary"] = json!({ "en": "What children sleep.", "sv": "Vad barn sover." });
+    e["topics"] = json!(["sleep", "night-waking"]);
+    assert!(entry_problems("galland-2012", &e).is_empty());
+}
+
+#[test]
+fn malformed_optional_fields_are_named() {
+    let mut e = entry(&["src/a.ts"]);
+    e["language"] = json!("English");
+    e["summary"] = json!({ "en": "  ", "english": "x" });
+    e["topics"] = json!(["Sleep"]);
+    let problems = entry_problems("x-2012", &e).join("\n");
+    for needle in ["`language`", "`summary`", "`topics`"] {
+        assert!(problems.contains(needle), "{needle} not in:\n{problems}");
+    }
+
+    for (field, value) in [
+        ("summary", json!("What children sleep.")),
+        ("summary", json!({})),
+        ("topics", json!([])),
+        ("topics", json!("sleep")),
+    ] {
+        let mut e = entry(&["src/a.ts"]);
+        e[field] = value;
+        let problems = entry_problems("x-2012", &e).join("\n");
+        assert!(
+            problems.contains(&format!("`{field}`")),
+            "{field}: {problems}"
+        );
+    }
+}
+
+#[test]
+fn language_tags() {
+    for ok in ["en", "sv", "pt-BR", "zh-Hant-TW", "gsw"] {
+        assert!(is_language_tag(ok), "{ok}");
+    }
+    for bad in [
+        "",
+        "e",
+        "english",
+        "en_GB",
+        "en-",
+        "en-a",
+        "sv-SE-toolongsubtag",
+    ] {
+        assert!(!is_language_tag(bad), "{bad}");
     }
 }
 

@@ -6,7 +6,9 @@
 //! the way §11.4 detects a PWA: the registry file, or any tag in the §20.5
 //! source tree, and from then on the whole shape is required:
 //!
-//! 1. the registry parses and every entry carries the §24.2 fields;
+//! 1. the registry parses, every entry carries the §24.2 fields, and the
+//!    optional fields that have a shape (`language`, `summary`, `topics`)
+//!    have it when present;
 //! 2. every tag names an entry, every entry is tagged somewhere, and each
 //!    entry's `usedBy` lists exactly the files that tag it (§24.3);
 //! 3. some non-test source or build file reads `references.json`, which is
@@ -231,6 +233,35 @@ pub fn entry_problems(id: &str, entry: &Value) -> Vec<String> {
     if !used_by_ok {
         out.push("is missing a `usedBy` list of the files that cite it".to_string());
     }
+
+    // The optional fields §24.2 gives a shape to: checked only when present.
+    if let Some(lang) = e.get("language")
+        && !lang.as_str().is_some_and(is_language_tag)
+    {
+        out.push("`language` is not a BCP 47 language tag".to_string());
+    }
+    if let Some(summary) = e.get("summary") {
+        let ok = summary.as_object().is_some_and(|m| {
+            !m.is_empty()
+                && m.iter().all(|(lang, line)| {
+                    is_language_tag(lang) && line.as_str().is_some_and(|s| !s.trim().is_empty())
+                })
+        });
+        if !ok {
+            out.push(
+                "`summary` must be an object of non-empty strings keyed by BCP 47 language tag"
+                    .to_string(),
+            );
+        }
+    }
+    if let Some(topics) = e.get("topics") {
+        let ok = topics.as_array().is_some_and(|a| {
+            !a.is_empty() && a.iter().all(|t| t.as_str().is_some_and(is_kebab_case))
+        });
+        if !ok {
+            out.push("`topics` must be a non-empty list of kebab-case topic names".to_string());
+        }
+    }
     out
 }
 
@@ -365,6 +396,17 @@ pub fn is_bare_doi(doi: &str) -> bool {
         && registrant.starts_with(|c: char| c.is_ascii_digit())
         && !suffix.is_empty()
         && !suffix.chars().any(char::is_whitespace)
+}
+
+/// A BCP 47 language tag, loosely: a two- or three-letter primary
+/// language, then `-`-separated subtags of two to eight letters or digits
+/// (`en`, `sv`, `pt-BR`, `zh-Hant-TW`).
+pub fn is_language_tag(tag: &str) -> bool {
+    let mut parts = tag.split('-');
+    let primary = parts.next().unwrap_or("");
+    (2..=3).contains(&primary.len())
+        && primary.chars().all(|c| c.is_ascii_alphabetic())
+        && parts.all(|p| (2..=8).contains(&p.len()) && p.chars().all(|c| c.is_ascii_alphanumeric()))
 }
 
 fn is_iso_date(s: &str) -> bool {

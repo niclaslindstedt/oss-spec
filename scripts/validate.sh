@@ -29,13 +29,13 @@
 set -euo pipefail
 
 SPEC_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/OSS_SPEC.md"
-SPEC_VERSION="2.10.0"
+SPEC_VERSION="2.11.0"
 
 # The agent-prompt body lives at prompts/validate-sh-agent/<v>.md per §13.5.
 # Bump this URL whenever a new version is added to that directory; the
 # `update-prompts` skill is responsible for keeping the bash script and
 # the prompt file in lockstep.
-PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_3_0.md"
+PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_4_0.md"
 PROMPT_VERSION="1.3.0"
 
 # ---------------------------------------------------------------------------
@@ -750,7 +750,8 @@ check_references() {
         add_violation "§24" "$REFS_REGISTRY: \`$id\` $problem"
     done < <(jq -r --arg kinds "$REFS_EVIDENCE" '
         def ne: type == "string" and (test("^\\s*$") | not);
-        ($kinds | split(", ")) as $vocab
+        "^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$" as $lang
+        | ($kinds | split(", ")) as $vocab
         | .references | to_entries | sort_by(.key)[] | .key as $id | .value as $e
         | ( (if ($id | test("^[a-z0-9]+(-[a-z0-9]+)*$")) then empty else "id is not kebab-case" end),
             (if ($e | type) != "object" then "is not an object" else
@@ -779,7 +780,19 @@ check_references() {
               (if ($e.supports | ne) then empty
                else "is missing `supports` (what the project uses the source for)" end),
               (if ($e.usedBy | type) == "array" and all($e.usedBy[]; type == "string") then empty
-               else "is missing a `usedBy` list of the files that cite it" end)
+               else "is missing a `usedBy` list of the files that cite it" end),
+              (if ($e | has("language")) and (($e.language | type) != "string"
+                   or ($e.language | test($lang) | not))
+               then "`language` is not a BCP 47 language tag" else empty end),
+              (if ($e | has("summary")) and ((($e.summary | type) != "object")
+                   or ($e.summary | length) == 0
+                   or (($e.summary | to_entries | all((.key | test($lang)) and (.value | ne))) | not))
+               then "`summary` must be an object of non-empty strings keyed by BCP 47 language tag"
+               else empty end),
+              (if ($e | has("topics")) and ((($e.topics | type) != "array")
+                   or ($e.topics | length) == 0
+                   or (all($e.topics[]; type == "string" and test("^[a-z0-9]+(-[a-z0-9]+)*$")) | not))
+               then "`topics` must be a non-empty list of kebab-case topic names" else empty end)
             end) )
         | "\($id)\t\(.)"
     ' "$registry")
