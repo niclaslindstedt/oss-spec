@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.9.1
+version: 2.10.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -204,6 +204,9 @@ guidance. It must live at the repository root and cover:
   website must be regenerated whenever source-derived content changes.
 - **Maintenance skills** — a pointer to §21 describing the agent
   skills the project ships for keeping drift-prone artifacts in sync.
+- **Scientific references** (§24 projects only) — where the
+  references registry lives, the `[ref:<id>]` tag syntax, and the test
+  that keeps the two in step.
 
 ### 7.1 Tool-specific files as symlinks
 
@@ -2351,6 +2354,13 @@ CLI projects additionally:
 [ ] CI snapshot test: --help-agent / --debug-agent      (§12.1, §12.2)
 [ ] .agents/skills/update-manpages/ with SKILL.md +
     .last-updated                                       (§21.5)
+
+Projects whose purpose rests on scientific claims (§24.1) additionally:
+
+[ ] docs/references.json registry, complete per entry   (§24.2)
+[ ] [ref:<id>] tags beside every cited number; tags and
+    registry agree                                      (§24.3)
+[ ] References shown to users, read from the registry   (§24.4)
 ```
 
 A repository that satisfies this checklist has the foundational
@@ -2442,4 +2452,245 @@ proposals.
     is skipped                                             (§23.4)
 [ ] Tailoring prompt under prompts/<name>/<major>_<minor>_<patch>.md
     with YAML front matter                                 (§23.5)
+```
+
+---
+
+## 24. Scientific references — the registry behind every claim
+
+### 24.1 Scope — when this section applies
+
+**If the project exists to compute, show, or act on a scientific
+claim, every number that claim rests on must be traceable to a
+published source.** This section applies to projects whose *main
+purpose* depends on the literature being right:
+
+- health, medical, and wellbeing apps — a symptom or growth tracker, a
+  dosage or nutrition calculator, a sleep or fertility app, anything
+  that compares a person's data against a recommendation or a norm;
+- tools and libraries that implement a published scientific algorithm,
+  model, or standard — a clinical score, an epidemiological estimator,
+  a z-score against a reference population, a psychometric scale, a
+  physical or chemical model whose constants come from a paper;
+- apps whose output is itself a scientific claim — an emissions or
+  exposure calculator, an evidence summary, a diet or training plan
+  justified by studies.
+
+It does **not** apply when citations are incidental to the project's
+purpose: a sorting library that links the paper its algorithm came
+from, a game with a physics engine, a CLI that quotes an RFC. The
+discriminator is intent, as in §11.4: if a user would be *misled* by a
+wrong constant — because the project's whole point is to tell them
+something about their health, their environment, or the world — §24
+applies; if a wrong constant is just a bug, it does not.
+
+Projects opt in by adding the registry (§24.2). The validator treats the
+presence of `docs/references.json` or of any citation tag (§24.3) in the
+source tree as opt-in, and from then on requires the whole shape. A
+project that makes scientific claims **without** a registry is out of
+conformance even though no deterministic check can see it; that
+judgement is part of the agent review (§24.8).
+
+### 24.2 The registry — `docs/references.json`
+
+Every source the project's numbers, thresholds, algorithms, and
+user-facing claims rest on lives in **one machine-readable file**,
+`docs/references.json`, keyed by a stable id:
+
+```json
+{
+  "references": {
+    "galland-2012": {
+      "evidence": "systematic-review",
+      "authors": ["Galland BC", "Taylor BJ", "Elder DE", "Herbison P"],
+      "title": "Normal sleep patterns in infants and children: a systematic review of observational studies",
+      "container": "Sleep Medicine Reviews",
+      "year": 2012,
+      "volume": "16",
+      "issue": "3",
+      "pages": "213–222",
+      "doi": "10.1016/j.smrv.2011.06.001",
+      "language": "en",
+      "quotes": [
+        {
+          "text": "≈6 months 12.9 (8.8–17.0)",
+          "at": "table 2, sleep duration in hours per 24 h"
+        }
+      ],
+      "supports": "The observed range of total sleep at each age.",
+      "usedBy": ["src/sleep.ts"]
+    }
+  }
+}
+```
+
+The file is JSON so that every language, the validator, and a build
+step can read it without a parser of its own. Its top level is an
+object with a `references` object; anything else at the top level
+(a `$comment`, a `$schema`) is ignored.
+
+**Ids** are kebab-case (`^[a-z0-9]+(-[a-z0-9]+)*$`) and stable: an id is
+the name code cites, so renaming one is a change to every file that
+cites it, and a removed id is never reused for a different source.
+The convention is `<first-author-or-organization>-<year>` with a
+disambiguating suffix when needed.
+
+**Required fields** of every entry:
+
+| Field | What it holds |
+|---|---|
+| `title` | The source's title, as published. |
+| `year` | Year of publication, as an integer. |
+| `authors` **or** `organization` | A non-empty list of authors (`"Surname Initials"`), or the publishing body for guidelines and health-service pages. |
+| `doi`, `url`, **or** `isbn` | At least one way to find the source again. A `doi` is bare (`10.xxxx/…`, no resolver prefix); a `url` is `https://`. |
+| `evidence` | The kind of evidence, from the vocabulary below. |
+| `quotes` | A non-empty list of `{ "text": …, "at"?: … }` — the **verbatim** words, table cells, or equations the project's numbers were taken from, in the source's own language, with `at` locating them (page, table, section). |
+| `supports` | One or two sentences: what the project uses this source for. |
+| `usedBy` | The repository-relative paths of every file that cites the entry (§24.3), and only those. |
+
+**Optional fields:** `container` (journal, publisher, or site),
+`volume`, `issue`, `pages`, `language` (a BCP 47 tag — the language
+of the quotes), `accessed` (`YYYY-MM-DD`; **should** be set for any
+entry cited by `url` alone, since web pages change), and `note` (errata,
+discrepancies between the abstract and the tables, why one edition
+was chosen over another). A project may add fields of its own — a
+translation of `supports` for a UI in another language, the topics an
+entry is grouped under on the references screen — and the validator
+ignores them.
+
+**Evidence vocabulary.** `evidence` is one of:
+
+| Value | Use for |
+|---|---|
+| `guideline` | An official recommendation from a public-health body or professional society (WHO, a national agency, a clinical guideline). |
+| `consensus` | A consensus or position statement from an expert panel. |
+| `systematic-review` | A systematic review, with or without meta-analysis. |
+| `meta-analysis` | A meta-analysis published on its own. |
+| `randomized-trial` | A randomized controlled trial. |
+| `cohort` | A cohort or other longitudinal observational study. |
+| `clinical-study` | Any other primary clinical or observational study. |
+| `review` | A narrative (non-systematic) review. |
+| `method` | The paper that defines an algorithm, model, statistical method, or measurement standard the code implements. |
+| `dataset` | Published reference data — growth tables, population norms, constants. |
+| `health-service` | Practitioner guidance from a health service or public information site, where no primary source is published. |
+
+The vocabulary exists so a reader can weigh a claim at a glance: a
+wake window from a health-service page and a sleep duration from a
+systematic review are not the same kind of fact, and the project must
+not present them as if they were.
+
+### 24.3 Citation tags — `[ref:<id>]` beside the number
+
+Code cites a registry entry with a **citation tag**, `[ref:<id>]`, in
+the comment beside the number, threshold, table, or algorithm it
+supports:
+
+```ts
+/** Recommended total sleep per 24 hours, in hours: 12–16 at 4–12
+ *  months, 11–14 at 1–2 years [ref:who-2019-under5]. */
+```
+
+A claim that reaches the user as copy rather than as code — a sentence
+in a string catalog, a tooltip, a help page generated from source —
+carries its tag in a comment above the string. The prose around the
+tag may say as much as the author likes; the tag is what makes the
+citation checkable.
+
+The validator counts tags in the §20.5 source tree: non-test files
+(§20.2) with a source extension under `src/` or `lib/`, outside
+`tests/` and the usual build and vendor directories. It enforces:
+
+1. **Every tag resolves** — each `[ref:<id>]` names an entry in the
+   registry.
+2. **Every entry is cited** — an entry no source file tags is either a
+   leftover or a claim that lost its citation.
+3. **`usedBy` is exact** — each entry's `usedBy` lists precisely the
+   files that tag it, so a reader of the registry can go straight to
+   the code a source feeds.
+4. **Every entry is complete** — the required fields of §24.2 are
+   present and well-formed.
+
+A project **should** mirror these four rules in its own test suite
+(e.g. `tests/references_test.<ext>`) so a contributor sees the failure
+locally before CI runs the validator.
+
+### 24.4 Surfacing the references to users
+
+**The people a project makes claims to must be able to read its
+sources.** The registry is not only documentation for contributors:
+
+- A project with a user interface (a web app, a mobile or desktop
+  app, a TUI) **must** ship an in-product view — an About,
+  Sources, or References screen — that lists every registry entry
+  with its citation, a link to the DOI or URL, its evidence kind, and
+  what the project uses it for. It must be reachable from the
+  settings or about surface without an account and without a network
+  call: the references are bundled with the app, like any other data
+  the app reads. Links out to the sources are user-initiated
+  navigation, never prefetched.
+- A library or CLI **must** publish the registry as a rendered page
+  (`docs/references.md` generated from it, or a page on the §11.2
+  website), and a CLI **should** expose it from the command line (a
+  `references` subcommand, or a `docs references` topic per §12.3).
+
+In every case the view reads the registry — directly, through a
+module that imports it, or through a file generated from it at build
+time — and **never a hand-maintained copy**. The validator checks that
+at least one non-test source or build file reads `references.json`.
+
+### 24.5 Claims, not authority
+
+A project under §24 compares the user's data with published
+recommendations; it is not a clinician, and its copy must not imply
+that it is. Output outside a reference range is framed as a reason to
+look, not a verdict. Health projects **must** carry a plain-language
+disclaimer on the same surface as the references (§24.4) saying what
+the project is and is not, and **should** name, next to each
+assessment, the source it was compared against.
+
+### 24.6 Changing a claim
+
+A change to a cited number is a change to a claim the project makes to
+its users. In the same pull request:
+
+- update the value next to its tag, and the entry's `quotes` so they
+  still contain the words the new value was taken from;
+- add an entry (and a tag) for every new source, and remove the entry
+  for a source no longer cited;
+- update the documentation topic that explains the number (the
+  `docs/` page the AGENTS.md sync table names).
+
+**Never invent a reference, a DOI, or a quote.** An automated fixer
+(such as `oss-spec fix`) may correct `usedBy` lists mechanically, but a
+missing entry, an empty `quotes` list, or an unresolved tag is left for
+a human who has read the source.
+
+### 24.7 AGENTS.md integration
+
+A project under §24 documents the registry in `AGENTS.md` (§7): where
+it lives, the tag syntax, the evidence vocabulary, which test enforces
+it, and a row in the "Documentation sync points" table ("A `[ref:<id>]`
+tag anywhere → `docs/references.json`, the entry, its quotes, and its
+`usedBy`"). The "Where new code goes" table routes "a change to a
+recommendation or threshold" to the module that holds it, next to its
+tag, plus the registry entry.
+
+### 24.8 Checklist
+
+```
+[ ] docs/references.json with a `references` object keyed
+    by kebab-case ids                                      (§24.2)
+[ ] Every entry has title, year, authors/organization,
+    doi/url/isbn, evidence, verbatim quotes, supports,
+    and usedBy                                             (§24.2)
+[ ] Every number, threshold, and algorithm tagged with
+    [ref:<id>] beside it                                   (§24.3)
+[ ] Tags and registry agree: every tag resolves, every
+    entry is cited, usedBy is exact                        (§24.3)
+[ ] A project test enforces the same rules                 (§24.3)
+[ ] In-product references view (apps) or generated
+    references page (libraries/CLIs), read from the
+    registry                                               (§24.4)
+[ ] Disclaimer beside the references (health projects)     (§24.5)
+[ ] AGENTS.md documents the registry and its sync points   (§24.7)
 ```

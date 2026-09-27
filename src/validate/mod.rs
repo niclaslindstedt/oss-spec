@@ -14,7 +14,7 @@
 //! sessions, ephemeral CI runners) can still verify §19 conformance via
 //! `curl … | bash`. **Whenever you add, remove, or modify a rule in any
 //! submodule below — `structural`, `content`, `pwa`, `toolchain`,
-//! `agent_skills` — make the equivalent edit in `scripts/validate.sh`
+//! `agent_skills`, `references` — make the equivalent edit in `scripts/validate.sh`
 //! in the same PR.**
 //! There is no automated drift check between the two implementations;
 //! reviewers verify parity by hand.
@@ -25,10 +25,12 @@ use std::path::Path;
 mod agent_skills;
 mod content;
 mod pwa;
+mod references;
 mod structural;
 mod toolchain;
 
 pub use agent_skills::{extract_front_matter, has_yaml_key, is_kebab_case};
+pub use references::{EVIDENCE_KINDS, REGISTRY_PATH, citation_tags, entry_problems, is_bare_doi};
 pub use toolchain::{
     check_local_toolchain_pin, check_toolchain_versions, find_rust_ci_version, find_setup_version,
     parse_go_toolchain, parse_rust_channel, version_ge, versions_same_major_minor,
@@ -123,6 +125,7 @@ pub fn run(path: &Path) -> Result<Report> {
     structural::check(&path, &mut report)?;
     content::check(&path, &mut report)?;
     pwa::check(&path, &mut report)?;
+    references::check(&path, &mut report)?;
     agent_skills::check(&path, &mut report);
 
     Ok(report)

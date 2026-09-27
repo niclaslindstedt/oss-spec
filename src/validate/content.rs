@@ -182,11 +182,11 @@ const MARKER_SCAN_LINES: usize = 20;
 /// Root-relative directories to scan for source files. Paths are joined
 /// to the project root at walk time; missing directories are silently
 /// skipped.
-const SOURCE_ROOTS: &[&str] = &["src", "lib"];
+pub(super) const SOURCE_ROOTS: &[&str] = &["src", "lib"];
 
 /// File extensions that count as source code for §20.5. Anything not in
 /// this set (Markdown, YAML, TOML, generated artifacts, etc.) is ignored.
-fn is_source_extension(ext: &str) -> bool {
+pub(super) fn is_source_extension(ext: &str) -> bool {
     matches!(
         ext,
         "rs" | "py" | "ts" | "tsx" | "js" | "jsx" | "go" | "java" | "kt" | "cs" | "swift"
@@ -196,7 +196,7 @@ fn is_source_extension(ext: &str) -> bool {
 /// Directory names that should never be descended into while scanning
 /// for source files. Keeps test trees, vendored dependencies, and build
 /// artifacts out of the size check.
-fn is_excluded_dir(name: &str) -> bool {
+pub(super) fn is_excluded_dir(name: &str) -> bool {
     matches!(
         name,
         "tests"
