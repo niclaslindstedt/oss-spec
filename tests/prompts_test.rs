@@ -63,6 +63,23 @@ fn picks_highest_version() {
         p.system.contains("`summary` line"),
         "the 1.5.0 template must carry the §24.2 optional-field guidance"
     );
+    assert!(
+        p.system.contains("oss-spec:unlisted-website:") && p.system.contains("§11.3.12"),
+        "the 1.6.0 template must carry the §11.3.12 unlisted-website guidance"
+    );
+}
+
+#[test]
+fn verify_conformance_knows_unlisted_websites() {
+    let p = prompts::load(
+        "verify-conformance",
+        minijinja::context! { spec => "SPEC", spec_version => "2.12.0", violations => "(test)", file_contents => "(test)" },
+    )
+    .unwrap();
+    assert!(
+        p.system.contains("oss-spec:unlisted-website:") && p.system.contains("noindex"),
+        "the 1.2.0 template must exempt unlisted websites from the §11.3 review"
+    );
 }
 
 #[test]

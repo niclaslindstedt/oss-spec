@@ -30,7 +30,8 @@ pub(super) fn check(path: &Path, report: &mut Report) -> Result<()> {
 
     // §11.3 SEO and discoverability: if the project has a website, it must
     // ship the SEO scaffolding (Open Graph, Twitter Card, JSON-LD,
-    // sitemap.xml, robots.txt). Skipped if there's no website/.
+    // sitemap.xml, robots.txt). Skipped if there's no website/. An
+    // unlisted website (§11.3.12) is checked for `noindex` instead.
     check_website_seo(path, report)?;
 
     Ok(())
@@ -284,6 +285,9 @@ fn walk_source_tree(dir: &Path, root: &Path, report: &mut Report) -> Result<()> 
 /// structural `check-seo` script wired into a workflow (§11.3.10), and a
 /// `lighthouse` workflow with a checked-in lighthouserc config.
 ///
+/// When `AGENTS.md` declares the website unlisted (§11.3.12), the
+/// scaffolding check is replaced by [`super::unlisted::check`].
+///
 /// The check is intentionally vague about *where* the website lives —
 /// it might be `website/`, `pages/`, `site/`, `web/`, `docs-site/`, or
 /// somewhere else entirely. We detect "this project ships a website" via
@@ -301,6 +305,13 @@ pub(super) fn check_website_seo(path: &Path, report: &mut Report) -> Result<()> 
 
     if !has_website {
         return Ok(());
+    }
+
+    // §11.3.12 — a website declared unlisted is a testing surface: the
+    // scaffolding below does not apply, and the site must carry
+    // `noindex` instead.
+    if super::unlisted::declares_unlisted_website(path) {
+        return super::unlisted::check(path, report);
     }
 
     let mut missing: Vec<&str> = Vec::new();
@@ -364,7 +375,7 @@ struct SeoSignals {
 
 /// Directories the SEO walk never enters. Same shape as the source-size
 /// excluded list — build artifacts, vendor caches, and VCS metadata.
-const SEO_EXCLUDED_DIRS: &[&str] = &[
+pub(super) const SEO_EXCLUDED_DIRS: &[&str] = &[
     "node_modules",
     "target",
     "dist",
@@ -399,7 +410,7 @@ fn is_website_indicator(file_name: &str) -> bool {
 /// substrings. We deliberately stay text-only — binaries (images, fonts,
 /// archives) can never contain meta tags or JSON-LD, and reading them as
 /// UTF-8 just wastes I/O.
-fn is_seo_scannable(file_name: &str) -> bool {
+pub(super) fn is_seo_scannable(file_name: &str) -> bool {
     if let Some(ext) = file_name.rsplit('.').next() {
         return matches!(
             ext,

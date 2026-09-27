@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.11.0
+version: 2.12.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -872,6 +872,13 @@ descriptions, schema.org types, and keywords must be tailored to the
 project's audience, but the *structure* applies to every website that
 follows this spec.
 
+The one exception is a website that exists only as a **testing
+surface** — a web build of an app that users find and install through
+some other channel, such as an app store. Such a project declares its
+website *unlisted* (§11.3.12); §11.3.1–§11.3.11 then do not apply, and
+§11.3.12 requires the opposite signal instead: every page asks search
+engines not to index it.
+
 #### 11.3.1 Prerendered HTML body — never an empty SPA shell
 
 Every public URL the website serves must return HTML whose `<body>`
@@ -1085,7 +1092,8 @@ Achieved through:
 
 Two workflows guard the SEO surfaces, separate from the unit-test
 pipeline (§10). Both are required (§19) alongside `pages.yml` for any
-spec-conforming project.
+spec-conforming project, except one whose website is unlisted
+(§11.3.12).
 
 **`seo` — structural assertions.** A Node/TypeScript script
 (`website/scripts/check-seo.{ts,mjs}`) walks every HTML file under
@@ -1147,6 +1155,68 @@ The README's badge row (§3) carries `ci`, `seo` (the structural
 check from §11.3.10), `pages` (deploy status), and `license`. The
 two quality-gate badges sit next to each other so a single glance at
 the README answers "is the discoverability surface healthy".
+
+#### 11.3.12 Unlisted websites — a testing surface, not a public site
+
+Some projects deploy a website that nobody is meant to find. The
+typical case is an app whose real distribution is an app store: the
+web build is deployed so maintainers and testers can try every commit
+on a real device, but a user who searches for the app should land on
+its store listing, not on the web build. For such a project the rest
+of §11.3 is actively harmful — a sitemap, `llms.txt`, and structured
+data invite crawlers to index a surface that competes with the real
+listing.
+
+**Declaring it.** The project declares its website unlisted with a
+marker line anywhere in `AGENTS.md` (§7), in the same form as the
+§20.5.1 exception marker:
+
+```text
+oss-spec:unlisted-website: <reason>
+```
+
+The reason is required and must be non-empty — say why the site is
+not meant to be found (for example, "the web build is a testing
+surface; users install the app from its store listing"). `AGENTS.md`
+is the place because it is the file every contributor and agent reads
+first, so the exemption is visible where the project's other
+deviations are explained. A marker without a reason does not count.
+
+**What no longer applies.** For an unlisted website, §11.3.1–§11.3.11
+do not apply: no prerendering or per-route SEO `<head>` mandate, no
+JSON-LD, no sitemap, no `llms.txt`, no feeds or per-item OG images,
+no page-weight budget, no `seo` or `lighthouse` workflow, no
+`lighthouserc` config, and no `seo` badge in the README. §11.4.7
+(the Lighthouse PWA category) falls away with the Lighthouse workflow
+it extends. The rest of §11 still applies: the site is built from
+source and deployed on every push (§10.4, §11.2), a web app is still
+a complete PWA (§11.4.1–§11.4.6, §11.4.8), and slots still work as
+in §11.5.
+
+**What is required instead.**
+
+- Every page the site serves must carry
+  `<meta name="robots" content="noindex">` (`noindex,nofollow` is
+  also acceptable). This is the signal that keeps the site out of
+  search results, and it is the one the validator checks for.
+- `robots.txt`, if the site ships one, must allow crawling
+  (`User-agent: *` / `Allow: /`) and must not `Disallow: /`. A crawler
+  that is forbidden to fetch a page never reads its `noindex`, and a
+  URL it finds through an external link can still be indexed without
+  its content — so blocking crawling defeats the purpose.
+- The site should not ship a `sitemap.xml`, an `llms.txt`, JSON-LD,
+  or a `<link rel="canonical">`. Each of them asks to be indexed and
+  contradicts the `noindex`.
+
+Open Graph and Twitter Card tags may stay: they only shape the
+preview when someone shares a link, which testers still do.
+
+The deterministic conformance check (§19) reads the marker and, when
+it is present, skips the §11.3 scaffolding check, the `seo.yml` /
+`lighthouse.yml` workflow requirement, and the §11.4.7 Lighthouse PWA
+assertion. In their place it requires a robots `noindex` meta tag in
+the website's source and reports any `robots.txt` that disallows the
+whole site.
 
 ### 11.4 Progressive Web App requirements
 
@@ -1319,6 +1389,9 @@ projects that opt into PWA. The `lighthouserc.json` config asserts
 fail CI. The same workflow already gates SEO and performance; adding
 the PWA category is a one-line config change.
 
+A project whose website is unlisted (§11.3.12) has no Lighthouse
+workflow, so this subsection does not apply to it.
+
 #### 11.4.8 Disjoint scopes for preview deployments (recommended)
 
 Projects that publish a preview slot alongside production (e.g. `/`
@@ -1383,7 +1456,8 @@ Only the production slot is indexable and only the production slot
 carries the analytics tracker (§11.3, §11.3.10). Secondary slots must
 ship `noindex,nofollow` so search engines never index a second copy
 of the app, and must omit the tracker so dogfooding and review traffic
-never pollute production metrics. Each slot is otherwise a complete,
+never pollute production metrics. When the website is unlisted
+(§11.3.12), no slot is indexable: production ships `noindex` too. Each slot is otherwise a complete,
 independently installable PWA with disjoint identity per §11.4.8.
 
 #### 11.5.2 One deploy, several packages

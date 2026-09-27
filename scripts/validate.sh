@@ -29,14 +29,14 @@
 set -euo pipefail
 
 SPEC_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/OSS_SPEC.md"
-SPEC_VERSION="2.11.0"
+SPEC_VERSION="2.12.0"
 
 # The agent-prompt body lives at prompts/validate-sh-agent/<v>.md per §13.5.
 # Bump this URL whenever a new version is added to that directory; the
 # `update-prompts` skill is responsible for keeping the bash script and
 # the prompt file in lockstep.
-PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_4_0.md"
-PROMPT_VERSION="1.3.0"
+PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_5_0.md"
+PROMPT_VERSION="1.5.0"
 
 # ---------------------------------------------------------------------------
 # Output helpers
@@ -270,10 +270,72 @@ check_prompts_versioned() {
     done < <(find "$root" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
 }
 
+# ---------------------------------------------------------------------------
+# §11.3.12 unlisted websites (mirrors src/validate/unlisted.rs)
+#
+# `oss-spec:unlisted-website: <reason>` anywhere in AGENTS.md declares the
+# website a testing surface. The reason must be non-empty.
+# ---------------------------------------------------------------------------
+declares_unlisted_website() {
+    [ -f "$TARGET/AGENTS.md" ] || return 1
+    grep -qE 'oss-spec:unlisted-website:[[:space:]]*[^[:space:]]' "$TARGET/AGENTS.md" 2>/dev/null
+}
+
+check_unlisted_website() {
+    # Replaces the §11.3 scaffolding check for an unlisted website: some
+    # page must carry a robots `noindex` meta tag, and no robots.txt may
+    # `Disallow: /` (a crawler that cannot fetch a page never sees the
+    # noindex).
+    local seen_noindex=0
+    local skip_dirs=(node_modules target dist build .git .agents .claude __pycache__ .venv venv)
+    local prune=()
+    local d_name
+    for d_name in "${skip_dirs[@]}"; do
+        prune+=( -name "$d_name" -o )
+    done
+    prune+=( -name __nope__ )
+
+    local disallowing=()
+    local f
+    while IFS= read -r -d '' f; do
+        local base; base="$(basename "$f")"
+        if [ "$base" = "robots.txt" ]; then
+            if sed 's/#.*//' "$f" 2>/dev/null \
+                | grep -qiE '^[[:space:]]*disallow[[:space:]]*:[[:space:]]*/[[:space:]]*$'; then
+                disallowing+=("${f#"$TARGET"/}")
+            fi
+            continue
+        fi
+        [ "$seen_noindex" -eq 1 ] && continue
+        case "$base" in
+            *.html|*.htm|*.js|*.ts|*.mjs|*.cjs|*.jsx|*.tsx|*.vue|*.svelte|*.tmpl|*.json)
+                # A <meta> tag naming robots with a noindex directive; the
+                # file is flattened to one line so a tag may span lines.
+                if tr '\n' ' ' < "$f" 2>/dev/null \
+                    | grep -qiE '<meta[^>]*(robots[^>]*noindex|noindex[^>]*robots)'; then
+                    seen_noindex=1
+                fi
+                ;;
+        esac
+    done < <(find "$TARGET" \( "${prune[@]}" \) -prune \
+                   -o -type f -print0 2>/dev/null | sort -z)
+
+    if [ "$seen_noindex" -eq 0 ]; then
+        add_violation "§11.3.12" \
+            "AGENTS.md declares the website unlisted but no page carries <meta name=\"robots\" content=\"noindex\">; add it to every page"
+    fi
+    local rel
+    for rel in "${disallowing[@]+"${disallowing[@]}"}"; do
+        add_violation "§11.3.12" \
+            "$rel: \`Disallow: /\` stops crawlers from reading the noindex; an unlisted website's robots.txt must allow crawling"
+    done
+}
+
 check_workflows() {
     # §10 base workflows + §11.3.10 SEO quality gates. Every spec-conforming
     # project ships a website (§11.2), so seo.yml + lighthouse.yml are
-    # required alongside pages.yml.
+    # required alongside pages.yml — unless the website is declared
+    # unlisted (§11.3.12), which drops both gates.
     local required_10=(ci.yml version-bump.yml release.yml pages.yml)
     local required_seo=(seo.yml lighthouse.yml)
     local w
@@ -282,6 +344,7 @@ check_workflows() {
             add_violation "§10" "missing .github/workflows/$w"
         fi
     done
+    declares_unlisted_website && return 0
     for w in "${required_seo[@]}"; do
         if [ ! -e "$TARGET/.github/workflows/$w" ]; then
             add_violation "§11.3.10" "missing .github/workflows/$w"
@@ -478,6 +541,11 @@ check_website_seo() {
                    -o -type f -print0 2>/dev/null)
 
     [ "$has_website" -eq 0 ] && return 0
+    # §11.3.12 — an unlisted website is checked for noindex instead.
+    if declares_unlisted_website; then
+        check_unlisted_website
+        return 0
+    fi
     local missing=()
     [ "$seen_og" -eq 0 ]         && missing+=("Open Graph (og:image)")
     [ "$seen_tw" -eq 0 ]         && missing+=("Twitter Card (twitter:card)")
@@ -643,6 +711,9 @@ check_pwa() {
     [ "$seen_theme_meta" -eq 0 ]          && missing+=("theme-color meta tag in HTML head")
     [ "$seen_update" -eq 0 ]              && missing+=("user-visible update prompt component (UpdateToast / UpdatePrompt / ReloadBanner / useRegisterSW onNeedRefresh)")
     [ "$seen_icon_pipeline" -eq 0 ]       && missing+=("icon-generation source (pwa-assets.config.* / \`make icons\` / \`npm run icons\`)")
+    # §11.4.7 extends the Lighthouse workflow an unlisted website (§11.3.12)
+    # does not have.
+    declares_unlisted_website && seen_lighthouse_pwa=1
     [ "$seen_lighthouse_pwa" -eq 0 ]      && missing+=("Lighthouse \`pwa\` category in lighthouserc (minScore ≥ 0.9)")
 
     if [ "${#missing[@]}" -gt 0 ]; then
