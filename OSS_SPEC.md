@@ -2553,7 +2553,10 @@ disambiguating suffix when needed.
 of the quotes), `accessed` (`YYYY-MM-DD`; **should** be set for any
 entry cited by `url` alone, since web pages change), and `note` (errata,
 discrepancies between the abstract and the tables, why one edition
-was chosen over another).
+was chosen over another). A project may add fields of its own — a
+translation of `supports` for a UI in another language, the topics an
+entry is grouped under on the references screen — and the validator
+ignores them.
 
 **Evidence vocabulary.** `evidence` is one of:
 
