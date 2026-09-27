@@ -59,6 +59,10 @@ fn picks_highest_version() {
         p.system.contains("§24") && p.system.contains("do not invent it"),
         "the 1.4.0 template must carry the §24 guidance, including the no-fabrication rule"
     );
+    assert!(
+        p.system.contains("`summary` line"),
+        "the 1.5.0 template must carry the §24.2 optional-field guidance"
+    );
 }
 
 #[test]

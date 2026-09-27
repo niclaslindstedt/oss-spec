@@ -30,7 +30,9 @@ mod structural;
 mod toolchain;
 
 pub use agent_skills::{extract_front_matter, has_yaml_key, is_kebab_case};
-pub use references::{EVIDENCE_KINDS, REGISTRY_PATH, citation_tags, entry_problems, is_bare_doi};
+pub use references::{
+    EVIDENCE_KINDS, REGISTRY_PATH, citation_tags, entry_problems, is_bare_doi, is_language_tag,
+};
 pub use toolchain::{
     check_local_toolchain_pin, check_toolchain_versions, find_rust_ci_version, find_setup_version,
     parse_go_toolchain, parse_rust_channel, version_ge, versions_same_major_minor,

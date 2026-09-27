@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.10.0
+version: 2.11.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -2474,7 +2474,13 @@ purpose* depends on the literature being right:
   physical or chemical model whose constants come from a paper;
 - apps whose output is itself a scientific claim — an emissions or
   exposure calculator, an evidence summary, a diet or training plan
-  justified by studies.
+  justified by studies;
+- health logs that do little more than record — a medication or
+  symptom diary — once they derive a figure by a published definition
+  (an adherence share, a cycle day, a phase of the cycle) or bundle
+  published reference data (product strengths from a medicines
+  register). The figure is still a claim: a user reads "92% adherent"
+  as a statement about their treatment.
 
 It does **not** apply when citations are incidental to the project's
 purpose: a sorting library that links the paper its algorithm came
@@ -2553,10 +2559,20 @@ disambiguating suffix when needed.
 of the quotes), `accessed` (`YYYY-MM-DD`; **should** be set for any
 entry cited by `url` alone, since web pages change), and `note` (errata,
 discrepancies between the abstract and the tables, why one edition
-was chosen over another). A project may add fields of its own — a
-translation of `supports` for a UI in another language, the topics an
-entry is grouped under on the references screen — and the validator
-ignores them.
+was chosen over another).
+
+Two optional fields serve the in-product view (§24.4), and have a
+shape the validator checks when they are present:
+
+| Field | What it holds |
+|---|---|
+| `summary` | The line a *user* reads about what in the product rests on the source — `supports` is written for a contributor — keyed by BCP 47 language tag, one non-empty string per language the UI speaks: `{ "en": "…", "sv": "…" }`. |
+| `topics` | A non-empty list of kebab-case names for the parts of the product the entry is listed under on the references screen — its screens, trackers, or models (`["sleep"]`, `["cycle", "fertility"]`). The project owns the vocabulary. |
+
+A project may add further fields of its own, and the validator ignores
+them. A project that shows `summary` or groups by `topics` **should**
+require them on every entry in its own test (§24.3), so the view never
+falls back to a contributor's sentence or leaves a source ungrouped.
 
 **Evidence vocabulary.** `evidence` is one of:
 
@@ -2596,6 +2612,20 @@ carries its tag in a comment above the string. The prose around the
 tag may say as much as the author likes; the tag is what makes the
 citation checkable.
 
+**A design choice is not a claim, and must not be dressed as one.** A
+model has constants no paper supplies — a smoothing kernel, a prior's
+strength, a clamp on how far one kind of evidence may move a result, a
+minimum sample before a figure is shown. They carry no tag; their
+comment says why the value was chosen and says plainly that it is a
+choice. Where a choice is *derived from* a published number — a
+window sized to cover a phase whose length a study reports — the
+published number is tagged, and the comment shows the step from it to
+the choice. Where the code deliberately departs from a source — a
+margin tighter than a textbook rule because the readings were cleaned
+first — the tag stays on the source and the comment names the
+departure and the reason. A reader must be able to tell, at every
+number, which of the three it is.
+
 The validator counts tags in the §20.5 source tree: non-test files
 (§20.2) with a source extension under `src/` or `lib/`, outside
 `tests/` and the usual build and vendor directories. It enforces:
@@ -2623,7 +2653,10 @@ sources.** The registry is not only documentation for contributors:
   app, a TUI) **must** ship an in-product view — an About,
   Sources, or References screen — that lists every registry entry
   with its citation, a link to the DOI or URL, its evidence kind, and
-  what the project uses it for. It must be reachable from the
+  what the project uses it for (its `summary` in the UI's language
+  when it has one, else `supports`). It **should** also let the user
+  read the entry's `quotes`, so the claim can be checked against the
+  source's own words without leaving the product. It must be reachable from the
   settings or about surface without an account and without a network
   call: the references are bundled with the app, like any other data
   the app reads. Links out to the sources are user-initiated
@@ -2683,8 +2716,10 @@ tag, plus the registry entry.
 [ ] Every entry has title, year, authors/organization,
     doi/url/isbn, evidence, verbatim quotes, supports,
     and usedBy                                             (§24.2)
+[ ] summary / topics, where used, in shape on every entry  (§24.2)
 [ ] Every number, threshold, and algorithm tagged with
-    [ref:<id>] beside it                                   (§24.3)
+    [ref:<id>] beside it; design choices say they are
+    choices, and departures from a source say so           (§24.3)
 [ ] Tags and registry agree: every tag resolves, every
     entry is cited, usedBy is exact                        (§24.3)
 [ ] A project test enforces the same rules                 (§24.3)
