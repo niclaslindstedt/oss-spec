@@ -9,7 +9,8 @@
 #
 # IMPORTANT FOR MAINTAINERS:
 #   This script MUST stay in lockstep with src/validate/ (structural.rs,
-#   content.rs, pwa.rs, toolchain.rs, agent_skills.rs, references.rs).
+#   llm_prompts.rs, content.rs, pwa.rs, unlisted.rs, toolchain.rs,
+#   agent_skills.rs, references.rs).
 #   Whenever you change a §19 rule on either side, mirror the change
 #   here. The self-conformance test in tests/self_conformance.rs only
 #   exercises the Rust path; drift between the two implementations is not
@@ -29,14 +30,14 @@
 set -euo pipefail
 
 SPEC_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/OSS_SPEC.md"
-SPEC_VERSION="2.12.0"
+SPEC_VERSION="2.13.0"
 
 # The agent-prompt body lives at prompts/validate-sh-agent/<v>.md per §13.5.
 # Bump this URL whenever a new version is added to that directory; the
 # `update-prompts` skill is responsible for keeping the bash script and
 # the prompt file in lockstep.
-PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_5_0.md"
-PROMPT_VERSION="1.5.0"
+PROMPT_URL="https://raw.githubusercontent.com/niclaslindstedt/oss-spec/main/prompts/validate-sh-agent/1_6_0.md"
+PROMPT_VERSION="1.6.0"
 
 # ---------------------------------------------------------------------------
 # Output helpers
@@ -236,7 +237,6 @@ check_required_dirs() {
         ".github/workflows|§10.1"
         ".github/ISSUE_TEMPLATE|§15"
         "docs|§11.1"
-        "prompts|§13.5"
         "scripts|§10.3"
     )
     local e d sec
@@ -248,13 +248,37 @@ check_required_dirs() {
     done
 }
 
-check_prompts_versioned() {
+# ---------------------------------------------------------------------------
+# §13.5 LLM prompts (mirrors src/validate/llm_prompts.rs)
+#
+# `oss-spec:no-llm-prompts: <reason>` anywhere in AGENTS.md declares that
+# the project sends no LLM prompts. The reason must be non-empty.
+# ---------------------------------------------------------------------------
+declares_no_llm_prompts() {
+    [ -f "$TARGET/AGENTS.md" ] || return 1
+    grep -qE 'oss-spec:no-llm-prompts:[[:space:]]*[^[:space:]]' "$TARGET/AGENTS.md" 2>/dev/null
+}
+
+check_llm_prompts() {
+    # prompts/ is required unless AGENTS.md declares the project
+    # prompt-free; a declared project ships no prompt (no subdirectory of
+    # prompts/); every shipped prompt has a versioned file.
     local root="$TARGET/prompts"
-    [ -d "$root" ] || return 0
+    local prompt_free=0
+    declares_no_llm_prompts && prompt_free=1
+    if [ ! -d "$root" ]; then
+        if [ "$prompt_free" -eq 0 ]; then
+            add_violation "§13.5" "missing directory prompts (a project that sends no LLM prompts declares \`oss-spec:no-llm-prompts: <reason>\` in AGENTS.md instead)"
+        fi
+        return 0
+    fi
     local sub name has_versioned f base
     while IFS= read -r -d '' sub; do
         [ -d "$sub" ] || continue
         name="$(basename "$sub")"
+        if [ "$prompt_free" -eq 1 ]; then
+            add_violation "§13.5" "AGENTS.md declares that the project sends no LLM prompts, but prompts/$name/ ships one; remove the prompt or the marker"
+        fi
         has_versioned=0
         for f in "$sub"/*.md; do
             [ -f "$f" ] || continue
@@ -267,7 +291,7 @@ check_prompts_versioned() {
         if [ "$has_versioned" -eq 0 ]; then
             add_violation "§13.5" "prompts/$name/ has no versioned <major>_<minor>_<patch>.md file"
         fi
-    done < <(find "$root" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
+    done < <(find "$root" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null | LC_ALL=C sort -z)
 }
 
 # ---------------------------------------------------------------------------
@@ -1374,7 +1398,7 @@ esac
 check_required_files
 check_agents_symlinks
 check_required_dirs
-check_prompts_versioned
+check_llm_prompts
 check_workflows
 check_issue_pr_templates
 check_test_naming
