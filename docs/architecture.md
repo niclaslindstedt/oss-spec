@@ -18,6 +18,7 @@ src/
 ├── validate/      # §19 conformance validator
 │   ├── mod.rs         # Report/Violation types and orchestrator
 │   ├── structural.rs  # required files/dirs/symlinks/workflows
+│   ├── llm_prompts.rs # §13.5 prompts/ tree, or the AGENTS.md marker of a project that ships no LLM prompts
 │   ├── content.rs     # §11.3 SEO scaffolding, §19.4 output module, §20 inline tests, §20.5 file size
 │   ├── pwa.rs         # §11.4 Progressive Web App shape, once opted in
 │   ├── unlisted.rs    # §11.3.12 unlisted websites: the AGENTS.md marker, noindex, crawlable robots.txt

@@ -67,13 +67,30 @@ fn picks_highest_version() {
         p.system.contains("oss-spec:unlisted-website:") && p.system.contains("§11.3.12"),
         "the 1.6.0 template must carry the §11.3.12 unlisted-website guidance"
     );
+    assert!(
+        p.system.contains("oss-spec:no-llm-prompts:") && p.system.contains("§13.5.1"),
+        "the 1.7.0 template must carry the §13.5.1 prompt-free guidance"
+    );
+}
+
+#[test]
+fn validate_sh_agent_knows_prompt_free_projects() {
+    let p = prompts::load(
+        "validate-sh-agent",
+        minijinja::context! { spec_ref => "OSS_SPEC.md" },
+    )
+    .unwrap();
+    assert!(
+        p.user.contains("oss-spec:no-llm-prompts:") && p.user.contains("§13.5.1"),
+        "the 1.6.0 checklist must tell the agent to verify a prompt-free claim"
+    );
 }
 
 #[test]
 fn verify_conformance_knows_unlisted_websites() {
     let p = prompts::load(
         "verify-conformance",
-        minijinja::context! { spec => "SPEC", spec_version => "2.12.0", violations => "(test)", file_contents => "(test)" },
+        minijinja::context! { spec => "SPEC", spec_version => "2.13.0", violations => "(test)", file_contents => "(test)" },
     )
     .unwrap();
     assert!(

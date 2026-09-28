@@ -61,5 +61,8 @@ a new version. Keep every prior version on disk so behavior changes can
 be diffed and bisected. Loaders pick the highest version unless
 explicitly pinned.
 
-If this project performs no LLM calls, leave this directory empty
-(this README is enough to satisfy `oss-spec validate`).
+If this project performs no LLM calls, either leave this directory
+empty (this README is enough to satisfy `oss-spec validate`), or delete
+it and add an `oss-spec:no-llm-prompts: <reason>` line to `AGENTS.md`
+([§13.5.1](../OSS_SPEC.md#1351-projects-that-ship-no-llm-prompts)).
+Remove that line again in the change that adds the first prompt.

@@ -1,7 +1,7 @@
 ---
 title: Open Source Project Bootstrap Specification
 description: A prescriptive, language-agnostic specification for bootstrapping a new open source project with the licensing, documentation, automation, governance, and release plumbing that users and contributors expect from a well-run OSS codebase.
-version: 2.12.0
+version: 2.13.0
 ---
 
 # Open Source Project Bootstrap Specification
@@ -49,7 +49,7 @@ first public commit:
 ├── man/                     # CLI manpages, <cli>-command (see §12.3)
 ├── examples/                # Runnable example projects (see §13)
 ├── website/                 # Showcase and hosted docs site (see §11.2)
-├── prompts/                 # Versioned LLM prompts (see §13.5)
+├── prompts/                 # Versioned LLM prompts, if any (see §13.5)
 ├── scripts/                 # Automation scripts (release, lint helpers)
 └── Makefile                 # Standard developer entry points (see §9)
 ```
@@ -1836,9 +1836,48 @@ first-class artifacts: they show up in PR diffs, they can be linted
 and snapshot-tested, and the history of what the model was told is
 preserved next to the code that calls it.
 
-A project that performs no LLM calls may omit `prompts/` entirely.
-Any project that *does* call an LLM must satisfy this rule before its
-first public tag.
+Any project that calls an LLM must satisfy this rule before its first
+public tag.
+
+#### 13.5.1 Projects that ship no LLM prompts
+
+This section — the `prompts/` directory and every rule above — applies
+only to a project that ships LLM prompts. A project that sends no
+prompt to a model (a notes app with no AI features, a parser, a CLI
+that never calls a model) has nothing to version, and a `prompts/`
+directory holding only a placeholder README misleads a reader into
+looking for prompts that do not exist.
+
+The conformance check (§19) cannot see whether source code calls a
+model, so it tells the two cases apart by what the repository says:
+
+- **Shipping prompts.** A subdirectory of `prompts/` is a logical
+  prompt (see *Layout* above). A project with one ships LLM prompts,
+  and every such subdirectory must hold a versioned
+  `<major>_<minor>_<patch>.md` file.
+- **Declared prompt-free.** A project that ships no LLM prompts says so
+  with a marker line anywhere in `AGENTS.md` (§7), in the same form as
+  the §11.3.12 and §20.5.1 markers:
+
+  ```text
+  oss-spec:no-llm-prompts: <reason>
+  ```
+
+  The reason is required and must be non-empty — say why there is
+  nothing to version (for example, "the app has no AI features"). A
+  marker without a reason does not count. With the marker, `prompts/`
+  is not required and may be omitted; if it is present it must not
+  hold a prompt subdirectory, because a shipped prompt contradicts the
+  declaration. Remove the marker in the same change that adds the
+  project's first prompt.
+- **Neither.** A project that has not declared itself prompt-free must
+  have a `prompts/` directory, so the place its prompts belong is
+  there before the first one is written.
+
+The marker covers the project's own model calls. Prompts an agent
+reads while working on the repository — `AGENTS.md` itself, the §21
+agent skills — are guidance files, not LLM prompts the project sends,
+and do not need `prompts/`.
 
 ## 14. Dependency hygiene
 
@@ -2389,7 +2428,9 @@ checked before the first public tag.
 [ ] Website staleness CI check                          (§11.2)
 [ ] examples/ (if applicable) exercised by CI           (§13)
 [ ] prompts/<name>/<major>_<minor>_<patch>.md for every
-    LLM prompt the project sends (if applicable)        (§13.5)
+    LLM prompt the project sends, or an
+    `oss-spec:no-llm-prompts: <reason>` line in
+    AGENTS.md when it sends none                        (§13.5.1)
 [ ] Every prompt has YAML front matter with name,
     description, and version fields matching the stem  (§13.5)
 [ ] Dependabot / Renovate configured                    (§14)

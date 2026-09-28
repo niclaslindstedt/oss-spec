@@ -13,7 +13,7 @@
 //! in environments where the Rust binary cannot be installed (sandboxed
 //! sessions, ephemeral CI runners) can still verify §19 conformance via
 //! `curl … | bash`. **Whenever you add, remove, or modify a rule in any
-//! submodule below — `structural`, `content`, `pwa`, `unlisted`,
+//! submodule below — `structural`, `llm_prompts`, `content`, `pwa`, `unlisted`,
 //! `toolchain`, `agent_skills`, `references` — make the equivalent edit in `scripts/validate.sh`
 //! in the same PR.**
 //! There is no automated drift check between the two implementations;
@@ -24,6 +24,7 @@ use std::path::Path;
 
 mod agent_skills;
 mod content;
+mod llm_prompts;
 mod pwa;
 mod references;
 mod structural;
@@ -31,6 +32,9 @@ mod toolchain;
 mod unlisted;
 
 pub use agent_skills::{extract_front_matter, has_yaml_key, is_kebab_case};
+pub use llm_prompts::{
+    NO_LLM_PROMPTS_MARKER, declares_no_llm_prompts, has_no_llm_prompts_marker, shipped_prompts,
+};
 pub use references::{
     EVIDENCE_KINDS, REGISTRY_PATH, citation_tags, entry_problems, is_bare_doi, is_language_tag,
 };
@@ -130,6 +134,7 @@ pub fn run(path: &Path) -> Result<Report> {
     let mut report = Report::default();
 
     structural::check(&path, &mut report)?;
+    llm_prompts::check(&path, &mut report)?;
     content::check(&path, &mut report)?;
     pwa::check(&path, &mut report)?;
     references::check(&path, &mut report)?;
